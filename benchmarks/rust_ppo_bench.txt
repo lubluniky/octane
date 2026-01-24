@@ -1,0 +1,138 @@
+warning: unused import: `VortexError`
+ --> src/core/tensor.rs:4:35
+  |
+4 | use crate::core::{Device, Result, VortexError};
+  |                                   ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `ActionType` and `Space`
+ --> src/envs/vecenv.rs:4:19
+  |
+4 | use crate::envs::{ActionType, Environment, ObsType, Space, StepInfo, StepResult};
+  |                   ^^^^^^^^^^                        ^^^^^
+
+warning: unused import: `Space`
+ --> src/envs/trading.rs:4:51
+  |
+4 | use crate::envs::{BoxSpace, Environment, ObsType, Space, StepInfo, StepResult};
+  |                                                   ^^^^^
+
+warning: unused import: `VortexError`
+  --> src/algorithms/agent.rs:11:35
+   |
+11 | use crate::core::{Device, Result, VortexError};
+   |                                   ^^^^^^^^^^^
+
+warning: unused import: `DType`
+ --> src/algorithms/rollout.rs:7:19
+  |
+7 | use candle_core::{DType, Tensor};
+  |                   ^^^^^
+
+warning: unused variable: `episode_lengths`
+   --> src/algorithms/ppo.rs:601:43
+    |
+601 |             let (buffer, episode_rewards, episode_lengths) = self.collect_rollout()?;
+    |                                           ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_episode_lengths`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `batch_size`
+   --> src/networks/rnn.rs:206:13
+    |
+206 |         let batch_size = x.dims()[0];
+    |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_batch_size`
+
+warning: unused variable: `device`
+   --> src/networks/actor_critic.rs:256:13
+    |
+256 |         let device = vb.device();
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_device`
+
+warning: missing documentation for a struct field
+  --> src/core/error.rs:18:9
+   |
+18 |         expected: Vec<usize>,
+   |         ^^^^^^^^^^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> src/lib.rs:13:9
+   |
+13 | #![warn(missing_docs, rust_2018_idioms)]
+   |         ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> src/core/error.rs:19:9
+   |
+19 |         got: Vec<usize>,
+   |         ^^^^^^^^^^^^^^^
+
+warning: `vortexrl` (lib) generated 10 warnings (run `cargo fix --lib -p vortexrl` to apply 5 suggestions)
+   Compiling vortexrl v0.1.0 (/Users/borkiss../rocket/vortexrl)
+    Finished `bench` profile [optimized] target(s) in 18.03s
+     Running benches/ppo_benchmark.rs (target/release/deps/ppo_benchmark-d77d88680274a15d)
+Gnuplot not found, using plotters backend
+Benchmarking ppo_loss/64
+Benchmarking ppo_loss/64: Warming up for 3.0000 s
+Benchmarking ppo_loss/64: Collecting 100 samples in estimated 5.0015 s (4.4M iterations)
+Benchmarking ppo_loss/64: Analyzing
+ppo_loss/64             time:   [1.1155 µs 1.1228 µs 1.1334 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high severe
+Benchmarking ppo_loss/256
+Benchmarking ppo_loss/256: Warming up for 3.0000 s
+Benchmarking ppo_loss/256: Collecting 100 samples in estimated 5.0046 s (2.8M iterations)
+Benchmarking ppo_loss/256: Analyzing
+ppo_loss/256            time:   [1.7985 µs 1.8298 µs 1.8919 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  2 (2.00%) high mild
+  7 (7.00%) high severe
+Benchmarking ppo_loss/1024
+Benchmarking ppo_loss/1024: Warming up for 3.0000 s
+Benchmarking ppo_loss/1024: Collecting 100 samples in estimated 5.0040 s (1.2M iterations)
+Benchmarking ppo_loss/1024: Analyzing
+ppo_loss/1024           time:   [4.1055 µs 4.1097 µs 4.1142 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking forward_pass/mlp/32x64
+Benchmarking forward_pass/mlp/32x64: Warming up for 3.0000 s
+Benchmarking forward_pass/mlp/32x64: Collecting 100 samples in estimated 5.0043 s (247k iterations)
+Benchmarking forward_pass/mlp/32x64: Analyzing
+forward_pass/mlp/32x64  time:   [20.043 µs 20.103 µs 20.178 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  3 (3.00%) low mild
+  1 (1.00%) high mild
+  5 (5.00%) high severe
+Benchmarking forward_pass/mlp/128x256
+Benchmarking forward_pass/mlp/128x256: Warming up for 3.0000 s
+Benchmarking forward_pass/mlp/128x256: Collecting 100 samples in estimated 5.6519 s (10k iterations)
+Benchmarking forward_pass/mlp/128x256: Analyzing
+forward_pass/mlp/128x256
+                        time:   [560.47 µs 569.43 µs 584.88 µs]
+Found 13 outliers among 100 measurements (13.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+  6 (6.00%) high severe
+Benchmarking forward_pass/mlp/512x512
+Benchmarking forward_pass/mlp/512x512: Warming up for 3.0000 s
+Benchmarking forward_pass/mlp/512x512: Collecting 100 samples in estimated 5.2524 s (1400 iterations)
+Benchmarking forward_pass/mlp/512x512: Analyzing
+forward_pass/mlp/512x512
+                        time:   [3.7047 ms 3.7217 ms 3.7425 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking advantage_norm/1024
+Benchmarking advantage_norm/1024: Warming up for 3.0000 s
+
+thread 'main' (25005306) panicked at benches/ppo_benchmark.rs:87:61:
+called `Result::unwrap()` on an `Err` value: shape mismatch in sub, lhs: [1024], rhs: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: bench failed, to rerun pass `--bench ppo_benchmark`

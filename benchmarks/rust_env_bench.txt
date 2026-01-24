@@ -1,0 +1,204 @@
+   Compiling vortexrl v0.1.0 (/Users/borkiss../rocket/vortexrl)
+warning: unused import: `VortexError`
+ --> src/core/tensor.rs:4:35
+  |
+4 | use crate::core::{Device, Result, VortexError};
+  |                                   ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `ActionType` and `Space`
+ --> src/envs/vecenv.rs:4:19
+  |
+4 | use crate::envs::{ActionType, Environment, ObsType, Space, StepInfo, StepResult};
+  |                   ^^^^^^^^^^                        ^^^^^
+
+warning: unused import: `Space`
+ --> src/envs/trading.rs:4:51
+  |
+4 | use crate::envs::{BoxSpace, Environment, ObsType, Space, StepInfo, StepResult};
+  |                                                   ^^^^^
+
+warning: unused import: `VortexError`
+  --> src/algorithms/agent.rs:11:35
+   |
+11 | use crate::core::{Device, Result, VortexError};
+   |                                   ^^^^^^^^^^^
+
+warning: unused import: `DType`
+ --> src/algorithms/rollout.rs:7:19
+  |
+7 | use candle_core::{DType, Tensor};
+  |                   ^^^^^
+
+warning: unused variable: `episode_lengths`
+   --> src/algorithms/ppo.rs:601:43
+    |
+601 |             let (buffer, episode_rewards, episode_lengths) = self.collect_rollout()?;
+    |                                           ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_episode_lengths`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `batch_size`
+   --> src/networks/rnn.rs:206:13
+    |
+206 |         let batch_size = x.dims()[0];
+    |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_batch_size`
+
+warning: unused variable: `device`
+   --> src/networks/actor_critic.rs:256:13
+    |
+256 |         let device = vb.device();
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_device`
+
+warning: missing documentation for a struct field
+  --> src/core/error.rs:18:9
+   |
+18 |         expected: Vec<usize>,
+   |         ^^^^^^^^^^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> src/lib.rs:13:9
+   |
+13 | #![warn(missing_docs, rust_2018_idioms)]
+   |         ^^^^^^^^^^^^
+
+warning: missing documentation for a struct field
+  --> src/core/error.rs:19:9
+   |
+19 |         got: Vec<usize>,
+   |         ^^^^^^^^^^^^^^^
+
+warning: `vortexrl` (lib) generated 10 warnings (run `cargo fix --lib -p vortexrl` to apply 5 suggestions)
+warning: unused import: `Space`
+ --> benches/env_benchmark.rs:7:59
+  |
+7 | use vortexrl::envs::{Environment, TradingEnv, MarketData, Space};
+  |                                                           ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `vortexrl` (bench "env_benchmark") generated 1 warning (run `cargo fix --bench "env_benchmark"` to apply 1 suggestion)
+    Finished `bench` profile [optimized] target(s) in 18.35s
+     Running benches/env_benchmark.rs (target/release/deps/env_benchmark-1a9effe5e4790c1f)
+Gnuplot not found, using plotters backend
+Benchmarking single_env_step
+Benchmarking single_env_step: Warming up for 3.0000 s
+Benchmarking single_env_step: Collecting 100 samples in estimated 5.0008 s (22M iterations)
+Benchmarking single_env_step: Analyzing
+single_env_step         time:   [224.09 ns 227.08 ns 232.72 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking vecenv_step/1
+Benchmarking vecenv_step/1: Warming up for 3.0000 s
+Benchmarking vecenv_step/1: Collecting 100 samples in estimated 5.0017 s (7.6M iterations)
+Benchmarking vecenv_step/1: Analyzing
+vecenv_step/1           time:   [651.14 ns 652.92 ns 655.59 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+Benchmarking vecenv_step/8
+Benchmarking vecenv_step/8: Warming up for 3.0000 s
+Benchmarking vecenv_step/8: Collecting 100 samples in estimated 5.0506 s (197k iterations)
+Benchmarking vecenv_step/8: Analyzing
+vecenv_step/8           time:   [25.467 µs 25.623 µs 25.770 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) low mild
+Benchmarking vecenv_step/32
+Benchmarking vecenv_step/32: Warming up for 3.0000 s
+Benchmarking vecenv_step/32: Collecting 100 samples in estimated 5.1720 s (111k iterations)
+Benchmarking vecenv_step/32: Analyzing
+vecenv_step/32          time:   [46.525 µs 46.805 µs 47.158 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+Benchmarking vecenv_step/128
+Benchmarking vecenv_step/128: Warming up for 3.0000 s
+Benchmarking vecenv_step/128: Collecting 100 samples in estimated 5.1129 s (40k iterations)
+Benchmarking vecenv_step/128: Analyzing
+vecenv_step/128         time:   [125.17 µs 127.78 µs 132.35 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high severe
+Benchmarking vecenv_step/512
+Benchmarking vecenv_step/512: Warming up for 3.0000 s
+Benchmarking vecenv_step/512: Collecting 100 samples in estimated 6.2450 s (20k iterations)
+Benchmarking vecenv_step/512: Analyzing
+vecenv_step/512         time:   [306.78 µs 309.47 µs 312.51 µs]
+Found 13 outliers among 100 measurements (13.00%)
+  4 (4.00%) low mild
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking vecenv_step/1024
+Benchmarking vecenv_step/1024: Warming up for 3.0000 s
+Benchmarking vecenv_step/1024: Collecting 100 samples in estimated 6.1913 s (10k iterations)
+Benchmarking vecenv_step/1024: Analyzing
+vecenv_step/1024        time:   [600.82 µs 604.30 µs 608.33 µs]
+Found 14 outliers among 100 measurements (14.00%)
+  2 (2.00%) low severe
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+  6 (6.00%) high severe
+
+Benchmarking env_reset
+Benchmarking env_reset: Warming up for 3.0000 s
+Benchmarking env_reset: Collecting 100 samples in estimated 5.0008 s (23M iterations)
+Benchmarking env_reset: Analyzing
+env_reset               time:   [219.73 ns 221.75 ns 224.67 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking tensor_ops/matmul/64
+Benchmarking tensor_ops/matmul/64: Warming up for 3.0000 s
+Benchmarking tensor_ops/matmul/64: Collecting 100 samples in estimated 5.0009 s (833k iterations)
+Benchmarking tensor_ops/matmul/64: Analyzing
+tensor_ops/matmul/64    time:   [5.9424 µs 6.0199 µs 6.1907 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  2 (2.00%) high mild
+  7 (7.00%) high severe
+Benchmarking tensor_ops/matmul/256
+Benchmarking tensor_ops/matmul/256: Warming up for 3.0000 s
+Benchmarking tensor_ops/matmul/256: Collecting 100 samples in estimated 5.5900 s (35k iterations)
+Benchmarking tensor_ops/matmul/256: Analyzing
+tensor_ops/matmul/256   time:   [156.15 µs 157.23 µs 158.61 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking tensor_ops/matmul/1024
+Benchmarking tensor_ops/matmul/1024: Warming up for 3.0000 s
+Benchmarking tensor_ops/matmul/1024: Collecting 100 samples in estimated 5.1808 s (900 iterations)
+Benchmarking tensor_ops/matmul/1024: Analyzing
+tensor_ops/matmul/1024  time:   [5.6806 ms 5.7178 ms 5.7587 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking tensor_ops/softmax/32
+Benchmarking tensor_ops/softmax/32: Warming up for 3.0000 s
+Benchmarking tensor_ops/softmax/32: Collecting 100 samples in estimated 5.0252 s (747k iterations)
+Benchmarking tensor_ops/softmax/32: Analyzing
+tensor_ops/softmax/32   time:   [6.7186 µs 6.7304 µs 6.7451 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking tensor_ops/softmax/128
+Benchmarking tensor_ops/softmax/128: Warming up for 3.0000 s
+Benchmarking tensor_ops/softmax/128: Collecting 100 samples in estimated 5.0033 s (197k iterations)
+Benchmarking tensor_ops/softmax/128: Analyzing
+tensor_ops/softmax/128  time:   [25.276 µs 25.477 µs 25.757 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  2 (2.00%) high mild
+  6 (6.00%) high severe
+Benchmarking tensor_ops/softmax/512
+Benchmarking tensor_ops/softmax/512: Warming up for 3.0000 s
+Benchmarking tensor_ops/softmax/512: Collecting 100 samples in estimated 5.1375 s (50k iterations)
+Benchmarking tensor_ops/softmax/512: Analyzing
+tensor_ops/softmax/512  time:   [101.60 µs 101.85 µs 102.18 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  8 (8.00%) high mild
+  4 (4.00%) high severe
+
