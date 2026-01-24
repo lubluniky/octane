@@ -18,7 +18,7 @@ full = ["metal", "cuda"]
 
 [dependencies]
 # Tensor Backend - Candle (HuggingFace)
-candle-core = "0.8"
+candle-core = "0.9"
 candle-nn = "0.8"
 
 # Serialization
