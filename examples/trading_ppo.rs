@@ -5,11 +5,11 @@
 //!
 //! Run with: cargo run --example trading_ppo --release
 
-use std::path::Path;
-use rocket_rs::prelude::*;
-use rocket_rs::envs::{TradingEnv, MarketData};
-use rocket_rs::algorithms::{PPOConfig, PPOAgent, RLAlgorithm};
+use rocket_rs::algorithms::{PPOAgent, PPOConfig, RLAlgorithm};
 use rocket_rs::core::Device;
+use rocket_rs::envs::{MarketData, TradingEnv};
+use rocket_rs::prelude::*;
+use std::path::Path;
 
 fn main() -> rocket_rs::Result<()> {
     // Initialize logging

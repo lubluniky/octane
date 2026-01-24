@@ -15,7 +15,7 @@ use crate::algorithms::traits::RLAlgorithm;
 use crate::core::{Device, Result, RocketError};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
-use candle_nn::{Optimizer, VarBuilder, VarMap, AdamW, ParamsAdamW};
+use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
 use rand::prelude::*;
 use std::path::Path;
 use tracing::info;
@@ -72,7 +72,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
         let obs_dim = obs_space.flat_dim();
         let act_dim = act_space.flat_dim();
-        let is_discrete = act_space.shape() == &[1];
+        let is_discrete = act_space.shape() == [1];
 
         let rng = match config.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
@@ -170,7 +170,11 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
         for i in 0..num_layers {
             let linear = candle_nn::linear(
-                if i == 0 { self.obs_dim } else { self.hidden_sizes[i - 1] },
+                if i == 0 {
+                    self.obs_dim
+                } else {
+                    self.hidden_sizes[i - 1]
+                },
                 self.hidden_sizes[i],
                 vb.pp(format!("{}.layer_{}", self.policy_prefix, i)),
             )?;
@@ -197,7 +201,11 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
         for i in 0..num_layers {
             let linear = candle_nn::linear(
-                if i == 0 { self.obs_dim } else { self.hidden_sizes[i - 1] },
+                if i == 0 {
+                    self.obs_dim
+                } else {
+                    self.hidden_sizes[i - 1]
+                },
                 self.hidden_sizes[i],
                 vb.pp(format!("{}.layer_{}", self.value_prefix, i)),
             )?;
@@ -257,15 +265,17 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
             let candle_device = self.device.to_candle()?;
             let actions_tensor = Tensor::from_slice(&actions, &[batch_size, 1], &candle_device)?;
-            let log_probs_tensor = Tensor::from_slice(&action_log_probs, &[batch_size], &candle_device)?;
+            let log_probs_tensor =
+                Tensor::from_slice(&action_log_probs, &[batch_size], &candle_device)?;
 
             Ok((actions_tensor, log_probs_tensor))
         } else {
             // Gaussian distribution for continuous actions
             let mean = logits_or_mean;
-            let log_std = self.log_std.as_ref().ok_or_else(|| {
-                RocketError::InvalidConfig("log_std not initialized".to_string())
-            })?;
+            let log_std = self
+                .log_std
+                .as_ref()
+                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Sample from Gaussian: action = mean + std * noise
@@ -279,7 +289,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             let diff = (&actions - &mean)?;
             let normalized = diff.broadcast_div(&std)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(&log_std)?
+                .broadcast_sub(log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
 
             // Sum over action dimensions
@@ -300,7 +310,9 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
             // Extract log probs for taken actions
             let actions_i64 = actions.squeeze(1)?.to_dtype(DType::I64)?;
-            let action_log_probs = log_probs.gather(&actions_i64.unsqueeze(1)?, 1)?.squeeze(1)?;
+            let action_log_probs = log_probs
+                .gather(&actions_i64.unsqueeze(1)?, 1)?
+                .squeeze(1)?;
 
             // Entropy: -sum(p * log(p))
             let entropy = (probs.neg()? * &log_probs)?.sum(1)?;
@@ -308,9 +320,10 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             Ok((action_log_probs, values, entropy))
         } else {
             let mean = logits_or_mean;
-            let log_std = self.log_std.as_ref().ok_or_else(|| {
-                RocketError::InvalidConfig("log_std not initialized".to_string())
-            })?;
+            let log_std = self
+                .log_std
+                .as_ref()
+                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Log probability for Gaussian
@@ -406,8 +419,8 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             policy_loss: policy_loss_val,
             value_loss: value_loss_val,
             entropy: entropy_val,
-            approx_kl: 0.0,      // Not computed for A2C
-            clip_fraction: 0.0,  // Not applicable to A2C
+            approx_kl: 0.0,     // Not computed for A2C
+            clip_fraction: 0.0, // Not applicable to A2C
             explained_variance: 0.0,
             learning_rate: self.config.learning_rate,
             timesteps: self.total_timesteps,
@@ -422,7 +435,13 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
 
-        let mut buffer = RolloutBuffer::new(n_steps, num_envs, self.obs_dim, self.act_dim, self.device.clone())?;
+        let mut buffer = RolloutBuffer::new(
+            n_steps,
+            num_envs,
+            self.obs_dim,
+            self.act_dim,
+            self.device,
+        )?;
 
         // Reset environments and get initial observations
         let mut obs = self.env.reset(&self.device)?;
@@ -473,7 +492,11 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
         // Compute last value for GAE
         let last_values = self.value_forward(&obs)?.squeeze(1)?;
-        buffer.compute_returns_and_advantages(&last_values, self.config.gamma, self.config.gae_lambda)?;
+        buffer.compute_returns_and_advantages(
+            &last_values,
+            self.config.gamma,
+            self.config.gae_lambda,
+        )?;
 
         self.total_timesteps += n_steps * num_envs;
 
@@ -490,7 +513,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
         let rollout_timesteps = n_steps * num_envs;
-        let n_iterations = (total_timesteps + rollout_timesteps - 1) / rollout_timesteps;
+        let n_iterations = total_timesteps.div_ceil(rollout_timesteps);
 
         for iteration in 0..n_iterations {
             // Collect rollout
@@ -501,11 +524,14 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
             // Update metrics with episode info
             if !episode_rewards.is_empty() {
-                metrics.mean_reward = episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
+                metrics.mean_reward =
+                    episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
                 let mean = metrics.mean_reward;
-                metrics.std_reward = (episode_rewards.iter()
+                metrics.std_reward = (episode_rewards
+                    .iter()
                     .map(|r| (r - mean).powi(2))
-                    .sum::<f32>() / episode_rewards.len() as f32)
+                    .sum::<f32>()
+                    / episode_rewards.len() as f32)
                     .sqrt();
                 metrics.episodes = episode_rewards.len();
             }
@@ -531,7 +557,10 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             }
         }
 
-        info!("Training completed: {} total timesteps", self.total_timesteps);
+        info!(
+            "Training completed: {} total timesteps",
+            self.total_timesteps
+        );
         Ok(())
     }
 
@@ -542,19 +571,20 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         if self.is_discrete {
             if deterministic {
                 // Argmax for deterministic action
-                Ok(logits_or_mean.argmax(1)?.unsqueeze(1)?.to_dtype(DType::F32)?)
+                Ok(logits_or_mean
+                    .argmax(1)?
+                    .unsqueeze(1)?
+                    .to_dtype(DType::F32)?)
             } else {
                 let (action, _) = self.sample_action(obs)?;
                 Ok(action)
             }
+        } else if deterministic {
+            // Use mean directly
+            Ok(logits_or_mean)
         } else {
-            if deterministic {
-                // Use mean directly
-                Ok(logits_or_mean)
-            } else {
-                let (action, _) = self.sample_action(obs)?;
-                Ok(action)
-            }
+            let (action, _) = self.sample_action(obs)?;
+            Ok(action)
         }
     }
 
@@ -570,7 +600,8 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for A2CAgent<E> {
         let mut metrics = self.update(&buffer)?;
 
         if !episode_rewards.is_empty() {
-            metrics.mean_reward = episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
+            metrics.mean_reward =
+                episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
             metrics.episodes = episode_rewards.len();
         }
 
@@ -579,7 +610,8 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for A2CAgent<E> {
 
     fn save(&self, path: &Path) -> Result<()> {
         let data = self.var_map.data().lock().unwrap();
-        let mut tensors: std::collections::HashMap<String, Tensor> = std::collections::HashMap::new();
+        let mut tensors: std::collections::HashMap<String, Tensor> =
+            std::collections::HashMap::new();
 
         for (name, var) in data.iter() {
             // Convert Var to Tensor by getting the inner tensor

@@ -93,7 +93,11 @@ impl Space for BoxSpace {
             .collect();
 
         let candle_device = device.to_candle()?;
-        Ok(Tensor::from_slice(&data, self.shape.as_slice(), &candle_device)?)
+        Ok(Tensor::from_slice(
+            &data,
+            self.shape.as_slice(),
+            &candle_device,
+        )?)
     }
 
     fn contains(&self, tensor: &Tensor) -> Result<bool> {

@@ -196,9 +196,9 @@ impl TradingEnv {
                 // Simple normalization (could be improved)
                 let normalized = match j {
                     0..=3 => (val - 100.0) / 100.0, // prices
-                    4 => (val - 750.0) / 250.0,    // volume
+                    4 => (val - 750.0) / 250.0,     // volume
                     5 => val - 1.0,                 // sma_ratio
-                    6 => (val - 50.0) / 50.0,      // rsi
+                    6 => (val - 50.0) / 50.0,       // rsi
                     _ => val,                       // others
                 };
                 obs.push(normalized);
@@ -247,7 +247,8 @@ impl Environment for TradingEnv {
 
     fn step(&mut self, action: &Tensor, device: &Device) -> Result<StepResult> {
         let action_vec: Vec<f32> = action.flatten_all()?.to_vec1()?;
-        let target_position = action_vec[0].clamp(-self.config.max_position, self.config.max_position);
+        let target_position =
+            action_vec[0].clamp(-self.config.max_position, self.config.max_position);
 
         let price = self.current_price();
 
@@ -272,7 +273,8 @@ impl Environment for TradingEnv {
 
         // Calculate reward (portfolio return)
         let portfolio_before = self.balance + self.position * price * self.config.initial_balance;
-        let portfolio_after = self.balance + self.position * new_price * self.config.initial_balance;
+        let portfolio_after =
+            self.balance + self.position * new_price * self.config.initial_balance;
         let reward = (portfolio_after - portfolio_before) / self.config.initial_balance;
 
         // Check termination
@@ -282,8 +284,8 @@ impl Environment for TradingEnv {
         let observation = self.build_observation(device)?;
 
         let info = if episode_done || bankrupt {
-            let total_return = (portfolio_after - self.initial_portfolio_value)
-                / self.initial_portfolio_value;
+            let total_return =
+                (portfolio_after - self.initial_portfolio_value) / self.initial_portfolio_value;
             Some(StepInfo {
                 episode_return: Some(total_return),
                 episode_length: Some(self.current_step - self.config.lookback),

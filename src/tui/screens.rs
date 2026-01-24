@@ -94,14 +94,12 @@ pub fn render_dashboard(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Render a mini version of the logo for dashboard.
 fn render_mini_logo(frame: &mut Frame, app: &App, area: Rect) {
-    let logo_lines = vec![
-        "██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗",
+    let logo_lines = ["██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗",
         "██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝",
         "██████╔╝██║   ██║██║     █████╔╝ █████╗     ██║   ",
         "██╔══██╗██║   ██║██║     ██╔═██╗ ██╔══╝     ██║   ",
         "██║  ██║╚██████╔╝╚██████╗██║  ██╗███████╗   ██║   ",
-        "╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ",
-    ];
+        "╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝   "];
 
     let pulse = app.pulse();
     let base_color = if app.training_active {
@@ -167,17 +165,11 @@ fn render_quick_stats(frame: &mut Frame<'_>, app: &App, area: Rect) {
         // Hardware info
         Line::from(vec![
             Span::styled("CPU: ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                cpu_short,
-                Style::default().fg(Color::White),
-            ),
+            Span::styled(cpu_short, Style::default().fg(Color::White)),
         ]),
         Line::from(vec![
             Span::styled("GPU: ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                gpu_short,
-                Style::default().fg(Color::Cyan),
-            ),
+            Span::styled(gpu_short, Style::default().fg(Color::Cyan)),
         ]),
         Line::from(vec![
             Span::styled("Cores: ", Style::default().fg(Color::Gray)),
@@ -328,7 +320,12 @@ fn render_about_info(frame: &mut Frame, _app: &App, area: Rect) {
     let info = vec![
         Line::from(""),
         Line::from(vec![
-            Span::styled("RocketRL", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "RocketRL",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" - High-Performance RL Library"),
         ]),
         Line::from(""),
@@ -352,7 +349,9 @@ fn render_about_info(frame: &mut Frame, _app: &App, area: Rect) {
         Line::from(""),
         Line::from(Span::styled(
             "github.com/rocketrl/rocketrl",
-            Style::default().fg(Color::Blue).add_modifier(Modifier::UNDERLINED),
+            Style::default()
+                .fg(Color::Blue)
+                .add_modifier(Modifier::UNDERLINED),
         )),
     ];
 
@@ -396,7 +395,10 @@ fn render_about_features(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(vec![
             check.clone(),
             Span::raw(" "),
-            Span::styled("GPU Acceleration (Metal/CUDA)", Style::default().fg(Color::White)),
+            Span::styled(
+                "GPU Acceleration (Metal/CUDA)",
+                Style::default().fg(Color::White),
+            ),
         ]),
         Line::from(vec![
             check.clone(),
@@ -411,14 +413,19 @@ fn render_about_features(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(vec![
             check.clone(),
             Span::raw(" "),
-            Span::styled("GAE for Advantage Estimation", Style::default().fg(Color::White)),
+            Span::styled(
+                "GAE for Advantage Estimation",
+                Style::default().fg(Color::White),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Active Envs: ", Style::default().fg(Color::Gray)),
             Span::styled(
                 format!("{}", app.system_metrics.active_envs),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
     ];

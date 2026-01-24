@@ -37,16 +37,17 @@ pub trait Policy: Send + Sync {
     ///
     /// # Returns
     /// Action tensor [batch_size, act_dim]
-    fn predict(&self, obs: &candle_core::Tensor, deterministic: bool) -> Result<candle_core::Tensor>;
+    fn predict(
+        &self,
+        obs: &candle_core::Tensor,
+        deterministic: bool,
+    ) -> Result<candle_core::Tensor>;
 
     /// Get action distribution parameters for a given observation.
     ///
     /// For discrete actions, returns logits.
     /// For continuous actions, returns (mean, log_std).
-    fn get_distribution(
-        &self,
-        obs: &candle_core::Tensor,
-    ) -> Result<PolicyDistribution>;
+    fn get_distribution(&self, obs: &candle_core::Tensor) -> Result<PolicyDistribution>;
 }
 
 /// Policy distribution parameters.
@@ -91,7 +92,11 @@ pub trait ActorCritic: Policy + ValueFunction {
         &self,
         obs: &candle_core::Tensor,
         actions: &candle_core::Tensor,
-    ) -> Result<(candle_core::Tensor, candle_core::Tensor, candle_core::Tensor)>;
+    ) -> Result<(
+        candle_core::Tensor,
+        candle_core::Tensor,
+        candle_core::Tensor,
+    )>;
 }
 
 /// Callback trait for training hooks.

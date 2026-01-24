@@ -2,10 +2,10 @@
 //!
 //! Run with: cargo bench --bench env_benchmark
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use rocket_rs::core::Device;
-use rocket_rs::envs::{Environment, TradingEnv, MarketData, Space};
 use candle_core::Tensor;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use rocket_rs::core::Device;
+use rocket_rs::envs::{Environment, MarketData, Space, TradingEnv};
 
 fn benchmark_single_env_step(c: &mut Criterion) {
     let device = Device::cpu();
@@ -39,17 +39,12 @@ fn benchmark_vecenv_step(c: &mut Criterion) {
         let _ = vec_env.reset(&device).unwrap();
 
         let candle_device = device.to_candle().unwrap();
-        let actions = Tensor::zeros(&[*num_envs, 1], candle_core::DType::F32, &candle_device).unwrap();
+        let actions =
+            Tensor::zeros(&[*num_envs, 1], candle_core::DType::F32, &candle_device).unwrap();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(num_envs),
-            num_envs,
-            |b, _| {
-                b.iter(|| {
-                    black_box(vec_env.step(&actions, &device).unwrap())
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(num_envs), num_envs, |b, _| {
+            b.iter(|| black_box(vec_env.step(&actions, &device).unwrap()))
+        });
     }
 
     group.finish();
@@ -61,9 +56,7 @@ fn benchmark_env_reset(c: &mut Criterion) {
     let mut env = TradingEnv::new(data).unwrap();
 
     c.bench_function("env_reset", |b| {
-        b.iter(|| {
-            black_box(env.reset(&device).unwrap())
-        })
+        b.iter(|| black_box(env.reset(&device).unwrap()))
     });
 }
 
@@ -77,15 +70,9 @@ fn benchmark_tensor_ops(c: &mut Criterion) {
         let a = Tensor::randn(0.0f32, 1.0, &[*size, *size], &candle_device).unwrap();
         let b = Tensor::randn(0.0f32, 1.0, &[*size, *size], &candle_device).unwrap();
 
-        group.bench_with_input(
-            BenchmarkId::new("matmul", size),
-            size,
-            |bench, _| {
-                bench.iter(|| {
-                    black_box(a.matmul(&b).unwrap())
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("matmul", size), size, |bench, _| {
+            bench.iter(|| black_box(a.matmul(&b).unwrap()))
+        });
     }
 
     for batch_size in [32, 128, 512].iter() {
@@ -94,11 +81,7 @@ fn benchmark_tensor_ops(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("softmax", batch_size),
             batch_size,
-            |bench, _| {
-                bench.iter(|| {
-                    black_box(candle_nn::ops::softmax(&logits, 1).unwrap())
-                })
-            },
+            |bench, _| bench.iter(|| black_box(candle_nn::ops::softmax(&logits, 1).unwrap())),
         );
     }
 

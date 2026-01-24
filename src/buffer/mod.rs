@@ -248,21 +248,23 @@ impl RolloutBuffer {
             ));
         }
 
-        let rewards = self.rewards.as_ref().ok_or_else(|| {
-            RocketError::Buffer("Rewards not available".to_string())
-        })?;
-        let dones = self.dones.as_ref().ok_or_else(|| {
-            RocketError::Buffer("Dones not available".to_string())
-        })?;
-        let values = self.values.as_ref().ok_or_else(|| {
-            RocketError::Buffer("Values not available".to_string())
-        })?;
+        let rewards = self
+            .rewards
+            .as_ref()
+            .ok_or_else(|| RocketError::Buffer("Rewards not available".to_string()))?;
+        let dones = self
+            .dones
+            .as_ref()
+            .ok_or_else(|| RocketError::Buffer("Dones not available".to_string()))?;
+        let values = self
+            .values
+            .as_ref()
+            .ok_or_else(|| RocketError::Buffer("Values not available".to_string()))?;
 
         let candle_device = self.device.to_candle()?;
 
         // Initialize advantage accumulator [num_envs]
-        let mut last_gae_lam =
-            Tensor::zeros(&[self.num_envs], DType::F32, &candle_device)?;
+        let mut last_gae_lam = Tensor::zeros(&[self.num_envs], DType::F32, &candle_device)?;
 
         // Pre-allocate advantages vector
         let mut advantages_vec: Vec<Tensor> = Vec::with_capacity(self.buffer_size);
@@ -271,8 +273,8 @@ impl RolloutBuffer {
         for step in (0..self.buffer_size).rev() {
             // Get tensors for this step
             let reward = rewards.get(step)?; // [num_envs]
-            let value = values.get(step)?;   // [num_envs]
-            let done = dones.get(step)?;     // [num_envs]
+            let value = values.get(step)?; // [num_envs]
+            let done = dones.get(step)?; // [num_envs]
 
             // Get next value: either from buffer or from last_values
             let next_value = if step == self.buffer_size - 1 {
@@ -384,12 +386,13 @@ impl RolloutBuffer {
 
         for batch_idx in 0..num_batches {
             let start = batch_idx * batch_size;
-            let batch_indices: Vec<u32> =
-                indices[start..start + batch_size].iter().map(|&i| i as u32).collect();
+            let batch_indices: Vec<u32> = indices[start..start + batch_size]
+                .iter()
+                .map(|&i| i as u32)
+                .collect();
 
             // Create index tensor
-            let idx_tensor =
-                Tensor::from_slice(&batch_indices, (batch_size,), &candle_device)?;
+            let idx_tensor = Tensor::from_slice(&batch_indices, (batch_size,), &candle_device)?;
 
             // Index into flattened tensors
             let batch_obs = flat_obs.index_select(&idx_tensor, 0)?;
@@ -691,8 +694,7 @@ mod tests {
             let reward = Tensor::from_slice(&[1.0f32, 1.0, 1.0, 1.0], (4,), &candle_device)?;
             let done = Tensor::zeros((4,), DType::F32, &candle_device)?;
             let value = Tensor::from_slice(&[0.5f32, 0.5, 0.5, 0.5], (4,), &candle_device)?;
-            let log_prob =
-                Tensor::from_slice(&[-1.0f32, -1.0, -1.0, -1.0], (4,), &candle_device)?;
+            let log_prob = Tensor::from_slice(&[-1.0f32, -1.0, -1.0, -1.0], (4,), &candle_device)?;
 
             buffer.add(&obs, &action, &reward, &done, &value, &log_prob)?;
         }
@@ -854,7 +856,12 @@ mod tests {
         let adv_vec: Vec<f32> = advantages.flatten_all()?.to_vec1()?;
 
         // Check that step 0 has higher advantage than step 1
-        assert!(adv_vec[0] > adv_vec[1], "GAE should accumulate: {} > {}", adv_vec[0], adv_vec[1]);
+        assert!(
+            adv_vec[0] > adv_vec[1],
+            "GAE should accumulate: {} > {}",
+            adv_vec[0],
+            adv_vec[1]
+        );
 
         Ok(())
     }

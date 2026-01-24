@@ -217,11 +217,15 @@ impl RolloutBuffer {
         }
 
         let advantages = self.advantages.as_ref().ok_or_else(|| {
-            RocketError::Buffer("Advantages not computed. Call compute_returns_and_advantages first.".to_string())
+            RocketError::Buffer(
+                "Advantages not computed. Call compute_returns_and_advantages first.".to_string(),
+            )
         })?;
 
         let returns = self.returns.as_ref().ok_or_else(|| {
-            RocketError::Buffer("Returns not computed. Call compute_returns_and_advantages first.".to_string())
+            RocketError::Buffer(
+                "Returns not computed. Call compute_returns_and_advantages first.".to_string(),
+            )
         })?;
 
         // Stack all tensors along time dimension
@@ -259,7 +263,7 @@ impl RolloutBuffer {
     pub fn get_batches(&self, batch_size: usize) -> Result<Vec<RolloutSample>> {
         let all_data = self.get_all()?;
         let n_samples = all_data.observations.dim(0)?;
-        let n_batches = (n_samples + batch_size - 1) / batch_size;
+        let n_batches = n_samples.div_ceil(batch_size);
 
         let mut batches = Vec::with_capacity(n_batches);
 
@@ -355,7 +359,7 @@ impl BatchSampler {
 
     /// Get number of batches.
     pub fn n_batches(&self) -> usize {
-        (self.indices.len() + self.batch_size - 1) / self.batch_size
+        self.indices.len().div_ceil(self.batch_size)
     }
 }
 

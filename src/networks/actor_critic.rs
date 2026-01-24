@@ -4,15 +4,15 @@
 //! that supports both discrete and continuous action spaces, with optional
 //! recurrent layers for time-series data like trading.
 
-use candle_core::{Device, Tensor, Result as CandleResult};
+use candle_core::{Device, Result as CandleResult, Tensor};
 use candle_nn::{Module, VarBuilder};
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 use candle_core::DType;
 
-use super::mlp::{MLP, MLPConfig, Activation};
-use super::rnn::{LSTM, GRU, LSTMState, GRUState, RNNConfig};
+use super::mlp::{Activation, MLPConfig, MLP};
+use super::rnn::{GRUState, LSTMState, RNNConfig, GRU, LSTM};
 
 /// Action space specification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,8 +61,14 @@ impl ActionSpace {
     pub fn action_dim(&self) -> usize {
         match self {
             ActionSpace::Discrete { n } => *n,
-            ActionSpace::Continuous { dim, learnable_std, .. } => {
-                if *learnable_std { dim * 2 } else { *dim }
+            ActionSpace::Continuous {
+                dim, learnable_std, ..
+            } => {
+                if *learnable_std {
+                    dim * 2
+                } else {
+                    *dim
+                }
             }
         }
     }
@@ -70,8 +76,10 @@ impl ActionSpace {
 
 /// Type of recurrent backbone.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default)]
 pub enum RecurrentType {
     /// No recurrent layer (feedforward only).
+    #[default]
     None,
     /// LSTM recurrent layer.
     LSTM,
@@ -79,11 +87,6 @@ pub enum RecurrentType {
     GRU,
 }
 
-impl Default for RecurrentType {
-    fn default() -> Self {
-        RecurrentType::None
-    }
-}
 
 /// Recurrent state for ActorCritic networks.
 #[derive(Debug, Clone)]
@@ -303,22 +306,16 @@ impl ActorCritic {
             };
             (backbone, None, None)
         } else {
-            let actor_mlp_config = MLPConfig::new(
-                config.obs_dim,
-                config.hidden_dims.clone(),
-                backbone_out_dim,
-            )
-            .with_activation(config.activation)
-            .with_output_activation(config.activation);
+            let actor_mlp_config =
+                MLPConfig::new(config.obs_dim, config.hidden_dims.clone(), backbone_out_dim)
+                    .with_activation(config.activation)
+                    .with_output_activation(config.activation);
             let actor_backbone = MLP::new(vb.pp("actor_backbone"), actor_mlp_config)?;
 
-            let critic_mlp_config = MLPConfig::new(
-                config.obs_dim,
-                config.hidden_dims.clone(),
-                backbone_out_dim,
-            )
-            .with_activation(config.activation)
-            .with_output_activation(config.activation);
+            let critic_mlp_config =
+                MLPConfig::new(config.obs_dim, config.hidden_dims.clone(), backbone_out_dim)
+                    .with_activation(config.activation)
+                    .with_output_activation(config.activation);
             let critic_backbone = MLP::new(vb.pp("critic_backbone"), critic_mlp_config)?;
 
             (None, Some(actor_backbone), Some(critic_backbone))
@@ -332,8 +329,12 @@ impl ActorCritic {
         };
         let actor_output_dim = config.action_space.action_dim();
         let actor_head_config = if !config.actor_head_dims.is_empty() {
-            MLPConfig::new(actor_input_dim, config.actor_head_dims.clone(), actor_output_dim)
-                .with_activation(config.activation)
+            MLPConfig::new(
+                actor_input_dim,
+                config.actor_head_dims.clone(),
+                actor_output_dim,
+            )
+            .with_activation(config.activation)
         } else {
             MLPConfig::new(actor_input_dim, vec![], actor_output_dim)
         };
@@ -359,9 +360,11 @@ impl ActorCritic {
                 dim,
                 learnable_std: true,
                 init_log_std,
-            } => {
-                Some(vb.get_with_hints(&[*dim], "log_std", candle_nn::Init::Const((*init_log_std) as f64))?)
-            }
+            } => Some(vb.get_with_hints(
+                &[*dim],
+                "log_std",
+                candle_nn::Init::Const((*init_log_std) as f64),
+            )?),
             _ => None,
         };
 
@@ -383,7 +386,11 @@ impl ActorCritic {
     }
 
     /// Initialize recurrent state for given batch size.
-    pub fn init_recurrent_state(&self, batch_size: usize, device: &Device) -> CandleResult<RecurrentState> {
+    pub fn init_recurrent_state(
+        &self,
+        batch_size: usize,
+        device: &Device,
+    ) -> CandleResult<RecurrentState> {
         match &self.recurrent {
             RecurrentBackbone::None => Ok(RecurrentState::None),
             RecurrentBackbone::LSTM(lstm) => {

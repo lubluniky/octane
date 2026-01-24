@@ -142,14 +142,26 @@ pub fn render_rocket_animation(frame: &mut Frame, app: &App, area: Rect) {
     let flame_char = FLAMES[flame_idx];
 
     let rocket = vec![
-        Line::from(Span::styled("    /\\    ", Style::default().fg(Color::White))),
-        Line::from(Span::styled("   /  \\   ", Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "    /\\    ",
+            Style::default().fg(Color::White),
+        )),
+        Line::from(Span::styled(
+            "   /  \\   ",
+            Style::default().fg(Color::White),
+        )),
         Line::from(Span::styled("  |    |  ", Style::default().fg(Color::Gray))),
         Line::from(Span::styled("  |    |  ", Style::default().fg(Color::Gray))),
         Line::from(Span::styled("  | RL |  ", Style::default().fg(Color::Cyan))),
         Line::from(Span::styled("  |    |  ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled(" /|    |\\ ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled("/_|____|_\\", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled(
+            " /|    |\\ ",
+            Style::default().fg(Color::Gray),
+        )),
+        Line::from(Span::styled(
+            "/_|____|_\\",
+            Style::default().fg(Color::Gray),
+        )),
         Line::from(Span::styled(
             format!("   {}{}{}", flame_char, flame_char, flame_char),
             Style::default().fg(Color::Rgb(255, 100, 0)),

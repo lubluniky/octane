@@ -21,7 +21,11 @@ pub fn render_cpu_gauge(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Truncate CPU name for title
     let cpu_name = &app.system_metrics.cpu_name;
     let title = if cpu_name.len() > 30 {
-        format!(" {} ({} cores) ", &cpu_name[..27], app.system_metrics.cpu_cores)
+        format!(
+            " {} ({} cores) ",
+            &cpu_name[..27],
+            app.system_metrics.cpu_cores
+        )
     } else if !cpu_name.is_empty() && cpu_name != "Unknown CPU" {
         format!(" {} ({} cores) ", cpu_name, app.system_metrics.cpu_cores)
     } else {
