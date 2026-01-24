@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   RUST_BACKTRACE: 1
@@ -45,11 +45,11 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run tests
-        run: cargo test --verbose --all-features
+      - name: Run tests (default features)
+        run: cargo test --verbose
 
-      - name: Run tests (no default features)
-        run: cargo test --verbose --no-default-features
+      - name: Run tests (CPU only)
+        run: cargo test --verbose --no-default-features --features cpu
 
       - name: Run doc tests
         run: cargo test --doc --verbose
@@ -99,8 +99,11 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Run clippy (default features)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run clippy (CPU only)
+        run: cargo clippy --all-targets --no-default-features --features cpu -- -D warnings
 
   build:
     name: Build
@@ -145,11 +148,18 @@ jobs:
       - name: Build (default features)
         run: cargo build --verbose
 
-      - name: Build (all features)
-        run: cargo build --verbose --all-features
+      - name: Build (CPU only)
+        run: cargo build --verbose --no-default-features --features cpu
 
       - name: Build (release)
         run: cargo build --verbose --release
+
+      - name: Build Metal (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: cargo build --verbose --features metal
+
+      - name: Build release (CPU only)
+        run: cargo build --verbose --release --no-default-features --features cpu
 
   docs:
     name: Documentation
@@ -180,7 +190,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build documentation
-        run: cargo doc --no-deps --all-features
+        run: cargo doc --no-deps --no-default-features --features cpu
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -210,7 +220,7 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+        run: cargo tarpaulin --verbose --no-default-features --features cpu --workspace --timeout 120 --out xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

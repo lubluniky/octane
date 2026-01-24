@@ -8,9 +8,11 @@
 
 *Blazingly fast RL for algorithmic trading and beyond*
 
+[![CI](https://github.com/lubluniky/rocket-rs/workflows/CI/badge.svg)](https://github.com/lubluniky/rocket-rs/actions)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](#license)
 [![Candle](https://img.shields.io/badge/backend-Candle-green.svg)](https://github.com/huggingface/candle)
+[![Crates.io](https://img.shields.io/crates/v/rocket-rs.svg)](https://crates.io/crates/rocket-rs)
 
 </div>
 
