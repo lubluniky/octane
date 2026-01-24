@@ -50,7 +50,7 @@ num-traits = "0.2"
 ordered-float = "4.0"
 
 # TUI
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 
 # System metrics
