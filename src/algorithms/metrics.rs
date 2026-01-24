@@ -189,9 +189,8 @@ impl RewardStats {
         }
 
         let mean = self.windowed_mean();
-        let variance = self.recent.iter()
-            .map(|&r| (r - mean).powi(2))
-            .sum::<f32>() / self.recent.len() as f32;
+        let variance =
+            self.recent.iter().map(|&r| (r - mean).powi(2)).sum::<f32>() / self.recent.len() as f32;
         variance.sqrt()
     }
 
@@ -301,7 +300,8 @@ impl ProgressTracker {
 
     /// Get the best mean reward from history.
     pub fn best_reward(&self) -> f32 {
-        self.history.iter()
+        self.history
+            .iter()
             .map(|m| m.mean_reward)
             .fold(f32::NEG_INFINITY, f32::max)
     }

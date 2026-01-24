@@ -107,10 +107,7 @@ pub fn render_speedup_indicators(frame: &mut Frame, app: &App, area: Rect) {
         };
 
         lines.push(Line::from(vec![
-            Span::styled(
-                format!("{:<15}", name),
-                Style::default().fg(Color::Gray),
-            ),
+            Span::styled(format!("{:<15}", name), Style::default().fg(Color::Gray)),
             Span::styled(
                 format!("{:>6.1}x", speedup),
                 Style::default()

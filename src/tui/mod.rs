@@ -345,7 +345,10 @@ fn get_gpu_info() -> (String, f64) {
 fn get_gpu_info() -> (String, f64) {
     // For NVIDIA GPUs, could use nvidia-smi
     let output = Command::new("nvidia-smi")
-        .args(["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
+        .args([
+            "--query-gpu=name,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
         .output();
 
     if let Ok(output) = output {
@@ -411,18 +414,14 @@ fn get_gpu_usage() -> (f32, f64) {
     }
 
     // Fallback: estimate from running Metal processes
-    let output = Command::new("ps")
-        .args(["aux"])
-        .output();
+    let output = Command::new("ps").args(["aux"]).output();
 
     if let Ok(output) = output {
         if let Ok(text) = String::from_utf8(output.stdout) {
             // Count GPU-related processes
             let gpu_processes = text
                 .lines()
-                .filter(|l| {
-                    l.contains("Metal") || l.contains("GPU") || l.contains("WindowServer")
-                })
+                .filter(|l| l.contains("Metal") || l.contains("GPU") || l.contains("WindowServer"))
                 .count();
 
             // Rough estimate based on process count
@@ -500,11 +499,7 @@ impl Tui {
     /// Initialize the terminal for TUI mode.
     pub fn enter(&mut self) -> io::Result<()> {
         enable_raw_mode()?;
-        execute!(
-            io::stdout(),
-            EnterAlternateScreen,
-            EnableMouseCapture
-        )?;
+        execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
         self.terminal.hide_cursor()?;
         self.terminal.clear()?;
         Ok(())
@@ -513,11 +508,7 @@ impl Tui {
     /// Restore the terminal to normal mode.
     pub fn exit(&mut self) -> io::Result<()> {
         disable_raw_mode()?;
-        execute!(
-            io::stdout(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
+        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
         self.terminal.show_cursor()?;
         Ok(())
     }
@@ -597,10 +588,8 @@ fn simulate_system_metrics(app: &mut App) {
     let cpu_delta: f32 = rng.gen_range(-5.0..5.0);
     let gpu_delta: f32 = rng.gen_range(-3.0..3.0);
 
-    app.system_metrics.cpu_usage =
-        (app.system_metrics.cpu_usage + cpu_delta).clamp(15.0, 85.0);
-    app.system_metrics.gpu_usage =
-        (app.system_metrics.gpu_usage + gpu_delta).clamp(30.0, 95.0);
+    app.system_metrics.cpu_usage = (app.system_metrics.cpu_usage + cpu_delta).clamp(15.0, 85.0);
+    app.system_metrics.gpu_usage = (app.system_metrics.gpu_usage + gpu_delta).clamp(30.0, 95.0);
 
     // Memory varies less
     let mem_delta: f64 = rng.gen_range(-100.0..100.0);

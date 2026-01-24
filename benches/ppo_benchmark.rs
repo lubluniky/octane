@@ -2,8 +2,8 @@
 //!
 //! Run with: cargo bench --bench ppo_benchmark
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use candle_core::Tensor;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use rocket_rs::core::Device;
 
 fn benchmark_ppo_loss_computation(c: &mut Criterion) {
@@ -76,22 +76,18 @@ fn benchmark_advantage_normalization(c: &mut Criterion) {
     for size in [1024, 4096, 16384].iter() {
         let advantages = Tensor::randn(0.0f64, 1.0, &[*size], &candle_device).unwrap();
 
-        group.bench_with_input(
-            BenchmarkId::from_parameter(size),
-            size,
-            |b, _| {
-                b.iter(|| {
-                    let mean = advantages.mean_all().unwrap();
-                    let mean_val: f64 = mean.to_scalar().unwrap();
-                    let centered = (&advantages - mean_val).unwrap();
-                    let var = centered.sqr().unwrap().mean_all().unwrap();
-                    let var_val: f64 = var.to_scalar().unwrap();
-                    let std = (var_val + 1e-8).sqrt();
-                    let normalized = (&centered / std).unwrap();
-                    black_box(normalized)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _| {
+            b.iter(|| {
+                let mean = advantages.mean_all().unwrap();
+                let mean_val: f64 = mean.to_scalar().unwrap();
+                let centered = (&advantages - mean_val).unwrap();
+                let var = centered.sqr().unwrap().mean_all().unwrap();
+                let var_val: f64 = var.to_scalar().unwrap();
+                let std = (var_val + 1e-8).sqrt();
+                let normalized = (&centered / std).unwrap();
+                black_box(normalized)
+            })
+        });
     }
 
     group.finish();

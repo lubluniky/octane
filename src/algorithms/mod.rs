@@ -69,44 +69,30 @@
 //! L = L_policy + c1 * L_value - c2 * H[pi]
 //! ```
 
+mod a2c;
 mod agent;
 mod config;
 mod metrics;
 mod ppo;
-mod a2c;
 mod rollout;
 mod traits;
 
 // Re-exports for public API
-pub use agent::{Agent, AgentBuilder, AlgorithmConfig};
-pub use config::{PPOConfig, A2CConfig, NetworkConfig, Activation};
-pub use metrics::{TrainMetrics, RewardStats, ProgressTracker};
-pub use ppo::PPOAgent;
 pub use a2c::A2CAgent;
-pub use rollout::{RolloutBuffer, RolloutSample, BatchSampler};
+pub use agent::{Agent, AgentBuilder, AlgorithmConfig};
+pub use config::{A2CConfig, Activation, NetworkConfig, PPOConfig};
+pub use metrics::{ProgressTracker, RewardStats, TrainMetrics};
+pub use ppo::PPOAgent;
+pub use rollout::{BatchSampler, RolloutBuffer, RolloutSample};
 pub use traits::{
-    RLAlgorithm,
-    Policy,
-    ValueFunction,
-    ActorCritic,
-    PolicyDistribution,
-    TrainCallback,
-    NoOpCallback,
-    LoggingCallback,
-    EarlyStoppingCallback,
-    CallbackList,
+    ActorCritic, CallbackList, EarlyStoppingCallback, LoggingCallback, NoOpCallback, Policy,
+    PolicyDistribution, RLAlgorithm, TrainCallback, ValueFunction,
 };
 
 /// Prelude for convenient imports.
 pub mod prelude {
     pub use super::{
-        Agent,
-        AgentBuilder,
-        PPOConfig,
-        A2CConfig,
-        TrainMetrics,
-        RLAlgorithm,
-        TrainCallback,
+        A2CConfig, Agent, AgentBuilder, PPOConfig, RLAlgorithm, TrainCallback, TrainMetrics,
     };
 }
 

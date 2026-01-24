@@ -6,8 +6,10 @@ use std::fmt;
 
 /// Compute device for tensor operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Device {
     /// CPU backend (always available)
+    #[default]
     Cpu,
     /// Apple Metal backend (M1/M2/M3/M4)
     #[cfg(feature = "metal")]
@@ -58,11 +60,6 @@ impl Device {
     }
 }
 
-impl Default for Device {
-    fn default() -> Self {
-        Device::Cpu
-    }
-}
 
 impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

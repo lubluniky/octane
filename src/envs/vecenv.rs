@@ -111,17 +111,15 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             .envs
             .par_iter()
             .map(|env| {
-                let mut env = env.lock().map_err(|e| {
-                    RocketError::Environment(format!("Lock poisoned: {}", e))
-                })?;
+                let mut env = env
+                    .lock()
+                    .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
                 env.reset(device)
             })
             .collect();
 
         // Check for errors and stack observations
-        let obs_vec: Vec<Tensor> = observations
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?;
+        let obs_vec: Vec<Tensor> = observations.into_iter().collect::<Result<Vec<_>>>()?;
 
         Tensor::stack(&obs_vec, 0).map_err(Into::into)
     }
@@ -141,9 +139,9 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             .par_iter()
             .zip(action_list.par_iter())
             .map(|(env, action)| {
-                let mut env = env.lock().map_err(|e| {
-                    RocketError::Environment(format!("Lock poisoned: {}", e))
-                })?;
+                let mut env = env
+                    .lock()
+                    .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
                 let result = env.step(action, device)?;
 
                 // Auto-reset if done
@@ -194,11 +192,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
 
     /// Step with async processing (useful for I/O bound envs).
     #[cfg(feature = "tokio")]
-    pub async fn step_async(
-        &mut self,
-        actions: &Tensor,
-        device: &Device,
-    ) -> Result<VecStepResult> {
+    pub async fn step_async(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
         // For I/O bound environments, use tokio for concurrent stepping
         use tokio::task;
 
@@ -229,9 +223,9 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         let mut infos = Vec::with_capacity(num_envs);
 
         for handle in handles {
-            let result = handle.await.map_err(|e| {
-                RocketError::Environment(format!("Task join error: {}", e))
-            })??;
+            let result = handle
+                .await
+                .map_err(|e| RocketError::Environment(format!("Task join error: {}", e)))??;
 
             obs_vec.push(result.observation);
             rewards.push(result.reward);
@@ -253,9 +247,9 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     /// Close all environments.
     pub fn close(&mut self) -> Result<()> {
         for env in &self.envs {
-            let mut env = env.lock().map_err(|e| {
-                RocketError::Environment(format!("Lock poisoned: {}", e))
-            })?;
+            let mut env = env
+                .lock()
+                .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
             env.close()?;
         }
         Ok(())

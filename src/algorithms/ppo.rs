@@ -13,7 +13,7 @@ use crate::algorithms::traits::RLAlgorithm;
 use crate::core::{Device, Result, RocketError};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
-use candle_nn::{Optimizer, VarBuilder, VarMap, AdamW, ParamsAdamW};
+use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
 use rand::prelude::*;
 use std::path::Path;
 use tracing::{debug, info};
@@ -73,7 +73,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         let obs_dim = obs_space.flat_dim();
         let act_dim = act_space.flat_dim();
-        let is_discrete = act_space.shape() == &[1];
+        let is_discrete = act_space.shape() == [1];
 
         let rng = match config.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
@@ -172,7 +172,11 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         for i in 0..num_layers {
             let linear = candle_nn::linear(
-                if i == 0 { self.obs_dim } else { self.hidden_sizes[i - 1] },
+                if i == 0 {
+                    self.obs_dim
+                } else {
+                    self.hidden_sizes[i - 1]
+                },
                 self.hidden_sizes[i],
                 vb.pp(format!("{}.layer_{}", self.policy_prefix, i)),
             )?;
@@ -199,7 +203,11 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         for i in 0..num_layers {
             let linear = candle_nn::linear(
-                if i == 0 { self.obs_dim } else { self.hidden_sizes[i - 1] },
+                if i == 0 {
+                    self.obs_dim
+                } else {
+                    self.hidden_sizes[i - 1]
+                },
                 self.hidden_sizes[i],
                 vb.pp(format!("{}.layer_{}", self.value_prefix, i)),
             )?;
@@ -259,15 +267,17 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
             let candle_device = self.device.to_candle()?;
             let actions_tensor = Tensor::from_slice(&actions, &[batch_size, 1], &candle_device)?;
-            let log_probs_tensor = Tensor::from_slice(&action_log_probs, &[batch_size], &candle_device)?;
+            let log_probs_tensor =
+                Tensor::from_slice(&action_log_probs, &[batch_size], &candle_device)?;
 
             Ok((actions_tensor, log_probs_tensor))
         } else {
             // Gaussian distribution for continuous actions
             let mean = logits_or_mean;
-            let log_std = self.log_std.as_ref().ok_or_else(|| {
-                RocketError::InvalidConfig("log_std not initialized".to_string())
-            })?;
+            let log_std = self
+                .log_std
+                .as_ref()
+                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Sample from Gaussian: action = mean + std * noise
@@ -282,7 +292,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             let log_2pi = 0.5 * (2.0 * std::f32::consts::PI).ln();
             let log_2pi_tensor = Tensor::new(&[log_2pi], &candle_device)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(&log_std)?
+                .broadcast_sub(log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
 
             // Sum over action dimensions
@@ -303,7 +313,9 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
             // Extract log probs for taken actions
             let actions_i64 = actions.squeeze(1)?.to_dtype(DType::I64)?;
-            let action_log_probs = log_probs.gather(&actions_i64.unsqueeze(1)?, 1)?.squeeze(1)?;
+            let action_log_probs = log_probs
+                .gather(&actions_i64.unsqueeze(1)?, 1)?
+                .squeeze(1)?;
 
             // Entropy: -sum(p * log(p))
             let entropy = (probs.neg()? * &log_probs)?.sum(1)?;
@@ -311,9 +323,10 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             Ok((action_log_probs, values, entropy))
         } else {
             let mean = logits_or_mean;
-            let log_std = self.log_std.as_ref().ok_or_else(|| {
-                RocketError::InvalidConfig("log_std not initialized".to_string())
-            })?;
+            let log_std = self
+                .log_std
+                .as_ref()
+                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Log probability for Gaussian
@@ -406,7 +419,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         let mut n_updates = 0usize;
 
         // Generate batch indices
-        let n_batches = (n_samples + self.config.batch_size - 1) / self.config.batch_size;
+        let n_batches = n_samples.div_ceil(self.config.batch_size);
 
         for _epoch in 0..self.config.n_epochs {
             // Shuffle indices
@@ -416,10 +429,12 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             for batch_idx in 0..n_batches {
                 let start = batch_idx * self.config.batch_size;
                 let end = (start + self.config.batch_size).min(n_samples);
-                let batch_indices: Vec<i64> = indices[start..end].iter().map(|&i| i as i64).collect();
+                let batch_indices: Vec<i64> =
+                    indices[start..end].iter().map(|&i| i as i64).collect();
 
                 let candle_device = self.device.to_candle()?;
-                let idx_tensor = Tensor::from_slice(&batch_indices, &[batch_indices.len()], &candle_device)?;
+                let idx_tensor =
+                    Tensor::from_slice(&batch_indices, &[batch_indices.len()], &candle_device)?;
 
                 // Get batch data
                 let batch_obs = obs_flat.index_select(&idx_tensor, 0)?;
@@ -429,7 +444,8 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
                 let batch_returns = returns.index_select(&idx_tensor, 0)?;
 
                 // Evaluate actions under current policy
-                let (new_log_probs, values, entropy) = self.evaluate_actions(&batch_obs, &batch_actions)?;
+                let (new_log_probs, values, entropy) =
+                    self.evaluate_actions(&batch_obs, &batch_actions)?;
 
                 // PPO clipped surrogate objective
                 let log_ratio = (&new_log_probs - &batch_old_log_probs)?;
@@ -437,10 +453,8 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
                 // Surrogate losses
                 let surr1 = (&ratio * &batch_advantages)?;
-                let ratio_clipped = ratio.clamp(
-                    1.0 - self.config.clip_range,
-                    1.0 + self.config.clip_range,
-                )?;
+                let ratio_clipped =
+                    ratio.clamp(1.0 - self.config.clip_range, 1.0 + self.config.clip_range)?;
                 let surr2 = (&ratio_clipped * &batch_advantages)?;
 
                 // Take minimum of surr1 and surr2
@@ -476,9 +490,11 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
                 // Clip fraction
                 let ratio_vec: Vec<f32> = ratio.flatten_all()?.to_vec1()?;
-                let clip_frac = ratio_vec.iter()
+                let clip_frac = ratio_vec
+                    .iter()
                     .filter(|&&r| (r - 1.0).abs() > self.config.clip_range)
-                    .count() as f32 / ratio_vec.len() as f32;
+                    .count() as f32
+                    / ratio_vec.len() as f32;
                 total_clip_fraction += clip_frac;
 
                 n_updates += 1;
@@ -523,7 +539,13 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
 
-        let mut buffer = RolloutBuffer::new(n_steps, num_envs, self.obs_dim, self.act_dim, self.device.clone())?;
+        let mut buffer = RolloutBuffer::new(
+            n_steps,
+            num_envs,
+            self.obs_dim,
+            self.act_dim,
+            self.device,
+        )?;
 
         // Reset environments and get initial observations
         let mut obs = self.env.reset(&self.device)?;
@@ -574,7 +596,11 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         // Compute last value for GAE
         let last_values = self.value_forward(&obs)?.squeeze(1)?;
-        buffer.compute_returns_and_advantages(&last_values, self.config.gamma, self.config.gae_lambda)?;
+        buffer.compute_returns_and_advantages(
+            &last_values,
+            self.config.gamma,
+            self.config.gae_lambda,
+        )?;
 
         self.total_timesteps += n_steps * num_envs;
 
@@ -591,7 +617,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
         let rollout_timesteps = n_steps * num_envs;
-        let n_iterations = (total_timesteps + rollout_timesteps - 1) / rollout_timesteps;
+        let n_iterations = total_timesteps.div_ceil(rollout_timesteps);
 
         for iteration in 0..n_iterations {
             let progress = self.total_timesteps as f32 / total_timesteps as f32;
@@ -605,11 +631,14 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
             // Update metrics with episode info
             if !episode_rewards.is_empty() {
-                metrics.mean_reward = episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
+                metrics.mean_reward =
+                    episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
                 let mean = metrics.mean_reward;
-                metrics.std_reward = (episode_rewards.iter()
+                metrics.std_reward = (episode_rewards
+                    .iter()
                     .map(|r| (r - mean).powi(2))
-                    .sum::<f32>() / episode_rewards.len() as f32)
+                    .sum::<f32>()
+                    / episode_rewards.len() as f32)
                     .sqrt();
                 metrics.episodes = episode_rewards.len();
             }
@@ -635,7 +664,10 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             }
         }
 
-        info!("Training completed: {} total timesteps", self.total_timesteps);
+        info!(
+            "Training completed: {} total timesteps",
+            self.total_timesteps
+        );
         Ok(())
     }
 
@@ -646,19 +678,20 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         if self.is_discrete {
             if deterministic {
                 // Argmax for deterministic action
-                Ok(logits_or_mean.argmax(1)?.unsqueeze(1)?.to_dtype(DType::F32)?)
+                Ok(logits_or_mean
+                    .argmax(1)?
+                    .unsqueeze(1)?
+                    .to_dtype(DType::F32)?)
             } else {
                 let (action, _) = self.sample_action(obs)?;
                 Ok(action)
             }
+        } else if deterministic {
+            // Use mean directly
+            Ok(logits_or_mean)
         } else {
-            if deterministic {
-                // Use mean directly
-                Ok(logits_or_mean)
-            } else {
-                let (action, _) = self.sample_action(obs)?;
-                Ok(action)
-            }
+            let (action, _) = self.sample_action(obs)?;
+            Ok(action)
         }
     }
 
@@ -674,7 +707,8 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for PPOAgent<E> {
         let mut metrics = self.update(&buffer)?;
 
         if !episode_rewards.is_empty() {
-            metrics.mean_reward = episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
+            metrics.mean_reward =
+                episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32;
             metrics.episodes = episode_rewards.len();
         }
 
@@ -683,7 +717,8 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for PPOAgent<E> {
 
     fn save(&self, path: &Path) -> Result<()> {
         let data = self.var_map.data().lock().unwrap();
-        let mut tensors: std::collections::HashMap<String, Tensor> = std::collections::HashMap::new();
+        let mut tensors: std::collections::HashMap<String, Tensor> =
+            std::collections::HashMap::new();
 
         for (name, var) in data.iter() {
             // Convert Var to Tensor by getting the inner tensor

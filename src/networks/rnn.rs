@@ -3,7 +3,7 @@
 //! These modules are essential for time-series data like trading,
 //! where historical context influences current decisions.
 
-use candle_core::{DType, Device, Tensor, Result as CandleResult, D, IndexOp};
+use candle_core::{DType, Device, IndexOp, Result as CandleResult, Tensor, D};
 use candle_nn::{Linear, Module, VarBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -127,7 +127,7 @@ impl LSTMCell {
         let chunks = gates.chunk(4, D::Minus1)?;
         let i_gate = candle_nn::ops::sigmoid(&chunks[0])?; // Input gate
         let f_gate = candle_nn::ops::sigmoid(&chunks[1])?; // Forget gate
-        let g_gate = chunks[2].tanh()?;                     // Cell gate (candidate)
+        let g_gate = chunks[2].tanh()?; // Cell gate (candidate)
         let o_gate = candle_nn::ops::sigmoid(&chunks[3])?; // Output gate
 
         // Update cell state: c_new = f * c + i * g
@@ -161,7 +161,11 @@ impl LSTM {
             } else {
                 config.hidden_dim
             };
-            let cell = LSTMCell::new(layer_input_dim, config.hidden_dim, vb.pp(format!("layer_{}", i)))?;
+            let cell = LSTMCell::new(
+                layer_input_dim,
+                config.hidden_dim,
+                vb.pp(format!("layer_{}", i)),
+            )?;
             cells.push(cell);
         }
 
@@ -297,9 +301,7 @@ impl GRUState {
 
     /// Detach state from computation graph.
     pub fn detach(&self) -> Self {
-        Self {
-            h: self.h.detach(),
-        }
+        Self { h: self.h.detach() }
     }
 
     /// Get batch size from state.
@@ -381,7 +383,11 @@ impl GRU {
             } else {
                 config.hidden_dim
             };
-            let cell = GRUCell::new(layer_input_dim, config.hidden_dim, vb.pp(format!("layer_{}", i)))?;
+            let cell = GRUCell::new(
+                layer_input_dim,
+                config.hidden_dim,
+                vb.pp(format!("layer_{}", i)),
+            )?;
             cells.push(cell);
         }
 

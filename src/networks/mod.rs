@@ -22,10 +22,10 @@
 //! let actor_critic = ActorCritic::new(vb, config).unwrap();
 //! ```
 
+mod actor_critic;
 mod mlp;
 mod rnn;
-mod actor_critic;
 
-pub use mlp::{MLP, MLPConfig, Activation};
-pub use rnn::{LSTM, LSTMState, GRU, GRUState, RNNConfig};
-pub use actor_critic::{ActorCritic, ActorCriticConfig, ActionSpace, RecurrentState};
+pub use actor_critic::{ActionSpace, ActorCritic, ActorCriticConfig, RecurrentState};
+pub use mlp::{Activation, MLPConfig, MLP};
+pub use rnn::{GRUState, LSTMState, RNNConfig, GRU, LSTM};

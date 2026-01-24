@@ -5,5 +5,5 @@ mod error;
 mod tensor;
 
 pub use device::Device;
-pub use error::{RocketError, Result};
+pub use error::{Result, RocketError};
 pub use tensor::TensorBackend;

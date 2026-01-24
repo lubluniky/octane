@@ -1,11 +1,11 @@
 //! Environment module: Gym-like trait interfaces with VecEnv support.
 
 mod space;
+mod trading;
 mod traits;
 mod vecenv;
-mod trading;
 
-pub use space::{Space, BoxSpace, DiscreteSpace};
-pub use traits::{Environment, ObsType, ActionType, StepResult, StepInfo};
+pub use space::{BoxSpace, DiscreteSpace, Space};
+pub use trading::{MarketData, TradingEnv, TradingEnvConfig};
+pub use traits::{ActionType, Environment, ObsType, StepInfo, StepResult};
 pub use vecenv::{VecEnv, VecEnvConfig};
-pub use trading::{TradingEnv, TradingEnvConfig, MarketData};

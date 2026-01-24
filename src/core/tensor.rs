@@ -1,7 +1,7 @@
 //! Tensor backend abstraction over Candle.
 
-use candle_core::{DType, Tensor};
 use crate::core::{Device, Result};
+use candle_core::{DType, Tensor};
 
 /// Tensor backend trait for generic tensor operations.
 pub trait TensorBackend: Sized {

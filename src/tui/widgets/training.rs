@@ -55,8 +55,8 @@ fn get_reward_color(app: &App) -> Color {
     }
 
     let avg_recent: u64 = recent.iter().sum::<u64>() / recent.len() as u64;
-    let avg_old: u64 = app.reward_history.iter().take(5).sum::<u64>()
-        / app.reward_history.len().min(5) as u64;
+    let avg_old: u64 =
+        app.reward_history.iter().take(5).sum::<u64>() / app.reward_history.len().min(5) as u64;
 
     if avg_recent > avg_old + 5 {
         Color::Green
@@ -74,7 +74,10 @@ pub fn render_episode_info(frame: &mut Frame, app: &App, area: Rect) {
     // Calculate reward trend arrow
     let (trend_icon, trend_color) = if app.reward_history.len() >= 2 {
         let last = *app.reward_history.last().unwrap_or(&0);
-        let prev = *app.reward_history.get(app.reward_history.len() - 2).unwrap_or(&0);
+        let prev = *app
+            .reward_history
+            .get(app.reward_history.len() - 2)
+            .unwrap_or(&0);
         if last > prev + 2 {
             ("^", Color::Green)
         } else if last + 2 < prev {
@@ -337,11 +340,7 @@ pub fn render_training_progress(frame: &mut Frame, app: &App, area: Rect, total_
                         .add_modifier(Modifier::BOLD),
                 )),
         )
-        .gauge_style(
-            Style::default()
-                .fg(Color::Green)
-                .bg(Color::Rgb(30, 30, 40)),
-        )
+        .gauge_style(Style::default().fg(Color::Green).bg(Color::Rgb(30, 30, 40)))
         .ratio(progress.clamp(0.0, 1.0))
         .label(Span::styled(
             format!(

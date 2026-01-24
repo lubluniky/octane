@@ -3,7 +3,7 @@
 //! Configurable feedforward neural network with support for various
 //! activation functions and layer configurations.
 
-use candle_core::{Tensor, Result as CandleResult};
+use candle_core::{Result as CandleResult, Tensor};
 use candle_nn::{Linear, Module, VarBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +12,10 @@ use candle_core::{DType, Device};
 
 /// Activation function for MLP layers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Activation {
     /// Rectified Linear Unit: max(0, x)
+    #[default]
     ReLU,
     /// Hyperbolic tangent: tanh(x)
     Tanh,
@@ -58,11 +60,6 @@ impl Activation {
     }
 }
 
-impl Default for Activation {
-    fn default() -> Self {
-        Activation::ReLU
-    }
-}
 
 /// Configuration for MLP construction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,14 +102,12 @@ impl MLPConfig {
 
     /// Create a standard RL policy network configuration.
     pub fn policy_network(obs_dim: usize, action_dim: usize) -> Self {
-        Self::new(obs_dim, vec![256, 256], action_dim)
-            .with_activation(Activation::Tanh)
+        Self::new(obs_dim, vec![256, 256], action_dim).with_activation(Activation::Tanh)
     }
 
     /// Create a standard RL value network configuration.
     pub fn value_network(obs_dim: usize) -> Self {
-        Self::new(obs_dim, vec![256, 256], 1)
-            .with_activation(Activation::Tanh)
+        Self::new(obs_dim, vec![256, 256], 1).with_activation(Activation::Tanh)
     }
 }
 
@@ -186,7 +181,10 @@ impl MLP {
 
     /// Get the output dimension.
     pub fn output_dim(&self) -> usize {
-        self.layers.last().map(|l| l.weight().dims()[0]).unwrap_or(0)
+        self.layers
+            .last()
+            .map(|l| l.weight().dims()[0])
+            .unwrap_or(0)
     }
 }
 
