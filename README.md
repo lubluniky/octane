@@ -10,7 +10,7 @@
 
 [![CI](https://github.com/lubluniky/rocket-rs/workflows/CI/badge.svg)](https://github.com/lubluniky/rocket-rs/actions)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](#license)
+[![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](#license)
 [![Candle](https://img.shields.io/badge/backend-Candle-green.svg)](https://github.com/huggingface/candle)
 [![Crates.io](https://img.shields.io/crates/v/rocket-rs.svg)](https://crates.io/crates/rocket-rs)
 
@@ -660,12 +660,9 @@ If you use RocketRL in your research, please cite:
 
 ## License
 
-Rocket-RS is dual-licensed under:
+Rocket-RS is licensed under the GNU General Public License v2.0.
 
-- [MIT License](LICENSE-MIT)
-- [Apache License 2.0](LICENSE-APACHE)
-
-You may choose either license.
+See [LICENSE](LICENSE) for details.
 
 ---
 
