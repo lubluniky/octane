@@ -1,0 +1,72 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Debug files
+*.dSYM/
+
+# Benchmark results
+/benchmarks/results/
+/criterion/
+*.criterion/
+
+# Python (if any Python tooling is used)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Data and logs
+*.log
+*.csv
+*.parquet
+/data/
+/logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Coverage
+*.profraw
+*.profdata
+/coverage/
+
+# Local configuration
+.env
+.env.local
+config.local.toml
+
+# Documentation build
+/doc/
+
+# Release artifacts (keep in git, but listing for reference)
+# /target/release/

@@ -1,0 +1,122 @@
+{
+  "single_env_step": {
+    "mean_time_us": 2.8396504931151867,
+    "std_time_us": 0.17660791308047685,
+    "iterations": 1000,
+    "throughput": 352156.0144195662
+  },
+  "vecenv_step_1": {
+    "mean_time_us": 5.37695293314755,
+    "std_time_us": 0.15687663039534275,
+    "iterations": 1000,
+    "throughput": 185978.93870992507
+  },
+  "vecenv_step_8": {
+    "mean_time_us": 29.566681012511253,
+    "std_time_us": 0.6583492187201703,
+    "iterations": 125,
+    "throughput": 33821.855066412296
+  },
+  "vecenv_step_32": {
+    "mean_time_us": 114.08195320156312,
+    "std_time_us": 5.87819301978203,
+    "iterations": 31,
+    "throughput": 8765.628321888675
+  },
+  "vecenv_step_128": {
+    "mean_time_us": 436.7499612271786,
+    "std_time_us": 4.0810360748215375,
+    "iterations": 10,
+    "throughput": 2289.6395850619047
+  },
+  "vecenv_step_512": {
+    "mean_time_us": 1751.5669111162424,
+    "std_time_us": 14.180940596293992,
+    "iterations": 10,
+    "throughput": 570.917384687701
+  },
+  "vecenv_step_1024": {
+    "mean_time_us": 3549.1123562678695,
+    "std_time_us": 34.81003055486186,
+    "iterations": 10,
+    "throughput": 281.7605924010722
+  },
+  "env_reset": {
+    "mean_time_us": 1.0569621808826923,
+    "std_time_us": 0.056941557496671416,
+    "iterations": 1000,
+    "throughput": 946107.6451807178
+  },
+  "numpy_matmul_64": {
+    "mean_time_us": 1.5507848002016544,
+    "std_time_us": 0.03088665458143467,
+    "iterations": 100,
+    "throughput": 644834.7958207781
+  },
+  "numpy_matmul_256": {
+    "mean_time_us": 23.742897901684046,
+    "std_time_us": 1.4183289613520151,
+    "iterations": 100,
+    "throughput": 42117.85790179688
+  },
+  "numpy_matmul_1024": {
+    "mean_time_us": 1361.9858073070645,
+    "std_time_us": 121.60553781950212,
+    "iterations": 100,
+    "throughput": 734.2220415477108
+  },
+  "numpy_softmax_32": {
+    "mean_time_us": 7.417803397402167,
+    "std_time_us": 0.27068813300623784,
+    "iterations": 1000,
+    "throughput": 134810.7986186606
+  },
+  "numpy_softmax_128": {
+    "mean_time_us": 20.737233571708202,
+    "std_time_us": 0.48331997687858474,
+    "iterations": 1000,
+    "throughput": 48222.43991909796
+  },
+  "numpy_softmax_512": {
+    "mean_time_us": 71.30419602617621,
+    "std_time_us": 5.4500186158017785,
+    "iterations": 1000,
+    "throughput": 14024.42010050704
+  },
+  "gae_256": {
+    "mean_time_us": 682.4679067358375,
+    "std_time_us": 12.541525152976368,
+    "iterations": 100,
+    "throughput": 1465.27036675304
+  },
+  "gae_1024": {
+    "mean_time_us": 2670.25746172294,
+    "std_time_us": 84.12877752731374,
+    "iterations": 100,
+    "throughput": 374.4957234778276
+  },
+  "gae_2048": {
+    "mean_time_us": 5373.3661700971425,
+    "std_time_us": 100.67023924030393,
+    "iterations": 100,
+    "throughput": 186.10308107513944
+  },
+  "torch_matmul_64_mps": {
+    "mean_time_us": 466.8191517703235,
+    "std_time_us": 597.7171370584048,
+    "iterations": 100,
+    "throughput": 2142.1571848706053
+  },
+  "torch_matmul_256_mps": {
+    "mean_time_us": 274.63370002806187,
+    "std_time_us": 45.6373252972773,
+    "iterations": 100,
+    "throughput": 3641.2137326840107
+  },
+  "torch_matmul_1024_mps": {
+    "mean_time_us": 1570.8616352640092,
+    "std_time_us": 102.05803667262519,
+    "iterations": 100,
+    "throughput": 636.5933049424391
+  }
+}
