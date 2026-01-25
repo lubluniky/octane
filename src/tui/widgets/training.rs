@@ -13,7 +13,7 @@ use ratatui::{
 };
 
 /// Render the reward history as a sparkline graph.
-pub fn render_reward_sparkline(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_reward_sparkline(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let title = if app.training_active {
         Span::styled(
             " Reward History (LIVE) ",
@@ -68,7 +68,7 @@ fn get_reward_color(app: &App) -> Color {
 }
 
 /// Render episode information panel.
-pub fn render_episode_info(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_episode_info(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let metrics = &app.current_metrics;
 
     // Calculate reward trend arrow
@@ -161,7 +161,7 @@ pub fn render_episode_info(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the policy loss gauge.
-pub fn render_policy_loss_gauge(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_policy_loss_gauge(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let loss = app.current_metrics.policy_loss;
 
     // Normalize loss to 0-100 range (assuming loss is typically 0-1)
@@ -194,7 +194,7 @@ pub fn render_policy_loss_gauge(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the value loss gauge.
-pub fn render_value_loss_gauge(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_value_loss_gauge(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let loss = app.current_metrics.value_loss;
 
     // Normalize loss to 0-100 range
@@ -240,7 +240,7 @@ fn loss_to_color(loss: f32, threshold: f32) -> Color {
 }
 
 /// Render training statistics panel.
-pub fn render_training_stats(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_training_stats(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let metrics = &app.current_metrics;
 
     let lines = vec![
@@ -321,7 +321,7 @@ fn format_number(n: usize) -> String {
 }
 
 /// Render a progress bar for training completion.
-pub fn render_training_progress(frame: &mut Frame, app: &App, area: Rect, total_timesteps: usize) {
+pub fn render_training_progress(frame: &mut Frame<'_>, app: &App, area: Rect, total_timesteps: usize) {
     let progress = if total_timesteps > 0 {
         app.current_metrics.timesteps as f64 / total_timesteps as f64
     } else {

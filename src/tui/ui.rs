@@ -43,7 +43,7 @@ const ROCKET_LOGO: &str = r#"
 const ROCKET_SUBTITLE: &str = "High-Performance Reinforcement Learning for Rust";
 
 /// Main draw function - entry point for rendering
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame<'_>, app: &App) {
     // Clear with dark background
     let area = frame.area();
 
@@ -57,7 +57,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
 }
 
 /// Draw splash screen
-fn draw_splash(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_splash(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let block = Block::default()
         .style(Style::default().bg(DARK_BG));
     frame.render_widget(block, area);
@@ -127,7 +127,7 @@ fn draw_splash(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw main interface
-fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_main(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -143,7 +143,7 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw main interface with help overlay
-fn draw_main_with_help(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_main_with_help(frame: &mut Frame<'_>, area: Rect, app: &App) {
     draw_main(frame, area, app);
 
     // Overlay help
@@ -152,7 +152,7 @@ fn draw_main_with_help(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw header with tabs
-fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let header_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -213,7 +213,7 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw main content area based on current tab
-fn draw_content(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_content(frame: &mut Frame<'_>, area: Rect, app: &App) {
     match app.tab {
         Tab::Dashboard => draw_dashboard(frame, area, app),
         Tab::Training => draw_training(frame, area, app),
@@ -224,7 +224,7 @@ fn draw_content(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw dashboard tab
-fn draw_dashboard(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_dashboard(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -252,7 +252,7 @@ fn draw_dashboard(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw metrics cards
-fn draw_metrics_cards(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_metrics_cards(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let cards_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -293,7 +293,7 @@ fn draw_metrics_cards(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw reward chart
-fn draw_reward_chart(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_reward_chart(frame: &mut Frame<'_>, area: Rect, app: &App) {
     if app.reward_history.is_empty() {
         let placeholder = Paragraph::new("Waiting for training data...")
             .style(Style::default().fg(TEXT_DIM))
@@ -352,7 +352,7 @@ fn draw_reward_chart(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw loss sparklines
-fn draw_loss_sparklines(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_loss_sparklines(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -401,7 +401,7 @@ fn draw_loss_sparklines(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw logs panel
-fn draw_logs(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_logs(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let logs: Vec<ListItem> = app.logs
         .iter()
         .rev()
@@ -431,7 +431,7 @@ fn draw_logs(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw training tab
-fn draw_training(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_training(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -477,7 +477,7 @@ fn draw_training(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw environment tab
-fn draw_environment(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_environment(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -547,7 +547,7 @@ fn draw_environment(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw benchmarks tab
-fn draw_benchmarks(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_benchmarks(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(12)])
@@ -636,7 +636,7 @@ fn draw_benchmarks(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw settings tab
-fn draw_settings(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_settings(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -716,7 +716,7 @@ fn draw_settings(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw footer with help text
-fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
+fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let help_text = if app.paused {
         "[Space] Resume | [Tab] Switch Tab | [1-5] Go to Tab | [h] Help | [q] Quit"
     } else {
@@ -733,7 +733,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Draw help overlay
-fn draw_help_overlay(frame: &mut Frame, area: Rect) {
+fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
     let block = Block::default()
         .title(" Keyboard Shortcuts ")
         .title_style(Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD))

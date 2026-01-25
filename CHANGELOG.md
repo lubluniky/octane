@@ -7,30 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Initial release of Rocket-RS
-- PPO (Proximal Policy Optimization) implementation
-- A2C (Advantage Actor-Critic) implementation
-- Vectorized environment support
-- GPU acceleration via Metal (Apple Silicon) and CUDA (NVIDIA)
-- Neural network architectures: MLP, LSTM, GRU
-- Trading environment for algorithmic trading
-- Terminal UI (TUI) for monitoring training
-- Comprehensive benchmarks
+## [0.2.0] - 2025-01-25
 
-### Features
-- **Zero-Cost Abstractions** - Rust ownership model eliminates runtime overhead
-- **Vectorized Environments** - Run 1000s of parallel simulations on CPU
-- **GPU Acceleration** - Native Metal (M1-M4) and CUDA support
-- **Production-Ready** - Memory-safe, thread-safe, no garbage collection
-- **Complete Algorithms** - PPO and A2C with GAE
-- **Time-Series Ready** - LSTM/GRU networks for sequential decisions
+### Added
+
+#### New Algorithms
+- **SAC (Soft Actor-Critic)** - Maximum entropy RL for continuous control
+  - Twin Q-networks for reduced overestimation
+  - Automatic entropy coefficient tuning
+  - Reparameterization trick for policy gradient
+- **TD3 (Twin Delayed DDPG)** - Improved DDPG with:
+  - Twin critics for reduced overestimation
+  - Delayed policy updates
+  - Target policy smoothing with clipped noise
+- **DDPG (Deep Deterministic Policy Gradient)** - Classic off-policy continuous control
+  - Ornstein-Uhlenbeck noise for exploration
+  - Gaussian noise option
+  - Soft target updates
+- **DQN (Deep Q-Network)** - For discrete action spaces
+  - Double DQN for reduced overestimation
+  - Prioritized Experience Replay (PER)
+  - Huber loss for stability
+  - Epsilon-greedy exploration with decay
+
+#### Experience Buffers
+- **ReplayBuffer** - Efficient ring buffer for off-policy algorithms
+  - O(1) insertion and sampling
+  - Prioritized Experience Replay with sum tree
+  - Importance sampling weights with beta annealing
+  - Configurable capacity and batch sizes
+
+#### Training Infrastructure
+- **TrainingLogger** - JSON-lines based logging system
+  - Structured metrics output for background processes
+  - Run metadata (algorithm, config, timestamps)
+  - Steps per second computation
+- **TrainingLogReader** - Real-time log reading for TUI
+  - Incremental file reading
+  - Progress tracking
+  - Run discovery and listing
+
+#### TUI Improvements
+- **Theme System** - Professional dark color scheme
+  - Consistent color palette (orange accent, cyan secondary)
+  - Semantic colors for success/warning/error
+  - Chart-specific colors for different metrics
+- **Improved Usability**
+  - Better chart rendering
+  - Log file reading from background training
+  - Status indicators for training state
+
+#### API Improvements
+- Expanded prelude module with all algorithm types
+- Consistent builder pattern for all configs
+- Better error messages and validation
+
+### Changed
+- Updated lib.rs exports to include all new algorithms
+- Improved algorithm module organization
+- Better documentation for all public types
 
 ### Performance
-- 12.5x faster environment steps vs Python Gymnasium
-- 4.8x faster environment resets
-- 5.9x faster vectorized environments (1024 parallel)
-- ~3x less memory usage
+- Efficient sum tree for PER (O(log n) operations)
+- Memory-efficient SoA layout for ReplayBuffer
+- Optimized tensor operations in all algorithms
 
 ## [0.1.0] - 2025-01-24
 

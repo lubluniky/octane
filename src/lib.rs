@@ -18,25 +18,53 @@ pub mod buffer;
 pub mod core;
 pub mod distributions;
 pub mod envs;
+pub mod logging;
 pub mod networks;
 pub mod tui;
 
 // Re-exports for ergonomic API
-pub use crate::algorithms::{A2CAgent, A2CConfig, Agent, PPOAgent, PPOConfig, TrainMetrics};
-pub use crate::buffer::{RolloutBatch, RolloutBuffer, RolloutBufferConfig};
+pub use crate::algorithms::{
+    A2CAgent, A2CConfig, Agent, DDPGAgent, DDPGConfig, DQNAgent, DQNConfig, NoiseType, PPOAgent,
+    PPOConfig, SACAgent, SACConfig, TD3Agent, TD3Config, TrainMetrics,
+};
+pub use crate::buffer::{
+    ReplayBatch, ReplayBuffer, ReplayBufferConfig, RolloutBatch, RolloutBuffer, RolloutBufferConfig,
+};
 pub use crate::core::{Device, Result, RocketError, TensorBackend};
 pub use crate::distributions::{Categorical, DiagGaussian, Distribution, SquashedGaussian};
 pub use crate::envs::{
     ActionType, Environment, MarketData, ObsType, Space, TradingEnv, TradingEnvConfig, VecEnv,
 };
+pub use crate::logging::{
+    list_training_runs, TrainingLogEntry, TrainingLogReader, TrainingLogger, TrainingRunInfo,
+};
 pub use crate::networks::{ActorCritic, GRU, LSTM, MLP};
 
-/// Prelude module for convenient imports
+/// Prelude module for convenient imports.
+///
+/// Use with: `use rocket_rs::prelude::*;`
 pub mod prelude {
-    pub use crate::algorithms::{A2CConfig, Agent, PPOConfig, TrainMetrics};
-    pub use crate::buffer::{RolloutBatch, RolloutBuffer};
-    pub use crate::core::{Device, Result, TensorBackend};
-    pub use crate::distributions::Distribution;
-    pub use crate::envs::{Environment, Space, VecEnv};
-    pub use crate::networks::ActorCritic;
+    // Core types
+    pub use crate::core::{Device, Result, RocketError};
+
+    // Algorithms
+    pub use crate::algorithms::{
+        A2CAgent, A2CConfig, DDPGAgent, DDPGConfig, DQNAgent, DQNConfig, PPOAgent, PPOConfig,
+        SACAgent, SACConfig, TD3Agent, TD3Config, TrainMetrics,
+    };
+
+    // Buffers
+    pub use crate::buffer::{ReplayBuffer, ReplayBufferConfig, RolloutBuffer};
+
+    // Environments
+    pub use crate::envs::{Environment, Space, TradingEnv, TradingEnvConfig, VecEnv};
+
+    // Networks
+    pub use crate::networks::{ActorCritic, MLP};
+
+    // Distributions
+    pub use crate::distributions::{Categorical, DiagGaussian, Distribution};
+
+    // Logging
+    pub use crate::logging::{TrainingLogEntry, TrainingLogReader, TrainingLogger, TrainingRunInfo};
 }
