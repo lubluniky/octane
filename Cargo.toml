@@ -57,7 +57,7 @@ crossterm = "0.28"
 sysinfo = "0.32"
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 approx = "0.5"
 tempfile = "3.24.0"
 
