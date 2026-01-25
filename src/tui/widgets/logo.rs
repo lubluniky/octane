@@ -23,8 +23,8 @@ const ROCKET_LOGO: &[&str] = &[
 const TAGLINE: &str = "High-Performance Reinforcement Learning for Rust";
 
 /// Render the big ASCII logo with color cycling animation.
-pub fn render_logo(frame: &mut Frame, app: &App, area: Rect) {
-    let mut lines: Vec<Line> = Vec::new();
+pub fn render_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let mut lines: Vec<Line<'_>> = Vec::new();
 
     // Add empty line for top padding
     lines.push(Line::from(""));
@@ -108,7 +108,7 @@ fn get_border_color(tick: u64) -> Color {
 }
 
 /// Render a compact version of the logo for smaller spaces.
-pub fn render_compact_logo(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_compact_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let compact = vec![
         Line::from(Span::styled(
             "ROCKET",
@@ -137,7 +137,7 @@ pub fn render_compact_logo(frame: &mut Frame, app: &App, area: Rect) {
 const FLAMES: &[&str] = &["*", "^", ".", "o", "O", "*"];
 
 /// Render animated rocket flames (for fun).
-pub fn render_rocket_animation(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_rocket_animation(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let flame_idx = (app.tick as usize / 2) % FLAMES.len();
     let flame_char = FLAMES[flame_idx];
 

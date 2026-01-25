@@ -4,7 +4,10 @@
 //! benchmarks, and metrics in real-time.
 
 pub mod screens;
+pub mod theme;
 pub mod widgets;
+
+pub use theme::Theme;
 
 use crate::algorithms::TrainMetrics;
 use crossterm::{

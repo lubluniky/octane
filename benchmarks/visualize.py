@@ -41,31 +41,31 @@ PYTHON_RESULTS = {
     "gae_2048": 5373.37,
 }
 
-# Rust results (in microseconds, from cargo bench output)
+# Rust results (in microseconds, from cargo bench on M4 Max - Jan 2025)
 RUST_RESULTS = {
     "single_env_step": 0.227,  # 227 ns
-    "vecenv_step_1": 0.652,
-    "vecenv_step_8": 25.62,
-    "vecenv_step_32": 46.81,
-    "vecenv_step_128": 127.78,
-    "vecenv_step_512": 309.47,
-    "vecenv_step_1024": 604.30,
+    "vecenv_step_1": 0.651,
+    "vecenv_step_8": 30.76,
+    "vecenv_step_32": 48.94,
+    "vecenv_step_128": 123.25,
+    "vecenv_step_512": 290.15,
+    "vecenv_step_1024": 584.78,
     "env_reset": 0.222,  # 222 ns
-    "matmul_64": 6.02,
-    "matmul_256": 157.23,
-    "matmul_1024": 5717.8,  # 5.7ms
-    "softmax_32": 6.73,
-    "softmax_128": 25.48,
-    "softmax_512": 101.85,
-    "ppo_loss_64": 1.15,
+    "matmul_64": 5.89,
+    "matmul_256": 178.17,
+    "matmul_1024": 4761.5,  # 4.76ms - improved!
+    "softmax_32": 6.63,
+    "softmax_128": 24.90,
+    "softmax_512": 100.40,
+    "ppo_loss_64": 1.10,
     "ppo_loss_256": 1.83,
-    "ppo_loss_1024": 4.11,
-    "forward_pass_32x64": 19.9,
-    "forward_pass_128x256": 570.0,
-    "forward_pass_512x512": 3790.0,
-    "advantage_norm_1024": 1.91,
-    "advantage_norm_4096": 6.03,
-    "advantage_norm_16384": 26.28,
+    "ppo_loss_1024": 4.08,
+    "forward_pass_32x64": 19.66,
+    "forward_pass_128x256": 563.0,
+    "forward_pass_512x512": 3510.0,  # improved!
+    "advantage_norm_1024": 1.90,
+    "advantage_norm_4096": 6.17,
+    "advantage_norm_16384": 24.28,
 }
 
 

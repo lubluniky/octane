@@ -256,7 +256,7 @@ pub struct ActorCritic {
 impl ActorCritic {
     /// Create a new ActorCritic network.
     pub fn new(vb: VarBuilder<'_>, config: ActorCriticConfig) -> CandleResult<Self> {
-        let device = vb.device();
+        let _device = vb.device();
 
         // Determine backbone output dimension
         let backbone_out_dim = if config.recurrent_type != RecurrentType::None {

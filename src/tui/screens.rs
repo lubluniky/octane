@@ -57,7 +57,7 @@ impl Screen {
 }
 
 /// Render the dashboard overview screen.
-pub fn render_dashboard(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_dashboard(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Layout: top row (logo + quick stats), bottom row (metrics)
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -93,7 +93,7 @@ pub fn render_dashboard(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render a mini version of the logo for dashboard.
-fn render_mini_logo(frame: &mut Frame, app: &App, area: Rect) {
+fn render_mini_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let logo_lines = ["██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗",
         "██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝",
         "██████╔╝██║   ██║██║     █████╔╝ █████╗     ██║   ",
@@ -116,7 +116,7 @@ fn render_mini_logo(frame: &mut Frame, app: &App, area: Rect) {
         )
     };
 
-    let lines: Vec<Line> = logo_lines
+    let lines: Vec<Line<'_>> = logo_lines
         .iter()
         .map(|line| Line::from(Span::styled(*line, Style::default().fg(base_color))))
         .collect();
@@ -243,7 +243,7 @@ fn render_quick_stats(frame: &mut Frame<'_>, app: &App, area: Rect) {
 }
 
 /// Render the training visualization screen.
-pub fn render_training(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_training(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Layout: reward graph on top, loss/metrics on bottom
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -275,7 +275,7 @@ pub fn render_training(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the benchmark comparison screen.
-pub fn render_benchmark(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_benchmark(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Layout: comparison bars on left, throughput on right
     let layout = Layout::default()
         .direction(Direction::Horizontal)
@@ -295,7 +295,7 @@ pub fn render_benchmark(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the about screen.
-pub fn render_about(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_about(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Layout: logo on top, info on bottom
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -316,7 +316,7 @@ pub fn render_about(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render about info panel.
-fn render_about_info(frame: &mut Frame, _app: &App, area: Rect) {
+fn render_about_info(frame: &mut Frame<'_>, _app: &App, area: Rect) {
     let info = vec![
         Line::from(""),
         Line::from(vec![
@@ -331,11 +331,11 @@ fn render_about_info(frame: &mut Frame, _app: &App, area: Rect) {
         Line::from(""),
         Line::from(vec![
             Span::styled("Version: ", Style::default().fg(Color::Gray)),
-            Span::styled("0.1.0", Style::default().fg(Color::Green)),
+            Span::styled("0.2.0", Style::default().fg(Color::Green)),
         ]),
         Line::from(vec![
             Span::styled("License: ", Style::default().fg(Color::Gray)),
-            Span::styled("MIT / Apache-2.0", Style::default().fg(Color::Green)),
+            Span::styled("GPL-2.0", Style::default().fg(Color::Green)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -373,7 +373,7 @@ fn render_about_info(frame: &mut Frame, _app: &App, area: Rect) {
 }
 
 /// Render features panel.
-fn render_about_features(frame: &mut Frame, app: &App, area: Rect) {
+fn render_about_features(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let check = Span::styled("[x]", Style::default().fg(Color::Green));
     let features = vec![
         Line::from(""),

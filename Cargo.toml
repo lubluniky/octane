@@ -59,6 +59,7 @@ sysinfo = "0.32"
 [dev-dependencies]
 criterion = "0.5"
 approx = "0.5"
+tempfile = "3.24.0"
 
 [[bench]]
 name = "env_benchmark"

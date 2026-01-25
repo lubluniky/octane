@@ -1,8 +1,15 @@
-//! Rollout buffer for PPO/A2C training with GAE (Generalized Advantage Estimation).
+//! Experience buffers for reinforcement learning.
 //!
-//! This module provides efficient, pre-allocated storage for rollout data during
-//! on-policy training. It supports vectorized environments and computes advantages
-//! using GAE.
+//! This module provides two types of buffers:
+//!
+//! - **RolloutBuffer**: For on-policy algorithms (PPO, A2C). Stores complete rollouts
+//!   and computes GAE advantages.
+//! - **ReplayBuffer**: For off-policy algorithms (DQN, DDPG, TD3, SAC). Ring buffer
+//!   with uniform or prioritized sampling.
+
+mod replay;
+
+pub use replay::{ReplayBuffer, ReplayBufferConfig, ReplayBatch, Transition};
 
 use crate::core::{Device, Result, RocketError};
 use candle_core::{DType, Tensor};

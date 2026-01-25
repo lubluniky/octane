@@ -207,7 +207,7 @@ impl LSTM {
     /// # Returns
     /// Tuple of (output, new_state) where output has shape [batch_size, hidden_dim]
     pub fn forward_step(&self, x: &Tensor, state: &LSTMState) -> CandleResult<(Tensor, LSTMState)> {
-        let batch_size = x.dims()[0];
+        let _batch_size = x.dims()[0];
         let mut h_states = Vec::with_capacity(self.config.num_layers);
         let mut c_states = Vec::with_capacity(self.config.num_layers);
         let mut layer_input = x.clone();

@@ -24,10 +24,10 @@ Python's Global Interpreter Lock (GIL) and dynamic typing create fundamental per
 
 | Metric | Python (Gymnasium) | RocketRL (Rust) | Speedup |
 |--------|-------------------|-----------------|---------|
-| Single Env Step | 2.84 μs | 0.23 μs | **12.5x** |
-| Environment Reset | 1.06 μs | 0.22 μs | **4.8x** |
-| VecEnv (128 parallel) | 437 μs | 128 μs | **3.4x** |
-| VecEnv (1024 parallel) | 3549 μs | 604 μs | **5.9x** |
+| Single Env Step | 2.84 μs | 0.227 μs | **12.5x** |
+| Environment Reset | 1.06 μs | 0.222 μs | **4.8x** |
+| VecEnv (128 parallel) | 437 μs | 123 μs | **3.6x** |
+| VecEnv (1024 parallel) | 3549 μs | 585 μs | **6.1x** |
 | Memory Usage | 100% | ~35% | **~3x less** |
 
 ## Features
@@ -36,8 +36,9 @@ Python's Global Interpreter Lock (GIL) and dynamic typing create fundamental per
 - **Vectorized Environments** - Run 1000s of parallel simulations on CPU
 - **GPU Acceleration** - Native Metal (M1-M4) and CUDA (H100/H200) support
 - **Production-Ready** - Memory-safe, thread-safe, no garbage collection pauses
-- **Complete Algorithms** - PPO and A2C with GAE out of the box
+- **Complete Algorithms** - PPO, A2C, SAC, TD3, DDPG, DQN with Double DQN
 - **Time-Series Ready** - LSTM/GRU networks for trading and sequential decisions
+- **Training Logging** - JSON-based logging for background training with TUI monitoring
 
 ---
 
@@ -200,10 +201,10 @@ All benchmarks run on Apple M4 Max, comparing RocketRL against Python (NumPy/Gym
 
 <img src="benchmarks/charts/env_comparison.png" alt="Environment Comparison" width="800"/>
 
-**Key findings:**
+**Key findings (Apple M4 Max, Jan 2025):**
 - Single environment step: **12.5x faster** (227 ns vs 2.84 μs)
-- VecEnv with 128 parallel envs: **3.4x faster** (128 μs vs 437 μs)
-- VecEnv with 1024 parallel envs: **5.9x faster** (604 μs vs 3549 μs)
+- VecEnv with 128 parallel envs: **3.6x faster** (123 μs vs 437 μs)
+- VecEnv with 1024 parallel envs: **6.1x faster** (585 μs vs 3549 μs)
 
 ### Throughput Scaling
 
@@ -225,9 +226,9 @@ RocketRL achieves **1.7M+ environment steps per second** with 1024 parallel envi
 
 | Operation | Batch 64 | Batch 256 | Batch 1024 |
 |-----------|----------|-----------|------------|
-| PPO Loss | 1.15 μs | 1.83 μs | 4.11 μs |
-| MLP Forward | 19.9 μs | 570 μs | 3.79 ms |
-| Advantage Norm | 1.91 μs | 6.03 μs | 26.3 μs |
+| PPO Loss | 1.10 μs | 1.83 μs | 4.08 μs |
+| MLP Forward | 19.7 μs | 563 μs | 3.51 ms |
+| Advantage Norm | 1.90 μs | 6.17 μs | 24.3 μs |
 
 ### Run Benchmarks Yourself
 
@@ -532,35 +533,90 @@ let devices = vec![Device::cuda(0), Device::cuda(1)];
 
 ## Algorithms
 
-### PPO (Proximal Policy Optimization)
+RocketRL provides 6 state-of-the-art RL algorithms:
+
+### On-Policy Algorithms
+
+#### PPO (Proximal Policy Optimization)
 
 The default algorithm, recommended for most use cases.
 
-**Key features:**
-- Clipped surrogate objective prevents destructive updates
-- Multiple epochs of minibatch updates for sample efficiency
-- GAE for low-variance advantage estimation
-
-**Loss function:**
-```
-L = -min(ratio * A, clip(ratio, 1-ε, 1+ε) * A) + c₁ * L_value - c₂ * H[π]
-
-where:
-  ratio = π(a|s) / π_old(a|s)
-  A = GAE advantages
-  ε = clip_range (0.2)
-  c₁ = vf_coef (0.5)
-  c₂ = ent_coef (0.01)
+```rust
+let config = PPOConfig::default()
+    .learning_rate(3e-4)
+    .n_steps(2048)
+    .clip_range(0.2);
+let agent = PPOAgent::new(config, vec_env, device)?;
 ```
 
-### A2C (Advantage Actor-Critic)
+#### A2C (Advantage Actor-Critic)
 
-Simpler synchronous actor-critic, good baseline.
+Simpler synchronous actor-critic, good baseline for fast environments.
 
-**Key features:**
-- Single gradient update per rollout (faster wall-clock time)
-- Less sample efficient than PPO
-- Good for environments with cheap samples
+```rust
+let config = A2CConfig::default()
+    .learning_rate(7e-4)
+    .n_steps(5);
+let agent = A2CAgent::new(config, vec_env, device)?;
+```
+
+### Off-Policy Algorithms
+
+#### SAC (Soft Actor-Critic)
+
+Maximum entropy RL for continuous control. Excellent sample efficiency.
+
+```rust
+let config = SACConfig::default()
+    .learning_rate(3e-4)
+    .auto_entropy_tuning(true);
+let agent = SACAgent::new(config, vec_env, device)?;
+```
+
+#### TD3 (Twin Delayed DDPG)
+
+Improved DDPG with twin critics and delayed policy updates.
+
+```rust
+let config = TD3Config::default()
+    .learning_rate(3e-4)
+    .policy_delay(2);
+let agent = TD3Agent::new(config, vec_env, device)?;
+```
+
+#### DDPG (Deep Deterministic Policy Gradient)
+
+Classic off-policy algorithm for continuous control.
+
+```rust
+let config = DDPGConfig::default()
+    .actor_lr(1e-4)
+    .critic_lr(1e-3)
+    .noise_type(NoiseType::OrnsteinUhlenbeck);
+let agent = DDPGAgent::new(config, vec_env, device)?;
+```
+
+#### DQN (Deep Q-Network) with Double DQN
+
+For discrete action spaces with experience replay.
+
+```rust
+let config = DQNConfig::default()
+    .double_dqn(true)
+    .prioritized_replay(true);
+let agent = DQNAgent::new(config, vec_env, device)?;
+```
+
+### Algorithm Comparison
+
+| Algorithm | Action Space | Sample Efficiency | Stability | Use Case |
+|-----------|-------------|-------------------|-----------|----------|
+| **PPO** | Both | Medium | High | General purpose |
+| **A2C** | Both | Low | Medium | Fast envs |
+| **SAC** | Continuous | High | High | Robotics, trading |
+| **TD3** | Continuous | High | High | Continuous control |
+| **DDPG** | Continuous | Medium | Medium | Baseline |
+| **DQN** | Discrete | High | High | Games, discrete tasks |
 
 ---
 
@@ -608,18 +664,22 @@ let config = PPOConfig::default()
 | Metal Support | ✅ Native | ❌ | ❌ | ❌ |
 | CUDA Support | ✅ | ✅ | ✅ | ✅ |
 | VecEnv | ✅ Native | ✅ | ✅ | ✅ |
-| Algorithms | PPO, A2C | 10+ | 20+ | 10+ |
+| Algorithms | 6 (PPO, A2C, SAC, TD3, DDPG, DQN) | 10+ | 20+ | 10+ |
+| Replay Buffer | ✅ PER | ✅ | ✅ | ✅ |
+| Training TUI | ✅ | ❌ | ❌ | ❌ |
 | Documentation | Good | Excellent | Good | Good |
 
 ---
 
 ## Roadmap
 
-- [ ] **v0.2**: SAC (Soft Actor-Critic) algorithm
+- [x] **v0.2**: Off-policy algorithms (SAC, TD3, DDPG, DQN) ✅
+- [x] **v0.2**: Prioritized Experience Replay ✅
+- [x] **v0.2**: Training logging and TUI monitoring ✅
 - [ ] **v0.3**: Multi-GPU distributed training
-- [ ] **v0.4**: Model-based RL (Dreamer)
-- [ ] **v0.5**: Offline RL (CQL, IQL)
-- [ ] **v1.0**: Stable API, comprehensive docs
+- [ ] **v0.4**: Model-based RL (Dreamer, World Models)
+- [ ] **v0.5**: Offline RL (CQL, IQL, Decision Transformer)
+- [ ] **v1.0**: Stable API, comprehensive docs, Python bindings
 
 ---
 

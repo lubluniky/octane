@@ -72,18 +72,29 @@
 mod a2c;
 mod agent;
 mod config;
+mod ddpg;
+mod dqn;
 mod metrics;
 mod ppo;
 mod rollout;
+mod sac;
+mod td3;
 mod traits;
 
 // Re-exports for public API
 pub use a2c::A2CAgent;
 pub use agent::{Agent, AgentBuilder, AlgorithmConfig};
-pub use config::{A2CConfig, Activation, NetworkConfig, PPOConfig};
+pub use config::{
+    A2CConfig, Activation, DDPGConfig, DQNConfig, NetworkConfig, NoiseType, PPOConfig, SACConfig,
+    TD3Config,
+};
+pub use ddpg::DDPGAgent;
+pub use dqn::DQNAgent;
 pub use metrics::{ProgressTracker, RewardStats, TrainMetrics};
 pub use ppo::PPOAgent;
 pub use rollout::{BatchSampler, RolloutBuffer, RolloutSample};
+pub use sac::SACAgent;
+pub use td3::TD3Agent;
 pub use traits::{
     ActorCritic, CallbackList, EarlyStoppingCallback, LoggingCallback, NoOpCallback, Policy,
     PolicyDistribution, RLAlgorithm, TrainCallback, ValueFunction,

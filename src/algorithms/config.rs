@@ -371,6 +371,525 @@ pub enum Activation {
     GELU,
 }
 
+/// Configuration for Deep Q-Network (DQN) algorithm.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DQNConfig {
+    /// Learning rate for optimizer.
+    pub learning_rate: f32,
+    /// Replay buffer size.
+    pub buffer_size: usize,
+    /// Number of timesteps before learning starts.
+    pub learning_starts: usize,
+    /// Minibatch size.
+    pub batch_size: usize,
+    /// Discount factor.
+    pub gamma: f32,
+    /// Soft update coefficient (tau=1.0 for hard update).
+    pub tau: f32,
+    /// Target network update interval.
+    pub target_update_interval: usize,
+    /// Training frequency (update every N steps).
+    pub train_freq: usize,
+    /// Gradient steps per update.
+    pub gradient_steps: usize,
+    /// Initial exploration rate.
+    pub epsilon_start: f32,
+    /// Final exploration rate.
+    pub epsilon_end: f32,
+    /// Exploration decay per step.
+    pub epsilon_decay: f32,
+    /// Use Double DQN.
+    pub double_dqn: bool,
+    /// Use prioritized experience replay.
+    pub prioritized_replay: bool,
+    /// Use Huber loss instead of MSE.
+    pub use_huber_loss: bool,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+impl Default for DQNConfig {
+    fn default() -> Self {
+        Self {
+            learning_rate: 1e-4,
+            buffer_size: 1_000_000,
+            learning_starts: 50_000,
+            batch_size: 32,
+            gamma: 0.99,
+            tau: 1.0,
+            target_update_interval: 10_000,
+            train_freq: 4,
+            gradient_steps: 1,
+            epsilon_start: 1.0,
+            epsilon_end: 0.05,
+            epsilon_decay: 1e-5,
+            double_dqn: true,
+            prioritized_replay: false,
+            use_huber_loss: true,
+            seed: None,
+        }
+    }
+}
+
+impl DQNConfig {
+    /// Create new DQN config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set learning rate.
+    pub fn learning_rate(mut self, lr: f32) -> Self {
+        self.learning_rate = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma.
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Enable/disable Double DQN.
+    pub fn double_dqn(mut self, enabled: bool) -> Self {
+        self.double_dqn = enabled;
+        self
+    }
+
+    /// Enable prioritized replay.
+    pub fn prioritized_replay(mut self, enabled: bool) -> Self {
+        self.prioritized_replay = enabled;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.learning_rate <= 0.0 {
+            return Err("learning_rate must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if self.batch_size == 0 {
+            return Err("batch_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        Ok(())
+    }
+}
+
+/// Configuration for Soft Actor-Critic (SAC) algorithm.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SACConfig {
+    /// Learning rate for all networks.
+    pub learning_rate: f32,
+    /// Replay buffer size.
+    pub buffer_size: usize,
+    /// Number of timesteps before learning starts.
+    pub learning_starts: usize,
+    /// Minibatch size.
+    pub batch_size: usize,
+    /// Discount factor.
+    pub gamma: f32,
+    /// Soft update coefficient.
+    pub tau: f32,
+    /// Training frequency.
+    pub train_freq: usize,
+    /// Gradient steps per update.
+    pub gradient_steps: usize,
+    /// Initial entropy coefficient (alpha).
+    pub ent_coef: f32,
+    /// Automatically tune entropy coefficient.
+    pub auto_entropy_tuning: bool,
+    /// Target entropy (if auto_entropy_tuning).
+    pub target_entropy: Option<f32>,
+    /// Policy network hidden sizes.
+    pub policy_hidden_sizes: Vec<usize>,
+    /// Q-network hidden sizes.
+    pub q_hidden_sizes: Vec<usize>,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+impl Default for SACConfig {
+    fn default() -> Self {
+        Self {
+            learning_rate: 3e-4,
+            buffer_size: 1_000_000,
+            learning_starts: 10_000,
+            batch_size: 256,
+            gamma: 0.99,
+            tau: 0.005,
+            train_freq: 1,
+            gradient_steps: 1,
+            ent_coef: 0.2,
+            auto_entropy_tuning: true,
+            target_entropy: None,
+            policy_hidden_sizes: vec![256, 256],
+            q_hidden_sizes: vec![256, 256],
+            seed: None,
+        }
+    }
+}
+
+impl SACConfig {
+    /// Create new SAC config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set learning rate.
+    pub fn learning_rate(mut self, lr: f32) -> Self {
+        self.learning_rate = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma.
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Set tau.
+    pub fn tau(mut self, t: f32) -> Self {
+        self.tau = t;
+        self
+    }
+
+    /// Set entropy coefficient.
+    pub fn ent_coef(mut self, c: f32) -> Self {
+        self.ent_coef = c;
+        self
+    }
+
+    /// Enable/disable automatic entropy tuning.
+    pub fn auto_entropy_tuning(mut self, enabled: bool) -> Self {
+        self.auto_entropy_tuning = enabled;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.learning_rate <= 0.0 {
+            return Err("learning_rate must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        if !(0.0..=1.0).contains(&self.tau) {
+            return Err("tau must be in [0, 1]".into());
+        }
+        Ok(())
+    }
+}
+
+/// Configuration for Twin Delayed DDPG (TD3) algorithm.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TD3Config {
+    /// Learning rate for all networks.
+    pub learning_rate: f32,
+    /// Replay buffer size.
+    pub buffer_size: usize,
+    /// Number of timesteps before learning starts.
+    pub learning_starts: usize,
+    /// Minibatch size.
+    pub batch_size: usize,
+    /// Discount factor.
+    pub gamma: f32,
+    /// Soft update coefficient.
+    pub tau: f32,
+    /// Training frequency.
+    pub train_freq: usize,
+    /// Gradient steps per update.
+    pub gradient_steps: usize,
+    /// Policy update delay (update policy every N critic updates).
+    pub policy_delay: usize,
+    /// Target policy noise standard deviation.
+    pub target_policy_noise: f32,
+    /// Target policy noise clipping.
+    pub target_noise_clip: f32,
+    /// Exploration noise standard deviation.
+    pub exploration_noise: f32,
+    /// Policy network hidden sizes.
+    pub policy_hidden_sizes: Vec<usize>,
+    /// Q-network hidden sizes.
+    pub q_hidden_sizes: Vec<usize>,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+impl Default for TD3Config {
+    fn default() -> Self {
+        Self {
+            learning_rate: 3e-4,
+            buffer_size: 1_000_000,
+            learning_starts: 10_000,
+            batch_size: 256,
+            gamma: 0.99,
+            tau: 0.005,
+            train_freq: 1,
+            gradient_steps: 1,
+            policy_delay: 2,
+            target_policy_noise: 0.2,
+            target_noise_clip: 0.5,
+            exploration_noise: 0.1,
+            policy_hidden_sizes: vec![256, 256],
+            q_hidden_sizes: vec![256, 256],
+            seed: None,
+        }
+    }
+}
+
+impl TD3Config {
+    /// Create new TD3 config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set learning rate.
+    pub fn learning_rate(mut self, lr: f32) -> Self {
+        self.learning_rate = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma.
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Set tau.
+    pub fn tau(mut self, t: f32) -> Self {
+        self.tau = t;
+        self
+    }
+
+    /// Set policy delay.
+    pub fn policy_delay(mut self, d: usize) -> Self {
+        self.policy_delay = d;
+        self
+    }
+
+    /// Set exploration noise.
+    pub fn exploration_noise(mut self, n: f32) -> Self {
+        self.exploration_noise = n;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.learning_rate <= 0.0 {
+            return Err("learning_rate must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        if self.policy_delay == 0 {
+            return Err("policy_delay must be positive".into());
+        }
+        Ok(())
+    }
+}
+
+/// Configuration for Deep Deterministic Policy Gradient (DDPG) algorithm.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DDPGConfig {
+    /// Learning rate for actor network.
+    pub actor_lr: f32,
+    /// Learning rate for critic network.
+    pub critic_lr: f32,
+    /// Replay buffer size.
+    pub buffer_size: usize,
+    /// Number of timesteps before learning starts.
+    pub learning_starts: usize,
+    /// Minibatch size.
+    pub batch_size: usize,
+    /// Discount factor.
+    pub gamma: f32,
+    /// Soft update coefficient.
+    pub tau: f32,
+    /// Training frequency.
+    pub train_freq: usize,
+    /// Gradient steps per update.
+    pub gradient_steps: usize,
+    /// Exploration noise type.
+    pub noise_type: NoiseType,
+    /// Exploration noise standard deviation (for Gaussian).
+    pub noise_std: f32,
+    /// Actor network hidden sizes.
+    pub actor_hidden_sizes: Vec<usize>,
+    /// Critic network hidden sizes.
+    pub critic_hidden_sizes: Vec<usize>,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+/// Type of exploration noise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NoiseType {
+    /// Gaussian noise.
+    Gaussian,
+    /// Ornstein-Uhlenbeck process.
+    OrnsteinUhlenbeck,
+}
+
+impl Default for DDPGConfig {
+    fn default() -> Self {
+        Self {
+            actor_lr: 1e-4,
+            critic_lr: 1e-3,
+            buffer_size: 1_000_000,
+            learning_starts: 10_000,
+            batch_size: 256,
+            gamma: 0.99,
+            tau: 0.005,
+            train_freq: 1,
+            gradient_steps: 1,
+            noise_type: NoiseType::Gaussian,
+            noise_std: 0.1,
+            actor_hidden_sizes: vec![256, 256],
+            critic_hidden_sizes: vec![256, 256],
+            seed: None,
+        }
+    }
+}
+
+impl DDPGConfig {
+    /// Create new DDPG config.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set actor learning rate.
+    pub fn actor_lr(mut self, lr: f32) -> Self {
+        self.actor_lr = lr;
+        self
+    }
+
+    /// Set critic learning rate.
+    pub fn critic_lr(mut self, lr: f32) -> Self {
+        self.critic_lr = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma.
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Set tau.
+    pub fn tau(mut self, t: f32) -> Self {
+        self.tau = t;
+        self
+    }
+
+    /// Set noise type.
+    pub fn noise_type(mut self, t: NoiseType) -> Self {
+        self.noise_type = t;
+        self
+    }
+
+    /// Set noise std.
+    pub fn noise_std(mut self, s: f32) -> Self {
+        self.noise_std = s;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.actor_lr <= 0.0 || self.critic_lr <= 0.0 {
+            return Err("learning rates must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

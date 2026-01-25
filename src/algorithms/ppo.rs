@@ -624,7 +624,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             self.update_learning_rate(progress);
 
             // Collect rollout
-            let (buffer, episode_rewards, episode_lengths) = self.collect_rollout()?;
+            let (buffer, episode_rewards, _episode_lengths) = self.collect_rollout()?;
 
             // Update policy
             let mut metrics = self.update(&buffer)?;

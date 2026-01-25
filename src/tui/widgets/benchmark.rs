@@ -13,7 +13,7 @@ use ratatui::{
 };
 
 /// Render benchmark comparison bars (Rust vs Python).
-pub fn render_comparison_bars(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_comparison_bars(frame: &mut Frame<'_>, app: &App, area: Rect) {
     // Prepare bar chart data
     let data: Vec<(&str, u64)> = app
         .benchmark_data
@@ -47,7 +47,7 @@ pub fn render_comparison_bars(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render throughput gauge showing overall performance.
-pub fn render_throughput_gauge(frame: &mut Frame, app: &App, area: Rect) {
+pub fn render_throughput_gauge(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let tensor_ops = app.system_metrics.tensor_ops_per_sec;
 
     // Normalize to 0-1 range (assuming max ~5M ops/sec)
@@ -86,8 +86,8 @@ pub fn render_throughput_gauge(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render speedup indicators comparing Rust vs Python.
-pub fn render_speedup_indicators(frame: &mut Frame, app: &App, area: Rect) {
-    let mut lines: Vec<Line> = vec![Line::from("")];
+pub fn render_speedup_indicators(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    let mut lines: Vec<Line<'_>> = vec![Line::from("")];
 
     for (name, rust_val, python_val) in &app.benchmark_data {
         let speedup = if *python_val > 0.0 {
