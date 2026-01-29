@@ -10,7 +10,7 @@ use crate::algorithms::config::PPOConfig;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::rollout::RolloutBuffer;
 use crate::algorithms::traits::RLAlgorithm;
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -66,7 +66,7 @@ pub struct PPOAgent<E: Environment + Clone + 'static> {
 impl<E: Environment + Clone + 'static> PPOAgent<E> {
     /// Create a new PPO agent.
     pub fn new(config: PPOConfig, env: VecEnv<E>, device: Device) -> Result<Self> {
-        config.validate().map_err(RocketError::InvalidConfig)?;
+        config.validate().map_err(OctaneError::InvalidConfig)?;
 
         let obs_space = env.observation_space();
         let act_space = env.action_space();
@@ -277,7 +277,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             let log_std = self
                 .log_std
                 .as_ref()
-                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
+                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Sample from Gaussian: action = mean + std * noise
@@ -326,7 +326,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             let log_std = self
                 .log_std
                 .as_ref()
-                .ok_or_else(|| RocketError::InvalidConfig("log_std not initialized".to_string()))?;
+                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
             let std = log_std.exp()?;
 
             // Log probability for Gaussian

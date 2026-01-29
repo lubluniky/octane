@@ -1,6 +1,6 @@
 //! Vectorized environment implementation for massive parallelization.
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use crate::envs::{Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rayon::prelude::*;
@@ -113,7 +113,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             .map(|env| {
                 let mut env = env
                     .lock()
-                    .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
+                    .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
                 env.reset(device)
             })
             .collect();
@@ -141,7 +141,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             .map(|(env, action)| {
                 let mut env = env
                     .lock()
-                    .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
+                    .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
                 let result = env.step(action, device)?;
 
                 // Auto-reset if done
@@ -225,7 +225,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         for handle in handles {
             let result = handle
                 .await
-                .map_err(|e| RocketError::Environment(format!("Task join error: {}", e)))??;
+                .map_err(|e| OctaneError::Environment(format!("Task join error: {}", e)))??;
 
             obs_vec.push(result.observation);
             rewards.push(result.reward);
@@ -249,7 +249,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         for env in &self.envs {
             let mut env = env
                 .lock()
-                .map_err(|e| RocketError::Environment(format!("Lock poisoned: {}", e)))?;
+                .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
             env.close()?;
         }
         Ok(())

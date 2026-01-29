@@ -7,80 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2025-01-25
+## [0.2.0] - 2025-01-29
 
 ### Added
-
-#### New Algorithms
-- **SAC (Soft Actor-Critic)** - Maximum entropy RL for continuous control
-  - Twin Q-networks for reduced overestimation
-  - Automatic entropy coefficient tuning
-  - Reparameterization trick for policy gradient
-- **TD3 (Twin Delayed DDPG)** - Improved DDPG with:
-  - Twin critics for reduced overestimation
-  - Delayed policy updates
-  - Target policy smoothing with clipped noise
-- **DDPG (Deep Deterministic Policy Gradient)** - Classic off-policy continuous control
-  - Ornstein-Uhlenbeck noise for exploration
-  - Gaussian noise option
-  - Soft target updates
-- **DQN (Deep Q-Network)** - For discrete action spaces
-  - Double DQN for reduced overestimation
-  - Prioritized Experience Replay (PER)
-  - Huber loss for stability
-  - Epsilon-greedy exploration with decay
-
-#### Experience Buffers
-- **ReplayBuffer** - Efficient ring buffer for off-policy algorithms
-  - O(1) insertion and sampling
-  - Prioritized Experience Replay with sum tree
-  - Importance sampling weights with beta annealing
-  - Configurable capacity and batch sizes
-
-#### Training Infrastructure
-- **TrainingLogger** - JSON-lines based logging system
-  - Structured metrics output for background processes
-  - Run metadata (algorithm, config, timestamps)
-  - Steps per second computation
-- **TrainingLogReader** - Real-time log reading for TUI
-  - Incremental file reading
-  - Progress tracking
-  - Run discovery and listing
-
-#### TUI Improvements
-- **Theme System** - Professional dark color scheme
-  - Consistent color palette (orange accent, cyan secondary)
-  - Semantic colors for success/warning/error
-  - Chart-specific colors for different metrics
-- **Improved Usability**
-  - Better chart rendering
-  - Log file reading from background training
-  - Status indicators for training state
-
-#### API Improvements
-- Expanded prelude module with all algorithm types
-- Consistent builder pattern for all configs
-- Better error messages and validation
+- ARM NEON SIMD optimizations for Apple Silicon M4
+  - `gae_neon.c` - Vectorized GAE computation (4x speedup)
+  - `gaussian_neon.c` - Box-Muller sampling with xoroshiro128+ RNG
+  - `categorical_neon.c` - Gumbel-max trick, SIMD softmax
+  - `buffer_ops_neon.c` - Batch gather/scatter operations
+- Metal compute shaders for GPU acceleration
+  - Fused Gaussian log_prob kernel
+  - PPO loss computation kernel
+  - Categorical sampling on GPU
+- Rust FFI bindings for all SIMD operations
+- New `simd` feature flag for NEON optimizations
+- Benchmark suite for performance testing
 
 ### Changed
-- Updated lib.rs exports to include all new algorithms
-- Improved algorithm module organization
-- Better documentation for all public types
+- Project renamed from RocketRL to Octane
+- Performance improved from 17K FPS to 800K-1.8M FPS
+- Updated documentation with new benchmarks
 
 ### Performance
-- Efficient sum tree for PER (O(log n) operations)
-- Memory-efficient SoA layout for ReplayBuffer
-- Optimized tensor operations in all algorithms
+- Environment stepping: 1000x faster than Python SB3
+- GAE computation: 4-5x faster with NEON
+- Gaussian sampling: 5x faster with vectorized Box-Muller
 
 ## [0.1.0] - 2025-01-24
 
 ### Added
-- Initial public release
-- Core reinforcement learning infrastructure
-- Full documentation and examples
-- CI/CD pipeline with GitHub Actions
-- Comprehensive test suite
-- Performance benchmarks
+- Initial release
+- PPO, A2C, SAC, TD3, DQN, DDPG algorithms
+- VecEnv for parallel simulation
+- Trading environment example
+- TUI for training visualization
+- Metal and CUDA support via Candle
 
-[Unreleased]: https://github.com/lubluniky/rocket-rs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lubluniky/rocket-rs/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lubluniky/rocket-rs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lubluniky/rocket-rs/releases/tag/v0.1.0

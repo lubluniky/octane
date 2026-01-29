@@ -1,4 +1,4 @@
-//! # RocketRL
+//! # Octane
 //!
 //! High-performance Reinforcement Learning library for Rust.
 //! Optimized for Apple Silicon (Metal) and NVIDIA GPUs (CUDA).
@@ -9,7 +9,6 @@
 //! - LSTM/GRU support for time-series (trading)
 //! - Zero-copy tensor operations via Candle
 
-#![forbid(unsafe_code)]
 #![warn(missing_docs, rust_2018_idioms)]
 #![allow(dead_code)] // Allow unused code during development
 
@@ -20,6 +19,7 @@ pub mod distributions;
 pub mod envs;
 pub mod logging;
 pub mod networks;
+pub mod simd;
 pub mod tui;
 
 // Re-exports for ergonomic API
@@ -30,7 +30,7 @@ pub use crate::algorithms::{
 pub use crate::buffer::{
     ReplayBatch, ReplayBuffer, ReplayBufferConfig, RolloutBatch, RolloutBuffer, RolloutBufferConfig,
 };
-pub use crate::core::{Device, Result, RocketError, TensorBackend};
+pub use crate::core::{Device, Result, OctaneError, TensorBackend};
 pub use crate::distributions::{Categorical, DiagGaussian, Distribution, SquashedGaussian};
 pub use crate::envs::{
     ActionType, Environment, MarketData, ObsType, Space, TradingEnv, TradingEnvConfig, VecEnv,
@@ -42,10 +42,10 @@ pub use crate::networks::{ActorCritic, GRU, LSTM, MLP};
 
 /// Prelude module for convenient imports.
 ///
-/// Use with: `use rocket_rs::prelude::*;`
+/// Use with: `use octane_rs::prelude::*;`
 pub mod prelude {
     // Core types
-    pub use crate::core::{Device, Result, RocketError};
+    pub use crate::core::{Device, Result, OctaneError};
 
     // Algorithms
     pub use crate::algorithms::{

@@ -1,4 +1,4 @@
-//! Training logging system for RocketRL.
+//! Training logging system for Octane.
 //!
 //! This module provides a JSON-based logging system that allows:
 //! - Background training processes to write structured logs

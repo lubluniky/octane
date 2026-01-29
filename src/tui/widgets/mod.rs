@@ -1,6 +1,6 @@
 //! Widget modules for the TUI.
 //!
-//! This module exports all custom widgets used in the Rocket-RS TUI.
+//! This module exports all custom widgets used in the Octane-RS TUI.
 
 pub mod benchmark;
 pub mod logo;

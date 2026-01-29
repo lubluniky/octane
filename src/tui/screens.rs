@@ -94,12 +94,12 @@ pub fn render_dashboard(frame: &mut Frame<'_>, app: &App, area: Rect) {
 
 /// Render a mini version of the logo for dashboard.
 fn render_mini_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    let logo_lines = ["██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗",
-        "██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝",
-        "██████╔╝██║   ██║██║     █████╔╝ █████╗     ██║   ",
-        "██╔══██╗██║   ██║██║     ██╔═██╗ ██╔══╝     ██║   ",
-        "██║  ██║╚██████╔╝╚██████╗██║  ██╗███████╗   ██║   ",
-        "╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝   "];
+    let logo_lines = [" ██████╗  ██████╗████████╗ █████╗ ███╗   ██╗███████╗",
+        "██╔═══██╗██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝",
+        "██║   ██║██║        ██║   ███████║██╔██╗ ██║█████╗  ",
+        "██║   ██║██║        ██║   ██╔══██║██║╚██╗██║██╔══╝  ",
+        "╚██████╔╝╚██████╗   ██║   ██║  ██║██║ ╚████║███████╗",
+        " ╚═════╝  ╚═════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝"];
 
     let pulse = app.pulse();
     let base_color = if app.training_active {
@@ -127,7 +127,7 @@ fn render_mini_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::Rgb(80, 80, 100)))
                 .title(Span::styled(
-                    " RocketRL ",
+                    " Octane ",
                     Style::default()
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD),
@@ -321,7 +321,7 @@ fn render_about_info(frame: &mut Frame<'_>, _app: &App, area: Rect) {
         Line::from(""),
         Line::from(vec![
             Span::styled(
-                "RocketRL",
+                "Octane",
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
@@ -348,7 +348,7 @@ fn render_about_info(frame: &mut Frame<'_>, _app: &App, area: Rect) {
         ]),
         Line::from(""),
         Line::from(Span::styled(
-            "github.com/rocketrl/rocketrl",
+            "github.com/lubluniky/octane-rs",
             Style::default()
                 .fg(Color::Blue)
                 .add_modifier(Modifier::UNDERLINED),

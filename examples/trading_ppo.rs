@@ -1,17 +1,17 @@
-//! RocketRL Trading Example
+//! Octane Trading Example
 //!
 //! Demonstrates the ideal user API for training a PPO agent
 //! on a vectorized trading environment.
 //!
 //! Run with: cargo run --example trading_ppo --release
 
-use rocket_rs::algorithms::{PPOAgent, PPOConfig, RLAlgorithm};
-use rocket_rs::core::Device;
-use rocket_rs::envs::{MarketData, TradingEnv};
-use rocket_rs::prelude::*;
+use octane_rs::algorithms::{PPOAgent, PPOConfig, RLAlgorithm};
+use octane_rs::core::Device;
+use octane_rs::envs::{MarketData, TradingEnv};
+use octane_rs::prelude::*;
 use std::path::Path;
 
-fn main() -> rocket_rs::Result<()> {
+fn main() -> octane_rs::Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 

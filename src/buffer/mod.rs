@@ -11,7 +11,7 @@ mod replay;
 
 pub use replay::{ReplayBuffer, ReplayBufferConfig, ReplayBatch, Transition};
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use candle_core::{DType, Tensor};
 use rand::seq::SliceRandom;
 
@@ -119,12 +119,12 @@ impl RolloutBuffer {
         device: &Device,
     ) -> Result<Self> {
         if buffer_size == 0 {
-            return Err(RocketError::InvalidConfig(
+            return Err(OctaneError::InvalidConfig(
                 "Buffer size must be positive".to_string(),
             ));
         }
         if num_envs == 0 {
-            return Err(RocketError::InvalidConfig(
+            return Err(OctaneError::InvalidConfig(
                 "Number of environments must be positive".to_string(),
             ));
         }
@@ -181,7 +181,7 @@ impl RolloutBuffer {
         log_prob: &Tensor,
     ) -> Result<()> {
         if self.full {
-            return Err(RocketError::Buffer(
+            return Err(OctaneError::Buffer(
                 "Buffer is full. Call reset() before adding more transitions.".to_string(),
             ));
         }
@@ -249,7 +249,7 @@ impl RolloutBuffer {
         gae_lambda: f32,
     ) -> Result<()> {
         if !self.full {
-            return Err(RocketError::Buffer(
+            return Err(OctaneError::Buffer(
                 "Buffer not full. Collect more transitions before computing advantages."
                     .to_string(),
             ));
@@ -258,15 +258,15 @@ impl RolloutBuffer {
         let rewards = self
             .rewards
             .as_ref()
-            .ok_or_else(|| RocketError::Buffer("Rewards not available".to_string()))?;
+            .ok_or_else(|| OctaneError::Buffer("Rewards not available".to_string()))?;
         let dones = self
             .dones
             .as_ref()
-            .ok_or_else(|| RocketError::Buffer("Dones not available".to_string()))?;
+            .ok_or_else(|| OctaneError::Buffer("Dones not available".to_string()))?;
         let values = self
             .values
             .as_ref()
-            .ok_or_else(|| RocketError::Buffer("Values not available".to_string()))?;
+            .ok_or_else(|| OctaneError::Buffer("Values not available".to_string()))?;
 
         let candle_device = self.device.to_candle()?;
 
@@ -351,7 +351,7 @@ impl RolloutBuffer {
     /// Vector of `RolloutBatch` structs for training.
     pub fn get_batches(&self, batch_size: usize) -> Result<Vec<RolloutBatch>> {
         if self.advantages.is_none() || self.returns.is_none() {
-            return Err(RocketError::Buffer(
+            return Err(OctaneError::Buffer(
                 "Must call compute_returns_and_advantages before get_batches".to_string(),
             ));
         }
@@ -359,7 +359,7 @@ impl RolloutBuffer {
         let total_size = self.buffer_size * self.num_envs;
 
         if batch_size == 0 || batch_size > total_size {
-            return Err(RocketError::InvalidConfig(format!(
+            return Err(OctaneError::InvalidConfig(format!(
                 "Batch size must be between 1 and {} (buffer_size * num_envs)",
                 total_size
             )));
@@ -507,7 +507,7 @@ impl RolloutBuffer {
         expected.extend_from_slice(&self.obs_shape);
 
         if obs.dims() != expected.as_slice() {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected,
                 got: obs.dims().to_vec(),
             });
@@ -519,7 +519,7 @@ impl RolloutBuffer {
     fn validate_action_shape(&self, action: &Tensor) -> Result<()> {
         let expected = vec![self.num_envs, self.action_dim];
         if action.dims() != expected.as_slice() {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected,
                 got: action.dims().to_vec(),
             });
@@ -531,7 +531,7 @@ impl RolloutBuffer {
     fn validate_scalar_shape(&self, tensor: &Tensor) -> Result<()> {
         let expected = vec![self.num_envs];
         if tensor.dims() != expected.as_slice() {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected,
                 got: tensor.dims().to_vec(),
             });
@@ -543,7 +543,7 @@ impl RolloutBuffer {
     fn flatten_buffer(&self, tensor: &Tensor) -> Result<Tensor> {
         let dims = tensor.dims();
         if dims.len() < 2 {
-            return Err(RocketError::Buffer(
+            return Err(OctaneError::Buffer(
                 "Tensor must have at least 2 dimensions".to_string(),
             ));
         }
@@ -559,7 +559,7 @@ impl RolloutBuffer {
     fn flatten_scalar_buffer(&self, tensor: &Tensor) -> Result<Tensor> {
         let dims = tensor.dims();
         if dims.len() != 2 {
-            return Err(RocketError::Buffer(format!(
+            return Err(OctaneError::Buffer(format!(
                 "Scalar buffer must have 2 dimensions, got {:?}",
                 dims
             )));

@@ -1,10 +1,10 @@
-//! Color theme for RocketRL TUI.
+//! Color theme for Octane TUI.
 //!
 //! Professional dark theme with consistent color scheme.
 
 use ratatui::style::{Color, Modifier, Style};
 
-/// RocketRL color palette - professional dark theme.
+/// Octane color palette - professional dark theme.
 pub struct Theme;
 
 impl Theme {

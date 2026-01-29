@@ -52,7 +52,7 @@ enum AgentImpl<E: Environment + Clone + 'static> {
 /// # Example
 ///
 /// ```ignore
-/// use rocket_rs::{Agent, PPOConfig, VecEnv, Device};
+/// use octane_rs::{Agent, PPOConfig, VecEnv, Device};
 ///
 /// // Create environment
 /// let env = MyEnv::new();

@@ -1,19 +1,19 @@
-//! Rocket-RS TUI Application
+//! Octane-RS TUI Application
 //!
 //! Terminal user interface for monitoring and controlling
-//! reinforcement learning training with Rocket-RS.
+//! reinforcement learning training with Octane-RS.
 //!
 //! # Usage
 //!
 //! ```bash
 //! # Run in demo mode (default)
-//! cargo run --bin rocket-tui
+//! cargo run --bin octane-tui
 //!
 //! # Run in demo mode explicitly
-//! cargo run --bin rocket-tui -- --demo
+//! cargo run --bin octane-tui -- --demo
 //!
 //! # Run in benchmark mode
-//! cargo run --bin rocket-tui -- --benchmark
+//! cargo run --bin octane-tui -- --benchmark
 //! ```
 
 use std::io::{self, stdout, Stdout};
@@ -29,7 +29,7 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 
 // Import TUI modules from the library
-use rocket_rs::tui::{
+use octane_rs::tui::{
     app::{App, AppMode, Tab},
     event::{Event, EventHandler, KeyAction},
     ui::draw,
@@ -89,7 +89,7 @@ fn parse_args() -> AppMode {
                 std::process::exit(0);
             }
             "--version" | "-v" => {
-                println!("rocket-tui {}", env!("CARGO_PKG_VERSION"));
+                println!("octane-tui {}", env!("CARGO_PKG_VERSION"));
                 std::process::exit(0);
             }
             _ => {
@@ -108,10 +108,10 @@ fn parse_args() -> AppMode {
 fn print_help() {
     println!(
         r#"
-Rocket-RS TUI - Terminal UI for Reinforcement Learning
+Octane-RS TUI - Terminal UI for Reinforcement Learning
 
 USAGE:
-    rocket-tui [OPTIONS]
+    octane-tui [OPTIONS]
 
 OPTIONS:
     -d, --demo        Run in demo mode with simulated data (default)
@@ -127,7 +127,7 @@ KEYBOARD SHORTCUTS:
     h / ?             Show help overlay
     q / Esc           Quit
 
-For more information, visit: https://github.com/lubluniky/rocket-rs
+For more information, visit: https://github.com/lubluniky/octane-rs
 "#
     );
 }

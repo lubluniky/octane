@@ -3,7 +3,7 @@
 //! The rollout buffer stores transitions collected from the environment
 //! and computes returns and advantages for policy gradient updates.
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use candle_core::Tensor;
 
 /// Sample from the rollout buffer for training.
@@ -115,7 +115,7 @@ impl RolloutBuffer {
         log_prob: &Tensor,
     ) -> Result<()> {
         if self.pos >= self.n_steps {
-            return Err(RocketError::Buffer(
+            return Err(OctaneError::Buffer(
                 "Buffer overflow: too many transitions added".to_string(),
             ));
         }
@@ -213,17 +213,17 @@ impl RolloutBuffer {
     /// Get all data from the buffer as a single sample.
     pub fn get_all(&self) -> Result<RolloutSample> {
         if !self.full && self.pos == 0 {
-            return Err(RocketError::Buffer("Buffer is empty".to_string()));
+            return Err(OctaneError::Buffer("Buffer is empty".to_string()));
         }
 
         let advantages = self.advantages.as_ref().ok_or_else(|| {
-            RocketError::Buffer(
+            OctaneError::Buffer(
                 "Advantages not computed. Call compute_returns_and_advantages first.".to_string(),
             )
         })?;
 
         let returns = self.returns.as_ref().ok_or_else(|| {
-            RocketError::Buffer(
+            OctaneError::Buffer(
                 "Returns not computed. Call compute_returns_and_advantages first.".to_string(),
             )
         })?;

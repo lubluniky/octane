@@ -1,4 +1,4 @@
-//! UI rendering for the Rocket TUI
+//! UI rendering for the Octane TUI
 //!
 //! Handles all visual rendering using ratatui widgets.
 
@@ -16,13 +16,13 @@ use ratatui::{
 
 use super::app::{App, Tab};
 
-// Theme colors - Rocket-inspired dark theme with orange/red accents
-const ROCKET_ORANGE: Color = Color::Rgb(255, 107, 53);
-const ROCKET_RED: Color = Color::Rgb(220, 50, 47);
-const ROCKET_YELLOW: Color = Color::Rgb(255, 193, 7);
-const ROCKET_GREEN: Color = Color::Rgb(46, 204, 113);
-const ROCKET_BLUE: Color = Color::Rgb(52, 152, 219);
-const ROCKET_PURPLE: Color = Color::Rgb(155, 89, 182);
+// Theme colors - Octane-inspired dark theme with orange/red accents
+const OCTANE_ORANGE: Color = Color::Rgb(255, 107, 53);
+const OCTANE_RED: Color = Color::Rgb(220, 50, 47);
+const OCTANE_YELLOW: Color = Color::Rgb(255, 193, 7);
+const OCTANE_GREEN: Color = Color::Rgb(46, 204, 113);
+const OCTANE_BLUE: Color = Color::Rgb(52, 152, 219);
+const OCTANE_PURPLE: Color = Color::Rgb(155, 89, 182);
 const DARK_BG: Color = Color::Rgb(18, 18, 24);
 const DARK_SURFACE: Color = Color::Rgb(28, 28, 36);
 const DARK_BORDER: Color = Color::Rgb(48, 48, 60);
@@ -31,16 +31,16 @@ const TEXT_SECONDARY: Color = Color::Rgb(150, 150, 165);
 const TEXT_DIM: Color = Color::Rgb(100, 100, 115);
 
 /// ASCII art logo for splash screen
-const ROCKET_LOGO: &str = r#"
-    ██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗
-    ██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝
-    ██████╔╝██║   ██║██║     █████╔╝ █████╗     ██║
-    ██╔══██╗██║   ██║██║     ██╔═██╗ ██╔══╝     ██║
-    ██║  ██║╚██████╔╝╚██████╗██║  ██╗███████╗   ██║
-    ╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝
+const OCTANE_LOGO: &str = r#"
+     ██████╗  ██████╗████████╗ █████╗ ███╗   ██╗███████╗
+    ██╔═══██╗██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝
+    ██║   ██║██║        ██║   ███████║██╔██╗ ██║█████╗
+    ██║   ██║██║        ██║   ██╔══██║██║╚██╗██║██╔══╝
+    ╚██████╔╝╚██████╗   ██║   ██║  ██║██║ ╚████║███████╗
+     ╚═════╝  ╚═════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝
 "#;
 
-const ROCKET_SUBTITLE: &str = "High-Performance Reinforcement Learning for Rust";
+const OCTANE_SUBTITLE: &str = "High-Performance Reinforcement Learning for Rust";
 
 /// Main draw function - entry point for rendering
 pub fn draw(frame: &mut Frame<'_>, app: &App) {
@@ -74,16 +74,16 @@ fn draw_splash(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
     // Animated gradient effect based on frame
     let gradient_colors = [
-        ROCKET_ORANGE,
-        ROCKET_RED,
-        ROCKET_YELLOW,
-        ROCKET_ORANGE,
+        OCTANE_ORANGE,
+        OCTANE_RED,
+        OCTANE_YELLOW,
+        OCTANE_ORANGE,
     ];
     let color_idx = (app.frame / 15) as usize % gradient_colors.len();
     let logo_color = gradient_colors[color_idx];
 
     // Logo
-    let logo = Paragraph::new(ROCKET_LOGO)
+    let logo = Paragraph::new(OCTANE_LOGO)
         .style(Style::default().fg(logo_color).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center);
     frame.render_widget(logo, vertical_center[1]);
@@ -99,7 +99,7 @@ fn draw_splash(frame: &mut Frame<'_>, area: Rect, app: &App) {
         ])
         .split(vertical_center[1]);
 
-    let subtitle = Paragraph::new(ROCKET_SUBTITLE)
+    let subtitle = Paragraph::new(OCTANE_SUBTITLE)
         .style(Style::default().fg(TEXT_SECONDARY))
         .alignment(Alignment::Center);
     frame.render_widget(subtitle, subtitle_area[2]);
@@ -120,7 +120,7 @@ fn draw_splash(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let progress = app.frame as f64 / 120.0; // ~2 seconds at 60fps
     let progress_area = centered_rect(40, 1, vertical_center[2]);
     let gauge = Gauge::default()
-        .gauge_style(Style::default().fg(ROCKET_ORANGE).bg(DARK_SURFACE))
+        .gauge_style(Style::default().fg(OCTANE_ORANGE).bg(DARK_SURFACE))
         .ratio(progress.min(1.0))
         .label("");
     frame.render_widget(gauge, progress_area);
@@ -163,9 +163,9 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .split(area);
 
     // Logo/title
-    let title = Paragraph::new(" ROCKET")
+    let title = Paragraph::new(" OCTANE")
         .style(Style::default()
-            .fg(ROCKET_ORANGE)
+            .fg(OCTANE_ORANGE)
             .add_modifier(Modifier::BOLD))
         .block(Block::default()
             .borders(Borders::BOTTOM)
@@ -178,7 +178,7 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .enumerate()
         .map(|(i, tab)| {
             let style = if *tab == app.tab {
-                Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD)
+                Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(TEXT_SECONDARY)
             };
@@ -191,7 +191,7 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
     let tabs = Tabs::new(tab_titles)
         .select(app.tab.index())
-        .highlight_style(Style::default().fg(ROCKET_ORANGE))
+        .highlight_style(Style::default().fg(OCTANE_ORANGE))
         .divider(Span::styled(" | ", Style::default().fg(DARK_BORDER)))
         .block(Block::default()
             .borders(Borders::BOTTOM)
@@ -200,9 +200,9 @@ fn draw_header(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
     // Status indicator
     let status_text = if app.paused {
-        Span::styled(" PAUSED ", Style::default().fg(ROCKET_YELLOW).add_modifier(Modifier::BOLD))
+        Span::styled(" PAUSED ", Style::default().fg(OCTANE_YELLOW).add_modifier(Modifier::BOLD))
     } else {
-        Span::styled(" RUNNING ", Style::default().fg(ROCKET_GREEN).add_modifier(Modifier::BOLD))
+        Span::styled(" RUNNING ", Style::default().fg(OCTANE_GREEN).add_modifier(Modifier::BOLD))
     };
     let status = Paragraph::new(status_text)
         .alignment(Alignment::Right)
@@ -265,13 +265,13 @@ fn draw_metrics_cards(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .split(area);
 
     let metrics = [
-        ("Episode", format!("{}", app.metrics.episode), ROCKET_BLUE),
-        ("Timesteps", format!("{:.1}K", app.metrics.timesteps as f64 / 1000.0), ROCKET_PURPLE),
+        ("Episode", format!("{}", app.metrics.episode), OCTANE_BLUE),
+        ("Timesteps", format!("{:.1}K", app.metrics.timesteps as f64 / 1000.0), OCTANE_PURPLE),
         ("Reward", format!("{:.1}", app.metrics.episode_reward),
-            if app.metrics.episode_reward > 0.0 { ROCKET_GREEN } else { ROCKET_RED }),
+            if app.metrics.episode_reward > 0.0 { OCTANE_GREEN } else { OCTANE_RED }),
         ("Avg Reward", format!("{:.1}", app.metrics.avg_reward),
-            if app.metrics.avg_reward > 0.0 { ROCKET_GREEN } else { ROCKET_RED }),
-        ("Steps/s", format!("{:.0}", app.metrics.steps_per_second), ROCKET_ORANGE),
+            if app.metrics.avg_reward > 0.0 { OCTANE_GREEN } else { OCTANE_RED }),
+        ("Steps/s", format!("{:.0}", app.metrics.steps_per_second), OCTANE_ORANGE),
     ];
 
     for (i, (label, value, color)) in metrics.iter().enumerate() {
@@ -320,7 +320,7 @@ fn draw_reward_chart(frame: &mut Frame<'_>, area: Rect, app: &App) {
             .name("Reward")
             .marker(symbols::Marker::Braille)
             .graph_type(GraphType::Line)
-            .style(Style::default().fg(ROCKET_ORANGE))
+            .style(Style::default().fg(OCTANE_ORANGE))
             .data(&data),
     ];
 
@@ -377,7 +377,7 @@ fn draw_loss_sparklines(frame: &mut Frame<'_>, area: Rect, app: &App) {
             .border_style(Style::default().fg(DARK_BORDER))
             .style(Style::default().bg(DARK_SURFACE)))
         .data(&policy_data)
-        .style(Style::default().fg(ROCKET_BLUE));
+        .style(Style::default().fg(OCTANE_BLUE));
     frame.render_widget(policy_sparkline, layout[0]);
 
     // Value loss
@@ -396,7 +396,7 @@ fn draw_loss_sparklines(frame: &mut Frame<'_>, area: Rect, app: &App) {
             .border_style(Style::default().fg(DARK_BORDER))
             .style(Style::default().bg(DARK_SURFACE)))
         .data(&value_data)
-        .style(Style::default().fg(ROCKET_PURPLE));
+        .style(Style::default().fg(OCTANE_PURPLE));
     frame.render_widget(value_sparkline, layout[1]);
 }
 
@@ -408,11 +408,11 @@ fn draw_logs(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .take(10)
         .map(|log| {
             let style = if log.contains("[ERROR]") {
-                Style::default().fg(ROCKET_RED)
+                Style::default().fg(OCTANE_RED)
             } else if log.contains("[WARN]") {
-                Style::default().fg(ROCKET_YELLOW)
+                Style::default().fg(OCTANE_YELLOW)
             } else if log.contains("[TRAIN]") {
-                Style::default().fg(ROCKET_GREEN)
+                Style::default().fg(OCTANE_GREEN)
             } else {
                 Style::default().fg(TEXT_SECONDARY)
             };
@@ -463,7 +463,7 @@ fn draw_training(frame: &mut Frame<'_>, area: Rect, app: &App) {
     for (i, (label, value)) in metrics_data.iter().enumerate() {
         let metric = Paragraph::new(Line::from(vec![
             Span::styled(format!("{}: ", label), Style::default().fg(TEXT_SECONDARY)),
-            Span::styled(value.clone(), Style::default().fg(ROCKET_ORANGE)),
+            Span::styled(value.clone(), Style::default().fg(OCTANE_ORANGE)),
         ]))
         .block(Block::default()
             .borders(Borders::ALL)
@@ -491,7 +491,7 @@ fn draw_environment(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let env_info = Paragraph::new(vec![
         Line::from(vec![
             Span::styled("Environment: ", Style::default().fg(TEXT_SECONDARY)),
-            Span::styled("TradingEnv", Style::default().fg(ROCKET_ORANGE)),
+            Span::styled("TradingEnv", Style::default().fg(OCTANE_ORANGE)),
         ]),
         Line::from(vec![
             Span::styled("Observation Space: ", Style::default().fg(TEXT_SECONDARY)),
@@ -529,7 +529,7 @@ fn draw_environment(frame: &mut Frame<'_>, area: Rect, app: &App) {
         Line::from(""),
         Line::from(Span::styled(
             format!("Current Position: {}", if app.frame % 60 < 30 { "LONG" } else { "SHORT" }),
-            Style::default().fg(if app.frame % 60 < 30 { ROCKET_GREEN } else { ROCKET_RED }),
+            Style::default().fg(if app.frame % 60 < 30 { OCTANE_GREEN } else { OCTANE_RED }),
         )),
         Line::from(Span::styled(
             format!("Portfolio Value: ${:.2}", 10000.0 + (app.metrics.avg_reward * 10.0)),
@@ -556,7 +556,7 @@ fn draw_benchmarks(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
     // Benchmark table
     let header = Row::new(vec!["Benchmark", "Rust", "Python", "Speedup"])
-        .style(Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD))
         .bottom_margin(1);
 
     let rows: Vec<Row> = app.benchmarks
@@ -567,14 +567,14 @@ fn draw_benchmarks(frame: &mut Frame<'_>, area: Rect, app: &App) {
                 .map(|s| format!("{:.1}x", s))
                 .unwrap_or_else(|| "-".to_string());
             let speedup_style = if speedup.unwrap_or(0.0) > 1.0 {
-                Style::default().fg(ROCKET_GREEN)
+                Style::default().fg(OCTANE_GREEN)
             } else {
-                Style::default().fg(ROCKET_RED)
+                Style::default().fg(OCTANE_RED)
             };
 
             Row::new(vec![
                 Span::styled(&b.name, Style::default().fg(TEXT_PRIMARY)),
-                Span::styled(format!("{:.2} {}", b.value, b.unit), Style::default().fg(ROCKET_BLUE)),
+                Span::styled(format!("{:.2} {}", b.value, b.unit), Style::default().fg(OCTANE_BLUE)),
                 Span::styled(
                     b.comparison.map(|v| format!("{:.2} {}", v, b.unit)).unwrap_or("-".to_string()),
                     Style::default().fg(TEXT_SECONDARY),
@@ -616,7 +616,7 @@ fn draw_benchmarks(frame: &mut Frame<'_>, area: Rect, app: &App) {
             Bar::default()
                 .value(*value)
                 .label(Line::from(*name))
-                .style(Style::default().fg(ROCKET_ORANGE))
+                .style(Style::default().fg(OCTANE_ORANGE))
         })
         .collect();
 
@@ -630,7 +630,7 @@ fn draw_benchmarks(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .data(BarGroup::default().bars(&bars))
         .bar_width(8)
         .bar_gap(2)
-        .bar_style(Style::default().fg(ROCKET_ORANGE))
+        .bar_style(Style::default().fg(OCTANE_ORANGE))
         .value_style(Style::default().fg(TEXT_PRIMARY));
     frame.render_widget(barchart, layout[1]);
 }
@@ -655,7 +655,7 @@ fn draw_settings(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let settings = Paragraph::new(vec![
         Line::from(vec![
             Span::styled("Mode: ", Style::default().fg(TEXT_SECONDARY)),
-            Span::styled(mode_str, Style::default().fg(ROCKET_ORANGE)),
+            Span::styled(mode_str, Style::default().fg(OCTANE_ORANGE)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -692,8 +692,8 @@ fn draw_settings(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let about = Paragraph::new(vec![
         Line::from(""),
         Line::from(Span::styled(
-            "Rocket-RS",
-            Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD),
+            "Octane-RS",
+            Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
             "High-Performance Reinforcement Learning for Rust",
@@ -736,9 +736,9 @@ fn draw_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
 fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
     let block = Block::default()
         .title(" Keyboard Shortcuts ")
-        .title_style(Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD))
+        .title_style(Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(ROCKET_ORANGE))
+        .border_style(Style::default().fg(OCTANE_ORANGE))
         .style(Style::default().bg(DARK_BG));
     frame.render_widget(block, area);
 
@@ -746,7 +746,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
     let help_content = Paragraph::new(vec![
         Line::from(""),
         Line::from(vec![
-            Span::styled("Navigation", Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("Navigation", Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
             Span::styled("  Tab / Shift+Tab    ", Style::default().fg(TEXT_PRIMARY)),
@@ -762,7 +762,7 @@ fn draw_help_overlay(frame: &mut Frame<'_>, area: Rect) {
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Controls", Style::default().fg(ROCKET_ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("Controls", Style::default().fg(OCTANE_ORANGE).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
             Span::styled("  Space / p          ", Style::default().fg(TEXT_PRIMARY)),

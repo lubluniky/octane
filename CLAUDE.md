@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RocketRL is a high-performance reinforcement learning library written in Rust, using Candle (HuggingFace's tensor library) as the backend. It's optimized for Apple Silicon (Metal) and NVIDIA GPUs (CUDA), targeting algorithmic trading and other RL applications.
+Octane is a high-performance reinforcement learning library written in Rust, using Candle (HuggingFace's tensor library) as the backend. It's optimized for Apple Silicon (Metal) and NVIDIA GPUs (CUDA), targeting algorithmic trading and other RL applications.
 
 ## Build Commands
 
@@ -39,7 +39,7 @@ cargo clippy -- -D warnings
 
 ### Module Structure
 
-- **`core/`** - Device abstraction (CPU/Metal/CUDA), error types (`RocketError`), and tensor backend trait over Candle
+- **`core/`** - Device abstraction (CPU/Metal/CUDA), error types (`OctaneError`), and tensor backend trait over Candle
 - **`envs/`** - Gym-like environment interface with `Environment` trait, `VecEnv` for parallel simulation via Rayon, and `TradingEnv` example
 - **`networks/`** - Neural network architectures: `MLP`, `LSTM`, `GRU`, and combined `ActorCritic` policy-value networks
 - **`distributions/`** - Action distributions: `Categorical` (discrete), `DiagGaussian` and `SquashedGaussian` (continuous)
@@ -79,7 +79,7 @@ cargo clippy -- -D warnings
 
 ## Code Style
 
-- Uses `thiserror` for error types with `RocketError` as the main error enum
+- Uses `thiserror` for error types with `OctaneError` as the main error enum
 - Uses builder pattern for configs (e.g., `PPOConfig::default().learning_rate(3e-4).n_steps(2048)`)
 - All public APIs require documentation comments (`///`)
 - `#![forbid(unsafe_code)]` enforced at crate level
@@ -87,4 +87,4 @@ cargo clippy -- -D warnings
 
 ## Binary
 
-`rocket-tui` - Terminal UI binary for training visualization (`src/bin/rocket_tui.rs`)
+`octane-tui` - Terminal UI binary for training visualization (`src/bin/octane_tui.rs`)

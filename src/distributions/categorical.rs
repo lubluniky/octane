@@ -6,7 +6,7 @@ use candle_core::Tensor;
 use candle_nn::ops::log_softmax;
 use rand::Rng;
 
-use crate::core::{Result, RocketError};
+use crate::core::{Result, OctaneError};
 use crate::distributions::Distribution;
 
 /// Categorical distribution for discrete action spaces.
@@ -43,7 +43,7 @@ impl Categorical {
     pub fn new(logits: Tensor) -> Result<Self> {
         // Validate shape
         if logits.dims().len() != 2 {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: vec![0, 0], // placeholder
                 got: logits.dims().to_vec(),
             });
@@ -71,7 +71,7 @@ impl Categorical {
     /// A new Categorical distribution
     pub fn from_probs(probs: Tensor) -> Result<Self> {
         if probs.dims().len() != 2 {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: vec![0, 0],
                 got: probs.dims().to_vec(),
             });
@@ -191,7 +191,7 @@ impl Distribution for Categorical {
 
         // Actions should be [batch_size] of integer indices
         if actions.dims() != [batch_size] {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: vec![batch_size],
                 got: actions.dims().to_vec(),
             });

@@ -1,4 +1,4 @@
-//! ASCII art logo widget for RocketRL.
+//! ASCII art logo widget for Octane.
 
 use crate::tui::App;
 use ratatui::{
@@ -9,14 +9,14 @@ use ratatui::{
     Frame,
 };
 
-/// The main ROCKET ASCII art logo.
-const ROCKET_LOGO: &[&str] = &[
-    r"██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗",
-    r"██╔══██╗██╔═══██╗██╔════╝██║ ██╔╝██╔════╝╚══██╔══╝",
-    r"██████╔╝██║   ██║██║     █████╔╝ █████╗     ██║   ",
-    r"██╔══██╗██║   ██║██║     ██╔═██╗ ██╔══╝     ██║   ",
-    r"██║  ██║╚██████╔╝╚██████╗██║  ██╗███████╗   ██║   ",
-    r"╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ",
+/// The main OCTANE ASCII art logo.
+const OCTANE_LOGO: &[&str] = &[
+    r" ██████╗  ██████╗████████╗ █████╗ ███╗   ██╗███████╗",
+    r"██╔═══██╗██╔════╝╚══██╔══╝██╔══██╗████╗  ██║██╔════╝",
+    r"██║   ██║██║        ██║   ███████║██╔██╗ ██║█████╗  ",
+    r"██║   ██║██║        ██║   ██╔══██║██║╚██╗██║██╔══╝  ",
+    r"╚██████╔╝╚██████╗   ██║   ██║  ██║██║ ╚████║███████╗",
+    r" ╚═════╝  ╚═════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝",
 ];
 
 /// Tagline displayed below the logo.
@@ -30,8 +30,8 @@ pub fn render_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
     lines.push(Line::from(""));
 
     // Create color gradient for each row of the logo
-    for (i, logo_line) in ROCKET_LOGO.iter().enumerate() {
-        let color = get_gradient_color(i, ROCKET_LOGO.len(), app.tick);
+    for (i, logo_line) in OCTANE_LOGO.iter().enumerate() {
+        let color = get_gradient_color(i, OCTANE_LOGO.len(), app.tick);
         lines.push(Line::from(Span::styled(
             *logo_line,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -72,7 +72,7 @@ pub fn render_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(get_border_color(app.tick)))
                 .title(Span::styled(
-                    " ROCKET-RS ",
+                    " OCTANE-RS ",
                     Style::default()
                         .fg(Color::Rgb(255, 165, 0))
                         .add_modifier(Modifier::BOLD),
@@ -111,7 +111,7 @@ fn get_border_color(tick: u64) -> Color {
 pub fn render_compact_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let compact = vec![
         Line::from(Span::styled(
-            "ROCKET",
+            "OCTANE",
             Style::default()
                 .fg(Color::Rgb(255, 165, 0))
                 .add_modifier(Modifier::BOLD),
@@ -133,10 +133,10 @@ pub fn render_compact_logo(frame: &mut Frame<'_>, app: &App, area: Rect) {
     frame.render_widget(logo, area);
 }
 
-/// Rocket flame animation characters.
+/// Flame animation characters.
 const FLAMES: &[&str] = &["*", "^", ".", "o", "O", "*"];
 
-/// Render animated rocket flames (for fun).
+/// Render animated flames (for fun).
 pub fn render_rocket_animation(frame: &mut Frame<'_>, app: &App, area: Rect) {
     let flame_idx = (app.tick as usize / 2) % FLAMES.len();
     let flame_char = FLAMES[flame_idx];
@@ -185,10 +185,10 @@ mod tests {
 
     #[test]
     fn test_logo_lines() {
-        assert_eq!(ROCKET_LOGO.len(), 6);
+        assert_eq!(OCTANE_LOGO.len(), 6);
         // Verify all lines have similar width
-        let first_len = ROCKET_LOGO[0].chars().count();
-        for line in ROCKET_LOGO {
+        let first_len = OCTANE_LOGO[0].chars().count();
+        for line in OCTANE_LOGO {
             // Allow some variance for alignment
             assert!(line.chars().count() <= first_len + 5);
         }

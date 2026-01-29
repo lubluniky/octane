@@ -1,13 +1,13 @@
-//! Error types for RocketRL.
+//! Error types for Octane.
 
 use thiserror::Error;
 
-/// Result type alias for RocketRL operations.
-pub type Result<T> = std::result::Result<T, RocketError>;
+/// Result type alias for Octane operations.
+pub type Result<T> = std::result::Result<T, OctaneError>;
 
-/// Errors that can occur in RocketRL operations.
+/// Errors that can occur in Octane operations.
 #[derive(Error, Debug)]
-pub enum RocketError {
+pub enum OctaneError {
     /// Tensor operation failed.
     #[error("Tensor error: {0}")]
     Tensor(#[from] candle_core::Error),
@@ -50,14 +50,14 @@ pub enum RocketError {
     Io(#[from] std::io::Error),
 }
 
-impl From<serde_json::Error> for RocketError {
+impl From<serde_json::Error> for OctaneError {
     fn from(err: serde_json::Error) -> Self {
-        RocketError::Serialization(err.to_string())
+        OctaneError::Serialization(err.to_string())
     }
 }
 
-impl From<bincode::Error> for RocketError {
+impl From<bincode::Error> for OctaneError {
     fn from(err: bincode::Error) -> Self {
-        RocketError::Serialization(err.to_string())
+        OctaneError::Serialization(err.to_string())
     }
 }

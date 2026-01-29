@@ -4,7 +4,7 @@
 
 use candle_core::Tensor;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use rocket_rs::core::Device;
+use octane_rs::core::Device;
 
 fn benchmark_ppo_loss_computation(c: &mut Criterion) {
     let device = Device::cpu();

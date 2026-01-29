@@ -3,7 +3,7 @@
 //! This module provides efficient, ring-buffer based storage for experience replay.
 //! Supports uniform random sampling and optional prioritized experience replay (PER).
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use candle_core::Tensor;
 use rand::prelude::*;
 
@@ -159,7 +159,7 @@ impl ReplayBuffer {
         let action_dim = config.action_dim;
 
         if capacity == 0 {
-            return Err(RocketError::InvalidConfig("Capacity must be positive".into()));
+            return Err(OctaneError::InvalidConfig("Capacity must be positive".into()));
         }
 
         let (priorities, sum_tree) = if config.prioritized {
@@ -255,7 +255,7 @@ impl ReplayBuffer {
     /// Sample a batch of transitions uniformly at random.
     pub fn sample(&mut self, batch_size: usize) -> Result<ReplayBatch> {
         if self.size < batch_size {
-            return Err(RocketError::Buffer(format!(
+            return Err(OctaneError::Buffer(format!(
                 "Not enough samples: {} < {}",
                 self.size, batch_size
             )));

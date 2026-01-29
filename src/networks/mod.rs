@@ -1,4 +1,4 @@
-//! Neural network modules for RocketRL.
+//! Neural network modules for Octane.
 //!
 //! This module provides configurable neural network architectures for
 //! reinforcement learning, including MLPs, recurrent networks (LSTM/GRU),
@@ -10,7 +10,7 @@
 //!
 //! # Example
 //! ```ignore
-//! use rocket_rs::networks::{MLP, ActorCritic, ActorCriticConfig};
+//! use octane_rs::networks::{MLP, ActorCritic, ActorCriticConfig};
 //! use candle_core::Device;
 //! use candle_nn::VarMap;
 //!

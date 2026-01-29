@@ -1,6 +1,6 @@
 //! Example trading environment for algorithmic trading RL.
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use crate::envs::{BoxSpace, Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rand::rngs::StdRng;
@@ -138,7 +138,7 @@ impl TradingEnv {
     /// Create with custom configuration.
     pub fn with_config(data: MarketData, config: TradingEnvConfig) -> Result<Self> {
         if data.len() < config.lookback + config.episode_length {
-            return Err(RocketError::InvalidConfig(format!(
+            return Err(OctaneError::InvalidConfig(format!(
                 "Data length {} too short for lookback {} + episode_length {}",
                 data.len(),
                 config.lookback,

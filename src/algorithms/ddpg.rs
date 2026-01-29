@@ -12,7 +12,7 @@ use crate::algorithms::config::{DDPGConfig, NoiseType};
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -101,7 +101,7 @@ pub struct DDPGAgent<E: Environment + Clone + 'static> {
 impl<E: Environment + Clone + 'static> DDPGAgent<E> {
     /// Create a new DDPG agent.
     pub fn new(config: DDPGConfig, env: VecEnv<E>, device: Device) -> Result<Self> {
-        config.validate().map_err(RocketError::InvalidConfig)?;
+        config.validate().map_err(OctaneError::InvalidConfig)?;
 
         let obs_space = env.observation_space();
         let act_space = env.action_space();

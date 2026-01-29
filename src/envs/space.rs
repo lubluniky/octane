@@ -1,6 +1,6 @@
 //! Action and observation space definitions.
 
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use candle_core::Tensor;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -37,13 +37,13 @@ impl BoxSpace {
     /// Create a new box space.
     pub fn new(low: Vec<f32>, high: Vec<f32>, shape: Vec<usize>) -> Result<Self> {
         if low.len() != high.len() {
-            return Err(RocketError::InvalidConfig(
+            return Err(OctaneError::InvalidConfig(
                 "Low and high bounds must have same length".to_string(),
             ));
         }
         let flat_dim: usize = shape.iter().product();
         if low.len() != flat_dim {
-            return Err(RocketError::InvalidConfig(format!(
+            return Err(OctaneError::InvalidConfig(format!(
                 "Bounds length {} doesn't match shape {:?}",
                 low.len(),
                 shape

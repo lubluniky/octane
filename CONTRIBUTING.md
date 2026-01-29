@@ -1,6 +1,6 @@
-# Contributing to RocketRL
+# Contributing to Octane
 
-Thank you for your interest in contributing to RocketRL! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Octane! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -23,12 +23,12 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/rocket-rs.git
-   cd rocket-rs
+   git clone https://github.com/YOUR_USERNAME/octane-rs.git
+   cd octane-rs
    ```
 3. **Add upstream remote**:
    ```bash
-   git remote add upstream https://github.com/rocketrl/rocket-rs.git
+   git remote add upstream https://github.com/lubluniky/octane-rs.git
    ```
 
 ## Development Setup
@@ -153,7 +153,7 @@ Example:
 /// # Example
 ///
 /// ```
-/// use rocket_rs::algorithms::gae;
+/// use octane_rs::algorithms::gae;
 /// let advantages = gae(&rewards, &values, 0.99, 0.95)?;
 /// ```
 pub fn gae(
@@ -168,7 +168,7 @@ pub fn gae(
 
 ### Error Handling
 
-- Use `Result<T, RocketError>` for fallible operations
+- Use `Result<T, OctaneError>` for fallible operations
 - Use `thiserror` for custom error types
 - Provide meaningful error messages
 
@@ -286,7 +286,7 @@ When reporting bugs, include:
 - **Environment**: 
   - OS and version
   - Rust version (`rustc --version`)
-  - RocketRL version
+  - Octane version
   - GPU info (if relevant)
 - **Logs/Errors**: Full error messages or stack traces
 
@@ -354,4 +354,4 @@ Contributors will be recognized in:
 - Release notes for significant contributions
 - The project README (for major contributions)
 
-Thank you for contributing to RocketRL! 🚀
+Thank you for contributing to Octane!

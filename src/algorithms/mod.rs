@@ -12,7 +12,7 @@
 //! # Quick Start
 //!
 //! ```ignore
-//! use rocket_rs::{Agent, PPOConfig, VecEnv, Device};
+//! use octane_rs::{Agent, PPOConfig, VecEnv, Device};
 //!
 //! // Create vectorized environment
 //! let env = MyEnv::new();

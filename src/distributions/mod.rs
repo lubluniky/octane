@@ -11,7 +11,7 @@
 //! ## Example
 //!
 //! ```ignore
-//! use rocket_rs::distributions::{Distribution, Categorical, DiagGaussian};
+//! use octane_rs::distributions::{Distribution, Categorical, DiagGaussian};
 //! use candle_core::Tensor;
 //!
 //! // Discrete actions with Categorical

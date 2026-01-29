@@ -6,7 +6,7 @@ use candle_core::Tensor;
 use rand::Rng;
 use rand_distr::StandardNormal;
 
-use crate::core::{Result, RocketError};
+use crate::core::{Result, OctaneError};
 use crate::distributions::{constants, Distribution};
 
 /// Diagonal Gaussian (Normal) distribution for continuous action spaces.
@@ -60,7 +60,7 @@ impl DiagGaussian {
     pub fn new(mean: Tensor, log_std: Tensor) -> Result<Self> {
         // Validate shapes match
         if mean.dims() != log_std.dims() {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: mean.dims().to_vec(),
                 got: log_std.dims().to_vec(),
             });
@@ -68,7 +68,7 @@ impl DiagGaussian {
 
         // Validate 2D shape [batch_size, action_dim]
         if mean.dims().len() != 2 {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: vec![0, 0], // placeholder for 2D
                 got: mean.dims().to_vec(),
             });
@@ -206,7 +206,7 @@ impl Distribution for DiagGaussian {
 
         // Validate action shape
         if actions.dims() != [batch_size, action_dim] {
-            return Err(RocketError::ShapeMismatch {
+            return Err(OctaneError::ShapeMismatch {
                 expected: vec![batch_size, action_dim],
                 got: actions.dims().to_vec(),
             });

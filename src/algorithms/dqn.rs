@@ -15,7 +15,7 @@ use crate::algorithms::config::DQNConfig;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, RocketError};
+use crate::core::{Device, Result, OctaneError};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -63,7 +63,7 @@ pub struct DQNAgent<E: Environment + Clone + 'static> {
 impl<E: Environment + Clone + 'static> DQNAgent<E> {
     /// Create a new DQN agent.
     pub fn new(config: DQNConfig, env: VecEnv<E>, device: Device) -> Result<Self> {
-        config.validate().map_err(RocketError::InvalidConfig)?;
+        config.validate().map_err(OctaneError::InvalidConfig)?;
 
         let obs_space = env.observation_space();
         let act_space = env.action_space();
@@ -73,7 +73,7 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
 
         // Verify discrete action space
         if act_space.shape() != [1] && act_space.shape().len() != 1 {
-            return Err(RocketError::InvalidConfig(
+            return Err(OctaneError::InvalidConfig(
                 "DQN requires discrete action space".into(),
             ));
         }

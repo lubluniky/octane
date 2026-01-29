@@ -1,10 +1,10 @@
-//! RocketRL Terminal User Interface
+//! Octane Terminal User Interface
 //!
 //! A beautiful TUI for visualizing training, benchmarks, and performance.
 //!
-//! Run with: cargo run --bin rocket-tui
+//! Run with: cargo run --bin octane-tui
 
-use rocket_rs::tui::run_tui;
+use octane_rs::tui::run_tui;
 use std::process;
 
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
     }));
 
     // Print startup message
-    println!("\n  🚀 ROCKET-RS TUI");
+    println!("\n  OCTANE-RS TUI");
     println!("  High-Performance Reinforcement Learning\n");
     println!("  Starting terminal interface...\n");
 
@@ -33,5 +33,5 @@ fn main() {
         process::exit(1);
     }
 
-    println!("\n  Thanks for using RocketRL! 🚀\n");
+    println!("\n  Thanks for using Octane!\n");
 }

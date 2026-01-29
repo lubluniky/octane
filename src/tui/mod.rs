@@ -1,4 +1,4 @@
-//! Terminal User Interface for RocketRL.
+//! Terminal User Interface for Octane.
 //!
 //! A professional TUI built with Ratatui for visualizing training,
 //! benchmarks, and metrics in real-time.
