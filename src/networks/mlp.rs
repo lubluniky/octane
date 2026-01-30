@@ -11,8 +11,7 @@ use serde::{Deserialize, Serialize};
 use candle_core::{DType, Device};
 
 /// Activation function for MLP layers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Activation {
     /// Rectified Linear Unit: max(0, x)
     #[default]
@@ -59,7 +58,6 @@ impl Activation {
         }
     }
 }
-
 
 /// Configuration for MLP construction.
 #[derive(Debug, Clone, Serialize, Deserialize)]

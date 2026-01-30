@@ -1,21 +1,46 @@
 //! SIMD-accelerated operations for Octane
 //!
-//! This module provides high-performance SIMD operations optimized for
-//! Apple Silicon (ARM NEON) processors. All operations have safe Rust wrappers
-//! with proper alignment checking and error handling.
+//! This module provides high-performance SIMD operations optimized for multiple
+//! architectures:
+//!
+//! - **ARM NEON**: Apple Silicon (M1/M2/M3) via FFI to C
+//! - **x86_64 AVX2**: Intel/AMD processors with AVX2+FMA support
+//! - **x86_64 AVX-512**: Intel processors with AVX-512F+DQ support
+//!
+//! All operations have safe Rust wrappers with proper alignment checking and
+//! error handling. The implementation automatically selects the best available
+//! instruction set at runtime.
 //!
 //! # Available Operations
 //!
 //! - **Buffer operations**: Fast batch gathering for replay buffers
-//! - **Gaussian sampling**: Vectorized reparameterization sampling
+//! - **Gaussian sampling**: Vectorized Box-Muller transform
 //! - **Softmax**: SIMD-accelerated softmax computation
 //! - **Categorical sampling**: Gumbel-max trick for discrete actions
 //! - **GAE computation**: Generalized Advantage Estimation
+//! - **TD-error computation**: For off-policy algorithms (SAC, TD3, DDPG, DQN)
+//! - **Log probability**: Gaussian and squashed Gaussian distributions
+//!
+//! # Architecture Support
+//!
+//! | Operation | ARM NEON | AVX2 | AVX-512 |
+//! |-----------|----------|------|---------|
+//! | Gaussian sampling | FFI | Native | Native |
+//! | Softmax | FFI | Native | - |
+//! | Gather | FFI | Native | - |
+//! | GAE | FFI | Native | - |
+//! | TD-error | Native | Native | - |
+//! | Log prob | Native | Native | - |
 //!
 //! # Example
 //!
 //! ```ignore
-//! use octane_rs::simd::{GaussianSampler, compute_gae};
+//! use octane_rs::simd::{GaussianSampler, compute_gae, is_avx2_available};
+//!
+//! // Check available SIMD features
+//! if is_avx2_available() {
+//!     println!("AVX2 optimizations available");
+//! }
 //!
 //! // Initialize Gaussian sampler with a seed
 //! let mut sampler = GaussianSampler::new(42);
@@ -26,7 +51,11 @@
 //! let samples = sampler.sample(&means, &stds)?;
 //! ```
 
-#![allow(unsafe_code)] // FFI requires unsafe
+#![allow(unsafe_code)] // SIMD intrinsics and FFI require unsafe
+
+// ============================================================================
+// Architecture-Specific Modules
+// ============================================================================
 
 // Metal GPU integration (macOS only, requires "metal" feature)
 #[cfg(target_os = "macos")]
@@ -34,6 +63,37 @@ pub mod metal;
 
 #[cfg(all(target_os = "macos", feature = "metal"))]
 pub use self::metal::{MetalContext, MetalError};
+
+// x86_64 AVX2/AVX-512 implementations
+#[cfg(target_arch = "x86_64")]
+pub mod x86;
+
+// TD-error computation (cross-platform)
+pub mod td_error;
+
+// Log probability computation (cross-platform)
+pub mod log_prob;
+
+// Re-exports from submodules
+#[cfg(target_arch = "x86_64")]
+pub use self::x86::{
+    compute_gae_avx2, gather_batch_f32_avx2, is_avx2_available, is_avx512_available,
+    softmax_avx2, GaussianSamplerAvx2, AVX2_ALIGNMENT, AVX512_ALIGNMENT,
+};
+
+#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+pub use self::x86::GaussianSamplerAvx512;
+
+pub use self::td_error::{
+    compute_priorities, compute_sac_td_errors, compute_td3_td_errors, compute_td_errors_batch,
+    compute_td_errors_with_target,
+};
+
+pub use self::log_prob::{
+    gaussian_entropy_simd, gaussian_log_prob_batch, gaussian_log_prob_simd,
+    squashed_gaussian_log_prob_batch, squashed_gaussian_log_prob_from_squashed,
+    squashed_gaussian_log_prob_simd,
+};
 
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
 use std::ffi::CStr;
@@ -332,6 +392,10 @@ fn validate_indices(indices: &[usize], capacity: usize) -> Result<()> {
     Ok(())
 }
 
+// ============================================================================
+// Feature Detection
+// ============================================================================
+
 /// Check if NEON is available on this platform.
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
 pub fn is_neon_available() -> bool {
@@ -341,6 +405,83 @@ pub fn is_neon_available() -> bool {
 #[cfg(not(all(target_arch = "aarch64", feature = "simd")))]
 pub fn is_neon_available() -> bool {
     false
+}
+
+/// Check if AVX2 is available on this CPU.
+///
+/// AVX2 provides 256-bit SIMD registers and is available on most modern
+/// Intel (Haswell+) and AMD (Excavator+) processors.
+#[cfg(not(target_arch = "x86_64"))]
+pub fn is_avx2_available() -> bool {
+    false
+}
+
+/// Check if AVX-512F is available on this CPU.
+///
+/// AVX-512 provides 512-bit SIMD registers and is available on Intel
+/// Skylake-X and newer server processors, as well as some Ice Lake and
+/// Rocket Lake desktop CPUs.
+#[cfg(not(target_arch = "x86_64"))]
+pub fn is_avx512_available() -> bool {
+    false
+}
+
+/// Get information about available SIMD features.
+///
+/// Returns a human-readable string describing the available SIMD instruction sets.
+pub fn simd_features_info() -> String {
+    let mut features = Vec::new();
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_neon_available() {
+            features.push("ARM NEON");
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_avx2_available() {
+            features.push("AVX2");
+        }
+        if is_avx512_available() {
+            features.push("AVX-512");
+        }
+    }
+
+    if features.is_empty() {
+        "None (using scalar fallback)".to_string()
+    } else {
+        features.join(", ")
+    }
+}
+
+/// Get the best available SIMD width in bits.
+///
+/// Returns the width of the widest available SIMD instruction set:
+/// - 512 for AVX-512
+/// - 256 for AVX2
+/// - 128 for NEON
+/// - 0 for scalar fallback
+pub fn best_simd_width() -> usize {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_avx512_available() {
+            return 512;
+        }
+        if is_avx2_available() {
+            return 256;
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_neon_available() {
+            return 128;
+        }
+    }
+
+    0
 }
 
 /// Get the version string of the buffer operations library.
@@ -685,7 +826,6 @@ impl GaussianSampler {
 
     #[cfg(not(all(target_arch = "aarch64", feature = "simd")))]
     pub fn new(seed: u64) -> Self {
-        use rand::SeedableRng;
         // Fallback: just store seed for later use with rand
         Self {
             rng_state: vec![seed; GAUSSIAN_RNG_STATE_SIZE],
@@ -782,7 +922,11 @@ impl GaussianSampler {
     ///
     /// Returns (samples, log_probs) for policy gradient methods.
     #[cfg(all(target_arch = "aarch64", feature = "simd"))]
-    pub fn sample_with_log_prob(&mut self, mean: &[f32], std: &[f32]) -> Result<(Vec<f32>, Vec<f32>)> {
+    pub fn sample_with_log_prob(
+        &mut self,
+        mean: &[f32],
+        std: &[f32],
+    ) -> Result<(Vec<f32>, Vec<f32>)> {
         if mean.len() != std.len() {
             return Err(SimdError::SizeMismatch {
                 expected: mean.len(),
@@ -813,7 +957,11 @@ impl GaussianSampler {
     }
 
     #[cfg(not(all(target_arch = "aarch64", feature = "simd")))]
-    pub fn sample_with_log_prob(&mut self, mean: &[f32], std: &[f32]) -> Result<(Vec<f32>, Vec<f32>)> {
+    pub fn sample_with_log_prob(
+        &mut self,
+        mean: &[f32],
+        std: &[f32],
+    ) -> Result<(Vec<f32>, Vec<f32>)> {
         if mean.len() != std.len() {
             return Err(SimdError::SizeMismatch {
                 expected: mean.len(),
@@ -1044,7 +1192,10 @@ pub fn softmax(input: &[f32]) -> Result<Vec<f32>> {
 pub fn softmax(input: &[f32]) -> Result<Vec<f32>> {
     let max_val = input.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
     let exp_sum: f32 = input.iter().map(|&x| (x - max_val).exp()).sum();
-    let output: Vec<f32> = input.iter().map(|&x| (x - max_val).exp() / exp_sum).collect();
+    let output: Vec<f32> = input
+        .iter()
+        .map(|&x| (x - max_val).exp() / exp_sum)
+        .collect();
     Ok(output)
 }
 
@@ -1064,12 +1215,7 @@ pub fn softmax_batch(input: &[f32], batch_size: usize, num_classes: usize) -> Re
 
     let mut output = vec![0.0f32; input.len()];
     unsafe {
-        ffi::softmax_neon(
-            input.as_ptr(),
-            output.as_mut_ptr(),
-            batch_size,
-            num_classes,
-        );
+        ffi::softmax_neon(input.as_ptr(), output.as_mut_ptr(), batch_size, num_classes);
     }
     Ok(output)
 }
@@ -1135,7 +1281,12 @@ impl CategoricalSampler {
     ///
     /// Sampled action indices [batch_size]
     #[cfg(all(target_arch = "aarch64", feature = "simd"))]
-    pub fn sample(&mut self, logits: &[f32], batch_size: usize, num_classes: usize) -> Result<Vec<u32>> {
+    pub fn sample(
+        &mut self,
+        logits: &[f32],
+        batch_size: usize,
+        num_classes: usize,
+    ) -> Result<Vec<u32>> {
         if logits.len() != batch_size * num_classes {
             return Err(SimdError::SizeMismatch {
                 expected: batch_size * num_classes,
@@ -1161,7 +1312,12 @@ impl CategoricalSampler {
     }
 
     #[cfg(not(all(target_arch = "aarch64", feature = "simd")))]
-    pub fn sample(&mut self, logits: &[f32], batch_size: usize, num_classes: usize) -> Result<Vec<u32>> {
+    pub fn sample(
+        &mut self,
+        logits: &[f32],
+        batch_size: usize,
+        num_classes: usize,
+    ) -> Result<Vec<u32>> {
         if logits.len() != batch_size * num_classes {
             return Err(SimdError::SizeMismatch {
                 expected: batch_size * num_classes,
@@ -1216,7 +1372,8 @@ impl CategoricalSampler {
             let start = b * num_classes;
             let slice = &logits[start..start + num_classes];
             let max_val = slice.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            let log_sum_exp: f32 = slice.iter().map(|&x| (x - max_val).exp()).sum::<f32>().ln() + max_val;
+            let log_sum_exp: f32 =
+                slice.iter().map(|&x| (x - max_val).exp()).sum::<f32>().ln() + max_val;
             log_probs[b] = logits[start + actions[b] as usize] - log_sum_exp;
         }
 
@@ -1251,9 +1408,17 @@ mod tests {
         let dones = vec![0.0f32; num_steps * num_envs];
         let last_values = vec![0.5f32; num_envs];
 
-        let (advantages, returns) =
-            compute_gae(&rewards, &values, &dones, num_steps, num_envs, 0.99, 0.95, &last_values)
-                .unwrap();
+        let (advantages, returns) = compute_gae(
+            &rewards,
+            &values,
+            &dones,
+            num_steps,
+            num_envs,
+            0.99,
+            0.95,
+            &last_values,
+        )
+        .unwrap();
 
         assert_eq!(advantages.len(), num_steps * num_envs);
         assert_eq!(returns.len(), num_steps * num_envs);

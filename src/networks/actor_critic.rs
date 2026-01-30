@@ -75,8 +75,7 @@ impl ActionSpace {
 }
 
 /// Type of recurrent backbone.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum RecurrentType {
     /// No recurrent layer (feedforward only).
     #[default]
@@ -86,7 +85,6 @@ pub enum RecurrentType {
     /// GRU recurrent layer.
     GRU,
 }
-
 
 /// Recurrent state for ActorCritic networks.
 #[derive(Debug, Clone)]

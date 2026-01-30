@@ -6,7 +6,7 @@ use candle_core::Tensor;
 use candle_nn::ops::log_softmax;
 use rand::Rng;
 
-use crate::core::{Result, OctaneError};
+use crate::core::{OctaneError, Result};
 use crate::distributions::Distribution;
 
 /// Categorical distribution for discrete action spaces.

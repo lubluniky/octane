@@ -1,17 +1,38 @@
 //! Experience buffers for reinforcement learning.
 //!
-//! This module provides two types of buffers:
+//! This module provides various buffer implementations for RL algorithms:
 //!
 //! - **RolloutBuffer**: For on-policy algorithms (PPO, A2C). Stores complete rollouts
 //!   and computes GAE advantages.
 //! - **ReplayBuffer**: For off-policy algorithms (DQN, DDPG, TD3, SAC). Ring buffer
 //!   with uniform or prioritized sampling.
+//! - **NStepReplayBuffer**: Extends ReplayBuffer with n-step return computation for
+//!   improved sample efficiency.
+//! - **HERBuffer**: Hindsight Experience Replay for goal-conditioned RL. Implements
+//!   goal relabeling strategies (final, future, episode, random).
+//! - **MmapReplayBuffer**: Memory-mapped buffer for large-scale storage (100M+
+//!   transitions) without RAM pressure.
+//!
+//! # Segment Trees
+//!
+//! The `segment_tree` module provides efficient data structures for prioritized
+//! experience replay:
+//! - **SumTree**: O(log n) proportional sampling based on priorities.
+//! - **MinTree**: O(log n) minimum priority tracking for importance sampling.
 
+mod her;
+mod mmap;
+mod nstep;
 mod replay;
+mod segment_tree;
 
-pub use replay::{ReplayBuffer, ReplayBufferConfig, ReplayBatch, Transition};
+pub use her::{HERBatch, HERBuffer, HERConfig, HERStrategy, RewardFn};
+pub use mmap::{MmapBufferConfig, MmapBufferStats, MmapReplayBuffer};
+pub use nstep::{NStepConfig, NStepReplayBuffer};
+pub use replay::{ReplayBatch, ReplayBuffer, ReplayBufferConfig, Transition};
+pub use segment_tree::{MinTree, SumTree};
 
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use candle_core::{DType, Tensor};
 use rand::seq::SliceRandom;
 

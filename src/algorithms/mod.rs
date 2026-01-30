@@ -72,10 +72,14 @@
 mod a2c;
 mod agent;
 mod config;
+mod cql;
 mod ddpg;
 mod dqn;
+mod iqn;
 mod metrics;
+mod ppg;
 mod ppo;
+mod redq;
 mod rollout;
 mod sac;
 mod td3;
@@ -85,13 +89,17 @@ mod traits;
 pub use a2c::A2CAgent;
 pub use agent::{Agent, AgentBuilder, AlgorithmConfig};
 pub use config::{
-    A2CConfig, Activation, DDPGConfig, DQNConfig, NetworkConfig, NoiseType, PPOConfig, SACConfig,
-    TD3Config,
+    A2CConfig, Activation, CQLConfig, DDPGConfig, DQNConfig, IQNConfig, NetworkConfig, NoiseType,
+    PPOConfig, RiskMeasure, SACConfig, TD3Config,
 };
+pub use cql::CQLAgent;
 pub use ddpg::DDPGAgent;
 pub use dqn::DQNAgent;
+pub use iqn::IQNAgent;
 pub use metrics::{ProgressTracker, RewardStats, TrainMetrics};
+pub use ppg::{PPGAgent, PPGConfig};
 pub use ppo::PPOAgent;
+pub use redq::{REDQAgent, REDQConfig};
 pub use rollout::{BatchSampler, RolloutBuffer, RolloutSample};
 pub use sac::SACAgent;
 pub use td3::TD3Agent;
@@ -103,7 +111,8 @@ pub use traits::{
 /// Prelude for convenient imports.
 pub mod prelude {
     pub use super::{
-        A2CConfig, Agent, AgentBuilder, PPOConfig, RLAlgorithm, TrainCallback, TrainMetrics,
+        A2CConfig, Agent, AgentBuilder, CQLConfig, IQNConfig, PPGConfig, PPOConfig, REDQConfig,
+        RLAlgorithm, RiskMeasure, TrainCallback, TrainMetrics,
     };
 }
 
@@ -116,6 +125,10 @@ mod tests {
         // Verify all public types are accessible
         let _ = PPOConfig::default();
         let _ = A2CConfig::default();
+        let _ = PPGConfig::default();
+        let _ = REDQConfig::default();
+        let _ = CQLConfig::default();
+        let _ = IQNConfig::default();
         let _ = TrainMetrics::default();
         let _ = RewardStats::new(100);
     }

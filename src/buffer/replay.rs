@@ -3,7 +3,7 @@
 //! This module provides efficient, ring-buffer based storage for experience replay.
 //! Supports uniform random sampling and optional prioritized experience replay (PER).
 
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use candle_core::Tensor;
 use rand::prelude::*;
 
@@ -159,14 +159,13 @@ impl ReplayBuffer {
         let action_dim = config.action_dim;
 
         if capacity == 0 {
-            return Err(OctaneError::InvalidConfig("Capacity must be positive".into()));
+            return Err(OctaneError::InvalidConfig(
+                "Capacity must be positive".into(),
+            ));
         }
 
         let (priorities, sum_tree) = if config.prioritized {
-            (
-                Some(vec![1.0; capacity]),
-                Some(SumTree::new(capacity)),
-            )
+            (Some(vec![1.0; capacity]), Some(SumTree::new(capacity)))
         } else {
             (None, None)
         };
@@ -190,14 +189,7 @@ impl ReplayBuffer {
 
     /// Add a transition to the buffer.
     #[inline]
-    pub fn add(
-        &mut self,
-        obs: &[f32],
-        action: &[f32],
-        reward: f32,
-        next_obs: &[f32],
-        done: bool,
-    ) {
+    pub fn add(&mut self, obs: &[f32], action: &[f32], reward: f32, next_obs: &[f32], done: bool) {
         let idx = self.position;
         let obs_dim = self.config.obs_dim;
         let action_dim = self.config.action_dim;
@@ -296,8 +288,7 @@ impl ReplayBuffer {
         }
 
         // Compute importance sampling weights
-        let max_weight = (self.size as f32 * tree.min_priority() / total)
-            .powf(-self.current_beta);
+        let max_weight = (self.size as f32 * tree.min_priority() / total).powf(-self.current_beta);
 
         let weights: Vec<f32> = priorities
             .iter()
@@ -338,7 +329,8 @@ impl ReplayBuffer {
 
             reward_batch.push(self.rewards[idx]);
 
-            next_obs_batch.extend_from_slice(&self.next_observations[obs_start..obs_start + obs_dim]);
+            next_obs_batch
+                .extend_from_slice(&self.next_observations[obs_start..obs_start + obs_dim]);
 
             done_batch.push(self.dones[idx]);
         }
@@ -349,7 +341,11 @@ impl ReplayBuffer {
             observations: Tensor::from_slice(&obs_batch, (batch_size, obs_dim), &candle_device)?,
             actions: Tensor::from_slice(&action_batch, (batch_size, action_dim), &candle_device)?,
             rewards: Tensor::from_slice(&reward_batch, (batch_size,), &candle_device)?,
-            next_observations: Tensor::from_slice(&next_obs_batch, (batch_size, obs_dim), &candle_device)?,
+            next_observations: Tensor::from_slice(
+                &next_obs_batch,
+                (batch_size, obs_dim),
+                &candle_device,
+            )?,
             dones: Tensor::from_slice(&done_batch, (batch_size,), &candle_device)?,
             indices: indices.to_vec(),
             weights,
@@ -362,8 +358,7 @@ impl ReplayBuffer {
             (&mut self.priorities, &mut self.sum_tree)
         {
             for (&idx, &td_error) in indices.iter().zip(td_errors.iter()) {
-                let priority = (td_error.abs() + self.config.min_priority)
-                    .powf(self.config.alpha);
+                let priority = (td_error.abs() + self.config.min_priority).powf(self.config.alpha);
                 priorities[idx] = td_error.abs() + self.config.min_priority;
                 tree.update(idx, priority);
             }

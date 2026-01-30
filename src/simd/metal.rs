@@ -31,8 +31,7 @@ use thiserror::Error;
 
 #[cfg(all(target_os = "macos", feature = "metal"))]
 use ::metal::{
-    Buffer, CommandQueue, ComputePipelineState, Device, Library,
-    MTLResourceOptions, MTLSize,
+    Buffer, CommandQueue, ComputePipelineState, Device, Library, MTLResourceOptions, MTLSize,
 };
 
 /// Errors that can occur in Metal operations.
@@ -435,10 +434,9 @@ impl MetalContext {
 
     /// Create an empty Metal buffer.
     fn create_empty_buffer(&self, size: usize) -> Result<Buffer> {
-        let buffer = self.device.new_buffer(
-            size as u64,
-            MTLResourceOptions::StorageModeShared,
-        );
+        let buffer = self
+            .device
+            .new_buffer(size as u64, MTLResourceOptions::StorageModeShared);
         Ok(buffer)
     }
 
@@ -759,7 +757,12 @@ impl MetalContext {
     }
 
     /// Compute argmax for categorical sampling.
-    pub fn argmax(&self, scores: &[f32], batch_size: usize, num_classes: usize) -> Result<Vec<i32>> {
+    pub fn argmax(
+        &self,
+        scores: &[f32],
+        batch_size: usize,
+        num_classes: usize,
+    ) -> Result<Vec<i32>> {
         let scores_buf = self.create_buffer(scores)?;
         let indices_buf = self.create_empty_buffer(batch_size * std::mem::size_of::<i32>())?;
         let num_classes_buf = self.create_buffer(&[num_classes as u32])?;
@@ -897,7 +900,16 @@ mod tests {
             let last_values = vec![0.5f32; num_envs];
 
             let (advantages, returns) = ctx
-                .compute_gae(&rewards, &values, &dones, num_steps, num_envs, 0.99, 0.95, &last_values)
+                .compute_gae(
+                    &rewards,
+                    &values,
+                    &dones,
+                    num_steps,
+                    num_envs,
+                    0.99,
+                    0.95,
+                    &last_values,
+                )
                 .unwrap();
 
             assert_eq!(advantages.len(), num_steps * num_envs);

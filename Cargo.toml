@@ -15,7 +15,14 @@ cpu = []
 metal = ["candle-core/metal", "candle-nn/metal", "dep:metal"]
 cuda = ["candle-core/cuda", "candle-nn/cuda"]
 simd = []  # Enable NEON SIMD optimizations (Apple Silicon)
-full = ["metal", "cuda", "simd"]
+avx2 = []  # Enable AVX2 SIMD optimizations (x86_64)
+avx512 = ["avx2"]  # Enable AVX-512 SIMD optimizations (x86_64, implies avx2)
+gym = ["dep:pyo3"]  # Python Gym/Gymnasium compatibility
+wandb = ["dep:pyo3"]  # Weights & Biases integration (requires Python wandb)
+distributed = ["dep:tokio", "dep:tonic", "dep:prost"]  # Distributed training support
+grpc = ["distributed"]  # gRPC backend for distributed training
+half = ["dep:half"]  # Half-precision floating point support
+full = ["metal", "cuda", "simd", "avx2", "half"]
 
 [dependencies]
 # Tensor Backend - Candle (HuggingFace)
@@ -50,12 +57,28 @@ anyhow = "1.0"
 num-traits = "0.2"
 ordered-float = "4.0"
 
+# Memory-mapped files for large buffers
+memmap2 = "0.9"
+
+# Python interop (optional, for Gym compatibility)
+pyo3 = { version = "0.23", optional = true }
+
+# Distributed training (optional)
+tonic = { version = "0.12", optional = true }
+prost = { version = "0.13", optional = true }
+
+# Half-precision support (optional)
+half = { version = "2.4", optional = true, features = ["std", "serde"] }
+
 # TUI
 ratatui = "0.29"
 crossterm = "0.28"
 
 # System metrics
 sysinfo = "0.32"
+
+# Platform-specific
+libc = "0.2"
 
 # Metal GPU support (macOS only)
 [target.'cfg(target_os = "macos")'.dependencies]

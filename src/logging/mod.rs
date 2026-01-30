@@ -1,9 +1,45 @@
 //! Training logging system for Octane.
 //!
-//! This module provides a JSON-based logging system that allows:
+//! This module provides a comprehensive logging system that allows:
 //! - Background training processes to write structured logs
 //! - TUI to read and display training progress in real-time
 //! - Post-training analysis and visualization
+//! - Integration with TensorBoard and Weights & Biases
+//!
+//! # Backends
+//!
+//! - **JSON-lines**: Default file-based logging for local analysis
+//! - **TensorBoard**: Compatible with `tensorboard --logdir`
+//! - **Weights & Biases**: Cloud-based experiment tracking (requires `wandb` feature)
+//!
+//! # Example
+//!
+//! ```ignore
+//! use octane_rs::logging::{
+//!     MetricLogger, CompositeLogger, TensorBoardWriter,
+//!     TrainingLogger, WandbConfig, WandbLogger,
+//! };
+//!
+//! // Create a composite logger with multiple backends
+//! let mut logger = CompositeLogger::new();
+//! logger.add_backend(Box::new(TensorBoardWriter::new("logs/tb")?));
+//!
+//! // Log metrics
+//! logger.log_scalar("train/loss", 0.5, 1000)?;
+//! logger.log_scalar("train/reward", 100.0, 1000)?;
+//! logger.flush()?;
+//! ```
+
+mod metrics;
+mod tensorboard;
+mod wandb;
+
+pub use metrics::{
+    CompositeLogger, HistogramData, HistogramStats, ImageData, MetricAggregator, MetricBuffer,
+    MetricLogger, MetricValue, NullLogger, VideoData,
+};
+pub use tensorboard::TensorBoardWriter;
+pub use wandb::{ConfigValue, ResumeMode, WandbConfig, WandbLogger};
 
 use crate::algorithms::TrainMetrics;
 use crate::core::Result;
@@ -318,9 +354,7 @@ impl TrainingLogReader {
     /// Get training progress (0.0 to 1.0).
     pub fn progress(&self) -> f32 {
         match (&self.run_info, self.latest()) {
-            (Some(info), Some(entry)) => {
-                entry.timestep as f32 / info.total_timesteps as f32
-            }
+            (Some(info), Some(entry)) => entry.timestep as f32 / info.total_timesteps as f32,
             _ => 0.0,
         }
     }
@@ -385,14 +419,8 @@ mod tests {
     #[test]
     fn test_training_logger() -> Result<()> {
         let temp_dir = TempDir::new()?;
-        let mut logger = TrainingLogger::new(
-            temp_dir.path(),
-            "PPO",
-            "TradingEnv",
-            1000000,
-            "CPU",
-            "{}",
-        )?;
+        let mut logger =
+            TrainingLogger::new(temp_dir.path(), "PPO", "TradingEnv", 1000000, "CPU", "{}")?;
 
         // Log some metrics
         let metrics = TrainMetrics {
@@ -424,14 +452,8 @@ mod tests {
         let temp_dir = TempDir::new()?;
 
         // Create a run
-        let mut logger = TrainingLogger::new(
-            temp_dir.path(),
-            "SAC",
-            "TestEnv",
-            100000,
-            "Metal",
-            "{}",
-        )?;
+        let mut logger =
+            TrainingLogger::new(temp_dir.path(), "SAC", "TestEnv", 100000, "Metal", "{}")?;
         logger.finalize()?;
 
         let runs = list_training_runs(temp_dir.path())?;

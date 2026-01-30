@@ -2,12 +2,12 @@
 //!
 //! Run with: cargo run --release --features simd --example benchmark_vs_sb3
 
-use std::time::Instant;
-use octane_rs::envs::{Environment, MarketData, TradingEnv};
 use octane_rs::core::Device;
+use octane_rs::envs::{Environment, MarketData, TradingEnv};
+use std::time::Instant;
 
 #[cfg(feature = "simd")]
-use octane_rs::simd::{compute_gae, GaussianSampler, softmax_batch};
+use octane_rs::simd::{compute_gae, softmax_batch, GaussianSampler};
 
 fn benchmark_env_steps(total_steps: usize, num_envs: usize) -> (f64, f64) {
     let device = Device::cpu();
@@ -34,11 +34,9 @@ fn benchmark_env_steps(total_steps: usize, num_envs: usize) -> (f64, f64) {
 
     while steps_done < total_steps {
         // Random actions
-        let actions = candle_core::Tensor::rand(
-            -1.0f32, 1.0f32,
-            &[num_envs, action_dim],
-            &candle_device
-        ).unwrap();
+        let actions =
+            candle_core::Tensor::rand(-1.0f32, 1.0f32, &[num_envs, action_dim], &candle_device)
+                .unwrap();
 
         let _ = vec_env.step(&actions, &candle_device).unwrap();
         steps_done += num_envs;
@@ -57,13 +55,31 @@ fn benchmark_gae_simd(buffer_size: usize, num_envs: usize, iterations: usize) ->
     // Create test data
     let rewards: Vec<f32> = (0..total_size).map(|_| rand::random::<f32>()).collect();
     let values: Vec<f32> = (0..total_size).map(|_| rand::random::<f32>()).collect();
-    let dones: Vec<f32> = (0..total_size).map(|_| if rand::random::<f32>() > 0.99 { 1.0 } else { 0.0 }).collect();
+    let dones: Vec<f32> = (0..total_size)
+        .map(|_| {
+            if rand::random::<f32>() > 0.99 {
+                1.0
+            } else {
+                0.0
+            }
+        })
+        .collect();
     let last_values: Vec<f32> = (0..num_envs).map(|_| rand::random::<f32>()).collect();
 
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _ = compute_gae(&rewards, &values, &dones, buffer_size, num_envs, 0.99, 0.95, &last_values).unwrap();
+        let _ = compute_gae(
+            &rewards,
+            &values,
+            &dones,
+            buffer_size,
+            num_envs,
+            0.99,
+            0.95,
+            &last_values,
+        )
+        .unwrap();
     }
 
     let elapsed = start.elapsed().as_secs_f64();
@@ -94,7 +110,9 @@ fn benchmark_gaussian_sampling_simd(count: usize, iterations: usize) -> (f64, f6
 
 #[cfg(feature = "simd")]
 fn benchmark_softmax_simd(batch_size: usize, num_classes: usize, iterations: usize) -> (f64, f64) {
-    let logits: Vec<f32> = (0..batch_size * num_classes).map(|_| rand::random::<f32>() * 2.0 - 1.0).collect();
+    let logits: Vec<f32> = (0..batch_size * num_classes)
+        .map(|_| rand::random::<f32>() * 2.0 - 1.0)
+        .collect();
 
     let start = Instant::now();
 
@@ -123,7 +141,10 @@ fn main() {
     // Benchmark 1: 500K steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("  BENCHMARK: 500,000 environment steps ({} parallel envs)", num_envs);
+    println!(
+        "  BENCHMARK: 500,000 environment steps ({} parallel envs)",
+        num_envs
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -139,9 +160,15 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 500K steps                                         │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!("  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │", time_500k, fps_500k);
+    println!(
+        "  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │",
+        time_500k, fps_500k
+    );
     println!("  │ SB3 (ref):   ~600.00s    ~833 FPS (Python)               │");
-    println!("  │ Speedup:     {:>8.1}x faster                              │", 600.0 / time_500k);
+    println!(
+        "  │ Speedup:     {:>8.1}x faster                              │",
+        600.0 / time_500k
+    );
     println!("  └─────────────────────────────────────────────────────────────┘");
     println!();
 
@@ -149,7 +176,10 @@ fn main() {
     // Benchmark 2: 5M steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("  BENCHMARK: 5,000,000 environment steps ({} parallel envs)", num_envs);
+    println!(
+        "  BENCHMARK: 5,000,000 environment steps ({} parallel envs)",
+        num_envs
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -165,9 +195,15 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 5M steps                                           │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!("  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │", time_5m, fps_5m);
+    println!(
+        "  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │",
+        time_5m, fps_5m
+    );
     println!("  │ SB3 (ref):   ~6000.0s    ~833 FPS (Python)               │");
-    println!("  │ Speedup:     {:>8.1}x faster                              │", 6000.0 / time_5m);
+    println!(
+        "  │ Speedup:     {:>8.1}x faster                              │",
+        6000.0 / time_5m
+    );
     println!("  └─────────────────────────────────────────────────────────────┘");
     println!();
 
@@ -210,10 +246,21 @@ fn main() {
     println!("║                         FINAL SUMMARY                            ║");
     println!("╠══════════════════════════════════════════════════════════════════╣");
     println!("║                                                                  ║");
-    println!("║  500K steps:  {:>7.2}s (RocketRL) vs ~600s (SB3) = {:>5.0}x      ║", time_500k, 600.0 / time_500k);
-    println!("║  5M steps:    {:>7.2}s (RocketRL) vs ~6000s (SB3) = {:>5.0}x     ║", time_5m, 6000.0 / time_5m);
+    println!(
+        "║  500K steps:  {:>7.2}s (RocketRL) vs ~600s (SB3) = {:>5.0}x      ║",
+        time_500k,
+        600.0 / time_500k
+    );
+    println!(
+        "║  5M steps:    {:>7.2}s (RocketRL) vs ~6000s (SB3) = {:>5.0}x     ║",
+        time_5m,
+        6000.0 / time_5m
+    );
     println!("║                                                                  ║");
-    println!("║  Average Throughput: {:>10,.0} FPS                            ║", (fps_500k + fps_5m) / 2.0);
+    println!(
+        "║  Average Throughput: {:>10,.0} FPS                            ║",
+        (fps_500k + fps_5m) / 2.0
+    );
     println!("║  SB3 Reference:      ~833 FPS                                    ║");
     println!("║                                                                  ║");
     println!("╚══════════════════════════════════════════════════════════════════╝");

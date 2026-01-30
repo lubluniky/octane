@@ -321,7 +321,12 @@ fn format_number(n: usize) -> String {
 }
 
 /// Render a progress bar for training completion.
-pub fn render_training_progress(frame: &mut Frame<'_>, app: &App, area: Rect, total_timesteps: usize) {
+pub fn render_training_progress(
+    frame: &mut Frame<'_>,
+    app: &App,
+    area: Rect,
+    total_timesteps: usize,
+) {
     let progress = if total_timesteps > 0 {
         app.current_metrics.timesteps as f64 / total_timesteps as f64
     } else {

@@ -10,7 +10,7 @@ use crate::algorithms::config::PPOConfig;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::rollout::RolloutBuffer;
 use crate::algorithms::traits::RLAlgorithm;
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -539,13 +539,8 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
 
-        let mut buffer = RolloutBuffer::new(
-            n_steps,
-            num_envs,
-            self.obs_dim,
-            self.act_dim,
-            self.device,
-        )?;
+        let mut buffer =
+            RolloutBuffer::new(n_steps, num_envs, self.obs_dim, self.act_dim, self.device)?;
 
         // Reset environments and get initial observations
         let mut obs = self.env.reset(&self.device)?;

@@ -890,6 +890,437 @@ impl DDPGConfig {
     }
 }
 
+/// Configuration for Conservative Q-Learning (CQL) algorithm.
+///
+/// CQL is an offline RL algorithm that learns from a fixed dataset without
+/// environment interaction. It uses a conservative regularization term to
+/// prevent overestimation of Q-values for out-of-distribution actions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CQLConfig {
+    /// Learning rate for all networks.
+    /// Default: 3e-4
+    pub learning_rate: f32,
+    /// Replay buffer size.
+    /// Default: 1_000_000
+    pub buffer_size: usize,
+    /// Minibatch size.
+    /// Default: 256
+    pub batch_size: usize,
+    /// Discount factor.
+    /// Default: 0.99
+    pub gamma: f32,
+    /// Soft update coefficient for target networks.
+    /// Default: 0.005
+    pub tau: f32,
+    /// Initial entropy coefficient (SAC alpha).
+    /// Default: 0.2
+    pub ent_coef: f32,
+    /// Automatically tune SAC entropy coefficient.
+    /// Default: true
+    pub auto_entropy_tuning: bool,
+    /// Target entropy for automatic entropy tuning.
+    /// Default: -dim(A)
+    pub target_entropy: Option<f32>,
+    /// CQL alpha: weight for conservative Q penalty.
+    /// Higher values make Q-values more conservative.
+    /// Default: 5.0
+    pub cql_alpha: f32,
+    /// Temperature for logsumexp in CQL penalty.
+    /// Default: 1.0
+    pub cql_temp: f32,
+    /// Number of random actions to sample for CQL penalty.
+    /// Default: 10
+    pub num_random_actions: usize,
+    /// Use Lagrangian constraint for automatic CQL alpha tuning.
+    /// Default: false
+    pub with_lagrange: bool,
+    /// Target value for Lagrangian constraint.
+    /// CQL will adjust alpha to keep penalty near this value.
+    /// Default: 10.0
+    pub lagrange_thresh: f32,
+    /// Policy network hidden sizes.
+    /// Default: [256, 256]
+    pub policy_hidden_sizes: Vec<usize>,
+    /// Q-network hidden sizes.
+    /// Default: [256, 256]
+    pub q_hidden_sizes: Vec<usize>,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+impl Default for CQLConfig {
+    fn default() -> Self {
+        Self {
+            learning_rate: 3e-4,
+            buffer_size: 1_000_000,
+            batch_size: 256,
+            gamma: 0.99,
+            tau: 0.005,
+            ent_coef: 0.2,
+            auto_entropy_tuning: true,
+            target_entropy: None,
+            cql_alpha: 5.0,
+            cql_temp: 1.0,
+            num_random_actions: 10,
+            with_lagrange: false,
+            lagrange_thresh: 10.0,
+            policy_hidden_sizes: vec![256, 256],
+            q_hidden_sizes: vec![256, 256],
+            seed: None,
+        }
+    }
+}
+
+impl CQLConfig {
+    /// Create new CQL config with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set learning rate.
+    pub fn learning_rate(mut self, lr: f32) -> Self {
+        self.learning_rate = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma (discount factor).
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Set tau (soft update coefficient).
+    pub fn tau(mut self, t: f32) -> Self {
+        self.tau = t;
+        self
+    }
+
+    /// Set SAC entropy coefficient.
+    pub fn ent_coef(mut self, c: f32) -> Self {
+        self.ent_coef = c;
+        self
+    }
+
+    /// Set CQL alpha (conservative penalty weight).
+    pub fn cql_alpha(mut self, alpha: f32) -> Self {
+        self.cql_alpha = alpha;
+        self
+    }
+
+    /// Set CQL temperature.
+    pub fn cql_temp(mut self, temp: f32) -> Self {
+        self.cql_temp = temp;
+        self
+    }
+
+    /// Set number of random actions for CQL penalty.
+    pub fn num_random_actions(mut self, n: usize) -> Self {
+        self.num_random_actions = n;
+        self
+    }
+
+    /// Enable/disable Lagrangian constraint.
+    pub fn with_lagrange(mut self, enabled: bool) -> Self {
+        self.with_lagrange = enabled;
+        self
+    }
+
+    /// Set Lagrangian threshold.
+    pub fn lagrange_thresh(mut self, thresh: f32) -> Self {
+        self.lagrange_thresh = thresh;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.learning_rate <= 0.0 {
+            return Err("learning_rate must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if self.batch_size == 0 {
+            return Err("batch_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        if !(0.0..=1.0).contains(&self.tau) {
+            return Err("tau must be in [0, 1]".into());
+        }
+        if self.cql_alpha < 0.0 {
+            return Err("cql_alpha must be non-negative".into());
+        }
+        if self.cql_temp <= 0.0 {
+            return Err("cql_temp must be positive".into());
+        }
+        if self.num_random_actions == 0 {
+            return Err("num_random_actions must be positive".into());
+        }
+        Ok(())
+    }
+}
+
+/// Risk measure for action selection in IQN.
+///
+/// Different risk measures allow for different policies:
+/// - Mean: Risk-neutral (standard expected value)
+/// - CVaR: Risk-averse (focuses on worst-case outcomes)
+/// - Optimistic: Risk-seeking (focuses on best-case outcomes)
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum RiskMeasure {
+    /// Expected value (mean of quantiles). Risk-neutral policy.
+    Mean,
+    /// Conditional Value at Risk. Risk-averse policy.
+    /// The parameter is the quantile level (e.g., 0.25 for CVaR_0.25).
+    CVaR(f32),
+    /// Upper quantile expectation. Risk-seeking policy.
+    /// The parameter is the lower quantile to start from (e.g., 0.75).
+    Optimistic(f32),
+}
+
+impl Default for RiskMeasure {
+    fn default() -> Self {
+        RiskMeasure::Mean
+    }
+}
+
+/// Configuration for Implicit Quantile Networks (IQN) algorithm.
+///
+/// IQN is a distributional RL algorithm that learns the full distribution
+/// of returns rather than just the expected value. It uses implicit quantile
+/// functions with cosine embeddings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IQNConfig {
+    /// Learning rate for optimizer.
+    /// Default: 1e-4
+    pub learning_rate: f32,
+    /// Replay buffer size.
+    /// Default: 1_000_000
+    pub buffer_size: usize,
+    /// Number of timesteps before learning starts.
+    /// Default: 50_000
+    pub learning_starts: usize,
+    /// Minibatch size.
+    /// Default: 32
+    pub batch_size: usize,
+    /// Discount factor.
+    /// Default: 0.99
+    pub gamma: f32,
+    /// Soft update coefficient (tau=1.0 for hard update).
+    /// Default: 1.0
+    pub tau: f32,
+    /// Target network update interval.
+    /// Default: 10_000
+    pub target_update_interval: usize,
+    /// Training frequency (update every N steps).
+    /// Default: 4
+    pub train_freq: usize,
+    /// Gradient steps per update.
+    /// Default: 1
+    pub gradient_steps: usize,
+    /// Initial exploration rate.
+    /// Default: 1.0
+    pub epsilon_start: f32,
+    /// Final exploration rate.
+    /// Default: 0.05
+    pub epsilon_end: f32,
+    /// Exploration decay per step.
+    /// Default: 1e-5
+    pub epsilon_decay: f32,
+    /// Number of quantile samples for training.
+    /// Default: 64
+    pub num_quantiles: usize,
+    /// Number of quantile samples for target.
+    /// Default: 64
+    pub num_quantiles_target: usize,
+    /// Number of quantile samples for policy (action selection).
+    /// Default: 32
+    pub num_quantiles_policy: usize,
+    /// Embedding dimension for cosine features.
+    /// Default: 64
+    pub embedding_dim: usize,
+    /// Huber loss threshold (kappa).
+    /// Default: 1.0
+    pub kappa: f32,
+    /// Risk measure for action selection.
+    /// Default: Mean
+    pub risk_measure: RiskMeasure,
+    /// Use prioritized experience replay.
+    /// Default: false
+    pub prioritized_replay: bool,
+    /// Random seed.
+    pub seed: Option<u64>,
+}
+
+impl Default for IQNConfig {
+    fn default() -> Self {
+        Self {
+            learning_rate: 1e-4,
+            buffer_size: 1_000_000,
+            learning_starts: 50_000,
+            batch_size: 32,
+            gamma: 0.99,
+            tau: 1.0,
+            target_update_interval: 10_000,
+            train_freq: 4,
+            gradient_steps: 1,
+            epsilon_start: 1.0,
+            epsilon_end: 0.05,
+            epsilon_decay: 1e-5,
+            num_quantiles: 64,
+            num_quantiles_target: 64,
+            num_quantiles_policy: 32,
+            embedding_dim: 64,
+            kappa: 1.0,
+            risk_measure: RiskMeasure::Mean,
+            prioritized_replay: false,
+            seed: None,
+        }
+    }
+}
+
+impl IQNConfig {
+    /// Create new IQN config with default values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set learning rate.
+    pub fn learning_rate(mut self, lr: f32) -> Self {
+        self.learning_rate = lr;
+        self
+    }
+
+    /// Set buffer size.
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = size;
+        self
+    }
+
+    /// Set learning starts.
+    pub fn learning_starts(mut self, starts: usize) -> Self {
+        self.learning_starts = starts;
+        self
+    }
+
+    /// Set batch size.
+    pub fn batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self
+    }
+
+    /// Set gamma (discount factor).
+    pub fn gamma(mut self, g: f32) -> Self {
+        self.gamma = g;
+        self
+    }
+
+    /// Set tau (soft update coefficient).
+    pub fn tau(mut self, t: f32) -> Self {
+        self.tau = t;
+        self
+    }
+
+    /// Set number of quantiles for training.
+    pub fn num_quantiles(mut self, n: usize) -> Self {
+        self.num_quantiles = n;
+        self
+    }
+
+    /// Set number of quantiles for target computation.
+    pub fn num_quantiles_target(mut self, n: usize) -> Self {
+        self.num_quantiles_target = n;
+        self
+    }
+
+    /// Set number of quantiles for policy/action selection.
+    pub fn num_quantiles_policy(mut self, n: usize) -> Self {
+        self.num_quantiles_policy = n;
+        self
+    }
+
+    /// Set embedding dimension.
+    pub fn embedding_dim(mut self, dim: usize) -> Self {
+        self.embedding_dim = dim;
+        self
+    }
+
+    /// Set kappa (Huber loss threshold).
+    pub fn kappa(mut self, k: f32) -> Self {
+        self.kappa = k;
+        self
+    }
+
+    /// Set risk measure for action selection.
+    pub fn risk_measure(mut self, measure: RiskMeasure) -> Self {
+        self.risk_measure = measure;
+        self
+    }
+
+    /// Enable prioritized replay.
+    pub fn prioritized_replay(mut self, enabled: bool) -> Self {
+        self.prioritized_replay = enabled;
+        self
+    }
+
+    /// Set seed.
+    pub fn seed(mut self, s: u64) -> Self {
+        self.seed = Some(s);
+        self
+    }
+
+    /// Validate configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.learning_rate <= 0.0 {
+            return Err("learning_rate must be positive".into());
+        }
+        if self.buffer_size == 0 {
+            return Err("buffer_size must be positive".into());
+        }
+        if self.batch_size == 0 {
+            return Err("batch_size must be positive".into());
+        }
+        if !(0.0..=1.0).contains(&self.gamma) {
+            return Err("gamma must be in [0, 1]".into());
+        }
+        if self.num_quantiles == 0 {
+            return Err("num_quantiles must be positive".into());
+        }
+        if self.num_quantiles_target == 0 {
+            return Err("num_quantiles_target must be positive".into());
+        }
+        if self.num_quantiles_policy == 0 {
+            return Err("num_quantiles_policy must be positive".into());
+        }
+        if self.embedding_dim == 0 {
+            return Err("embedding_dim must be positive".into());
+        }
+        if self.kappa <= 0.0 {
+            return Err("kappa must be positive".into());
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

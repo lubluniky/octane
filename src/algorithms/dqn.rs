@@ -15,7 +15,7 @@ use crate::algorithms::config::DQNConfig;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -147,12 +147,20 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
 
         let mut in_dim = self.obs_dim;
         for (i, &hidden_size) in self.hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
         // Output layer: Q-values for each action
-        let _ = candle_nn::linear(in_dim, self.num_actions, vb.pp(format!("{}.output", prefix)))?;
+        let _ = candle_nn::linear(
+            in_dim,
+            self.num_actions,
+            vb.pp(format!("{}.output", prefix)),
+        )?;
 
         Ok(())
     }
@@ -171,8 +179,16 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
         let mut x = obs.clone();
 
         for (i, &hidden_size) in self.hidden_sizes.iter().enumerate() {
-            let in_dim = if i == 0 { self.obs_dim } else { self.hidden_sizes[i - 1] };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let in_dim = if i == 0 {
+                self.obs_dim
+            } else {
+                self.hidden_sizes[i - 1]
+            };
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             x = linear.forward(&x)?;
             x = x.relu()?;
         }
@@ -212,7 +228,8 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
             if let Some(target_var) = target_data.get_mut(&target_name) {
                 let q_tensor = q_var.as_tensor();
                 let target_tensor = target_var.as_tensor();
-                let new_tensor = ((q_tensor * tau as f64)? + (target_tensor * (1.0 - tau) as f64)?)?;
+                let new_tensor =
+                    ((q_tensor * tau as f64)? + (target_tensor * (1.0 - tau) as f64)?)?;
                 target_var.set(&new_tensor)?;
             }
         }
@@ -230,7 +247,11 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
             let actions: Vec<f32> = (0..batch_size)
                 .map(|_| self.rng.gen_range(0..self.num_actions) as f32)
                 .collect();
-            Ok(Tensor::from_slice(&actions, (batch_size, 1), &candle_device)?)
+            Ok(Tensor::from_slice(
+                &actions,
+                (batch_size, 1),
+                &candle_device,
+            )?)
         } else {
             // Greedy action from Q-network
             let q_values = self.q_forward(obs, &self.q_var_map)?;
@@ -252,7 +273,9 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
             let best_actions = next_q_online.argmax(1)?;
 
             // Gather Q-values for selected actions
-            next_q_target.gather(&best_actions.unsqueeze(1)?, 1)?.squeeze(1)?
+            next_q_target
+                .gather(&best_actions.unsqueeze(1)?, 1)?
+                .squeeze(1)?
         } else {
             // Standard DQN: use max Q from target
             next_q_target.max(1)?
@@ -260,7 +283,8 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
 
         // TD target: r + gamma * max_a' Q_target(s', a') * (1 - done)
         let not_done = (Tensor::ones_like(&batch.dones)? - &batch.dones)?;
-        let td_target = (&batch.rewards + (&next_q_values * self.config.gamma as f64)? * &not_done)?;
+        let td_target =
+            (&batch.rewards + (&next_q_values * self.config.gamma as f64)? * &not_done)?;
 
         Ok(td_target)
     }
@@ -306,7 +330,8 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
         // Update priorities if using PER
         if self.config.prioritized_replay {
             let td_errors: Vec<f32> = td_error.abs()?.to_vec1()?;
-            self.replay_buffer.update_priorities(&batch.indices, &td_errors);
+            self.replay_buffer
+                .update_priorities(&batch.indices, &td_errors);
         }
 
         let loss_val: f32 = loss.to_scalar()?;
@@ -317,8 +342,7 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
 
     /// Update exploration rate (epsilon decay).
     fn update_epsilon(&mut self) {
-        self.epsilon = (self.epsilon - self.config.epsilon_decay)
-            .max(self.config.epsilon_end);
+        self.epsilon = (self.epsilon - self.config.epsilon_decay).max(self.config.epsilon_end);
     }
 
     /// Collect experience and train.
@@ -350,7 +374,8 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
             // Store transitions
             let obs_vec: Vec<Vec<f32>> = self.tensor_to_batch_vecs(&obs)?;
             let action_vec: Vec<Vec<f32>> = self.tensor_to_batch_vecs(&actions)?;
-            let next_obs_vec: Vec<Vec<f32>> = self.tensor_to_batch_vecs(&step_result.observations)?;
+            let next_obs_vec: Vec<Vec<f32>> =
+                self.tensor_to_batch_vecs(&step_result.observations)?;
             let rewards_vec: Vec<f32> = step_result.rewards.to_vec1()?;
             let dones_vec: Vec<f32> = step_result.dones()?.to_vec1()?;
 
@@ -414,8 +439,16 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
                         episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32
                     },
                     std_reward: 0.0,
-                    policy_loss: if update_count > 0 { total_loss / update_count as f32 } else { 0.0 },
-                    value_loss: if update_count > 0 { total_q / update_count as f32 } else { 0.0 },
+                    policy_loss: if update_count > 0 {
+                        total_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
+                    value_loss: if update_count > 0 {
+                        total_q / update_count as f32
+                    } else {
+                        0.0
+                    },
                     entropy: self.epsilon,
                     approx_kl: 0.0,
                     clip_fraction: 0.0,

@@ -11,7 +11,7 @@ use crate::algorithms::config::TD3Config;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -78,8 +78,8 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         };
 
         // Create replay buffer
-        let buffer_config = ReplayBufferConfig::new(obs_dim, action_dim)
-            .capacity(config.buffer_size);
+        let buffer_config =
+            ReplayBufferConfig::new(obs_dim, action_dim).capacity(config.buffer_size);
         let replay_buffer = ReplayBuffer::new(buffer_config, device)?;
 
         let actor_var_map = VarMap::new();
@@ -129,8 +129,16 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         // Critic networks
         self.init_critic_network(&self.critic1_var_map, "critic1", &candle_device)?;
         self.init_critic_network(&self.critic2_var_map, "critic2", &candle_device)?;
-        self.init_critic_network(&self.target_critic1_var_map, "target_critic1", &candle_device)?;
-        self.init_critic_network(&self.target_critic2_var_map, "target_critic2", &candle_device)?;
+        self.init_critic_network(
+            &self.target_critic1_var_map,
+            "target_critic1",
+            &candle_device,
+        )?;
+        self.init_critic_network(
+            &self.target_critic2_var_map,
+            "target_critic2",
+            &candle_device,
+        )?;
 
         // Copy weights to targets
         self.hard_update_targets()?;
@@ -149,7 +157,11 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         let mut in_dim = self.obs_dim;
         for (i, &hidden_size) in self.config.policy_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
@@ -170,7 +182,11 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         let mut in_dim = self.obs_dim + self.action_dim;
         for (i, &hidden_size) in self.config.q_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
@@ -188,8 +204,16 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         let mut x = obs.clone();
 
         for (i, &hidden_size) in self.config.policy_hidden_sizes.iter().enumerate() {
-            let in_dim = if i == 0 { self.obs_dim } else { self.config.policy_hidden_sizes[i - 1] };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let in_dim = if i == 0 {
+                self.obs_dim
+            } else {
+                self.config.policy_hidden_sizes[i - 1]
+            };
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             x = linear.forward(&x)?;
             x = x.relu()?;
         }
@@ -226,7 +250,11 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
             } else {
                 self.config.q_hidden_sizes[i - 1]
             };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             h = linear.forward(&h)?;
             h = h.relu()?;
         }
@@ -257,18 +285,51 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
     /// Hard update: copy networks to targets.
     fn hard_update_targets(&mut self) -> Result<()> {
-        Self::copy_weights(&self.actor_var_map, &self.target_actor_var_map, "actor", "target_actor")?;
-        Self::copy_weights(&self.critic1_var_map, &self.target_critic1_var_map, "critic1", "target_critic1")?;
-        Self::copy_weights(&self.critic2_var_map, &self.target_critic2_var_map, "critic2", "target_critic2")?;
+        Self::copy_weights(
+            &self.actor_var_map,
+            &self.target_actor_var_map,
+            "actor",
+            "target_actor",
+        )?;
+        Self::copy_weights(
+            &self.critic1_var_map,
+            &self.target_critic1_var_map,
+            "critic1",
+            "target_critic1",
+        )?;
+        Self::copy_weights(
+            &self.critic2_var_map,
+            &self.target_critic2_var_map,
+            "critic2",
+            "target_critic2",
+        )?;
         Ok(())
     }
 
     /// Soft update: polyak averaging.
     fn soft_update_targets(&mut self) -> Result<()> {
         let tau = self.config.tau;
-        Self::polyak_update(&self.actor_var_map, &self.target_actor_var_map, "actor", "target_actor", tau)?;
-        Self::polyak_update(&self.critic1_var_map, &self.target_critic1_var_map, "critic1", "target_critic1", tau)?;
-        Self::polyak_update(&self.critic2_var_map, &self.target_critic2_var_map, "critic2", "target_critic2", tau)?;
+        Self::polyak_update(
+            &self.actor_var_map,
+            &self.target_actor_var_map,
+            "actor",
+            "target_actor",
+            tau,
+        )?;
+        Self::polyak_update(
+            &self.critic1_var_map,
+            &self.target_critic1_var_map,
+            "critic1",
+            "target_critic1",
+            tau,
+        )?;
+        Self::polyak_update(
+            &self.critic2_var_map,
+            &self.target_critic2_var_map,
+            "critic2",
+            "target_critic2",
+            tau,
+        )?;
         Ok(())
     }
 
@@ -318,11 +379,20 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         // ========== Compute Target Q-value ==========
         // Target policy smoothing: add clipped noise to target actions
-        let target_actions = self.actor_forward(&batch.next_observations, &self.target_actor_var_map, "target_actor")?;
+        let target_actions = self.actor_forward(
+            &batch.next_observations,
+            &self.target_actor_var_map,
+            "target_actor",
+        )?;
 
-        let noise = Tensor::randn_like(&target_actions, 0.0, self.config.target_policy_noise as f64)?;
-        let noise = noise.clamp(-self.config.target_noise_clip, self.config.target_noise_clip)?;
-        let smoothed_target_actions = ((&target_actions + &noise)?).clamp(-self.action_scale, self.action_scale)?;
+        let noise =
+            Tensor::randn_like(&target_actions, 0.0, self.config.target_policy_noise as f64)?;
+        let noise = noise.clamp(
+            -self.config.target_noise_clip,
+            self.config.target_noise_clip,
+        )?;
+        let smoothed_target_actions =
+            ((&target_actions + &noise)?).clamp(-self.action_scale, self.action_scale)?;
 
         // Twin Q-values from target critics
         let target_q1 = self.critic_forward(
@@ -343,13 +413,24 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         // TD target: r + gamma * (1 - done) * min_Q_target
         let not_done = (Tensor::ones_like(&batch.dones)? - &batch.dones)?;
-        let td_target = (&batch.rewards + (&target_q * self.config.gamma as f64)? * &not_done)?.detach();
+        let td_target =
+            (&batch.rewards + (&target_q * self.config.gamma as f64)? * &not_done)?.detach();
 
         // ========== Update Critics ==========
-        let current_q1 = self.critic_forward(&batch.observations, &batch.actions, &self.critic1_var_map, "critic1")?;
+        let current_q1 = self.critic_forward(
+            &batch.observations,
+            &batch.actions,
+            &self.critic1_var_map,
+            "critic1",
+        )?;
         let critic1_loss = (&current_q1 - &td_target)?.sqr()?.mean_all()?;
 
-        let current_q2 = self.critic_forward(&batch.observations, &batch.actions, &self.critic2_var_map, "critic2")?;
+        let current_q2 = self.critic_forward(
+            &batch.observations,
+            &batch.actions,
+            &self.critic2_var_map,
+            "critic2",
+        )?;
         let critic2_loss = (&current_q2 - &td_target)?.sqr()?.mean_all()?;
 
         let params = ParamsAdamW {
@@ -363,7 +444,8 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         let mut critic2_optimizer = AdamW::new(self.critic2_var_map.all_vars(), params.clone())?;
         critic2_optimizer.backward_step(&critic2_loss)?;
 
-        let critic_loss_val = (critic1_loss.to_scalar::<f32>()? + critic2_loss.to_scalar::<f32>()?) / 2.0;
+        let critic_loss_val =
+            (critic1_loss.to_scalar::<f32>()? + critic2_loss.to_scalar::<f32>()?) / 2.0;
 
         // ========== Delayed Policy Update ==========
         let mut actor_loss_val = 0.0f32;
@@ -372,8 +454,14 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         if self.gradient_steps_done % self.config.policy_delay == 0 {
             // Update actor to maximize Q1
-            let actor_actions = self.actor_forward(&batch.observations, &self.actor_var_map, "actor")?;
-            let actor_q = self.critic_forward(&batch.observations, &actor_actions, &self.critic1_var_map, "critic1")?;
+            let actor_actions =
+                self.actor_forward(&batch.observations, &self.actor_var_map, "actor")?;
+            let actor_q = self.critic_forward(
+                &batch.observations,
+                &actor_actions,
+                &self.critic1_var_map,
+                "critic1",
+            )?;
             let actor_loss = actor_q.neg()?.mean_all()?;
 
             let mut actor_optimizer = AdamW::new(self.actor_var_map.all_vars(), params)?;
@@ -463,8 +551,16 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
                         episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32
                     },
                     std_reward: 0.0,
-                    policy_loss: if update_count > 0 { total_actor_loss / update_count as f32 } else { 0.0 },
-                    value_loss: if update_count > 0 { total_critic_loss / update_count as f32 } else { 0.0 },
+                    policy_loss: if update_count > 0 {
+                        total_actor_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
+                    value_loss: if update_count > 0 {
+                        total_critic_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
                     entropy: 0.0,
                     approx_kl: 0.0,
                     clip_fraction: 0.0,
@@ -543,7 +639,11 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for TD3Agent<E> {
         let candle_device = self.device.to_candle()?;
         let tensors = candle_core::safetensors::load(path, &candle_device)?;
 
-        for var_map in [&self.actor_var_map, &self.critic1_var_map, &self.critic2_var_map] {
+        for var_map in [
+            &self.actor_var_map,
+            &self.critic1_var_map,
+            &self.critic2_var_map,
+        ] {
             let mut data = var_map.data().lock().unwrap();
             for (name, tensor) in &tensors {
                 if let Some(var) = data.get_mut(name) {

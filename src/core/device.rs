@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Compute device for tensor operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Device {
     /// CPU backend (always available)
     #[default]
@@ -59,7 +58,6 @@ impl Device {
         }
     }
 }
-
 
 impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

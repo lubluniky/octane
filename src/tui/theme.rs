@@ -58,9 +58,7 @@ impl Theme {
 
     /// Default style.
     pub fn default() -> Style {
-        Style::default()
-            .fg(Self::TEXT_PRIMARY)
-            .bg(Self::BG_PRIMARY)
+        Style::default().fg(Self::TEXT_PRIMARY).bg(Self::BG_PRIMARY)
     }
 
     /// Title style.
@@ -72,8 +70,7 @@ impl Theme {
 
     /// Subtitle style.
     pub fn subtitle() -> Style {
-        Style::default()
-            .fg(Self::TEXT_SECONDARY)
+        Style::default().fg(Self::TEXT_SECONDARY)
     }
 
     /// Highlighted text.
@@ -100,26 +97,22 @@ impl Theme {
 
     /// Inactive tab style.
     pub fn tab_inactive() -> Style {
-        Style::default()
-            .fg(Self::TEXT_MUTED)
+        Style::default().fg(Self::TEXT_MUTED)
     }
 
     /// Border style.
     pub fn border() -> Style {
-        Style::default()
-            .fg(Self::BG_SURFACE)
+        Style::default().fg(Self::BG_SURFACE)
     }
 
     /// Border style (focused).
     pub fn border_focused() -> Style {
-        Style::default()
-            .fg(Self::ACCENT_PRIMARY)
+        Style::default().fg(Self::ACCENT_PRIMARY)
     }
 
     /// Label style.
     pub fn label() -> Style {
-        Style::default()
-            .fg(Self::TEXT_SECONDARY)
+        Style::default().fg(Self::TEXT_SECONDARY)
     }
 
     /// Value style (metrics).
@@ -145,14 +138,12 @@ impl Theme {
 
     /// Progress bar style (filled).
     pub fn progress_filled() -> Style {
-        Style::default()
-            .fg(Self::ACCENT_PRIMARY)
+        Style::default().fg(Self::ACCENT_PRIMARY)
     }
 
     /// Progress bar style (empty).
     pub fn progress_empty() -> Style {
-        Style::default()
-            .fg(Self::BG_SURFACE)
+        Style::default().fg(Self::BG_SURFACE)
     }
 
     /// Log level styles.

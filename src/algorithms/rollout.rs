@@ -3,7 +3,7 @@
 //! The rollout buffer stores transitions collected from the environment
 //! and computes returns and advantages for policy gradient updates.
 
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use candle_core::Tensor;
 
 /// Sample from the rollout buffer for training.

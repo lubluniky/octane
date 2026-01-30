@@ -6,7 +6,7 @@ use candle_core::Tensor;
 use rand::Rng;
 use rand_distr::StandardNormal;
 
-use crate::core::{Result, OctaneError};
+use crate::core::{OctaneError, Result};
 use crate::distributions::{constants, Distribution};
 
 /// Diagonal Gaussian (Normal) distribution for continuous action spaces.

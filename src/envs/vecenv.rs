@@ -1,6 +1,6 @@
 //! Vectorized environment implementation for massive parallelization.
 
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rayon::prelude::*;

@@ -45,16 +45,13 @@ fn compile_simd_code(target_arch: &str) {
     // Architecture-specific flags
     if target_arch == "aarch64" {
         // For AArch64, NEON is always available, no -mfpu flag needed
-        build
-            .flag("-DUSE_NEON=1");
+        build.flag("-DUSE_NEON=1");
 
         // Apple Silicon specific tuning (optional, may not be supported by all compilers)
         // build.flag("-mcpu=apple-m1");
     } else if target_arch == "x86_64" {
         // Fallback for x86_64 with SSE/AVX
-        build
-            .flag("-march=native")
-            .flag("-DUSE_SSE=1");
+        build.flag("-march=native").flag("-DUSE_SSE=1");
     }
 
     // Source files
@@ -98,20 +95,26 @@ fn compile_metal_shaders() {
 
     // Check if shader source exists
     if !std::path::Path::new(shader_source).exists() {
-        println!("cargo:warning=Metal shader source not found: {}", shader_source);
+        println!(
+            "cargo:warning=Metal shader source not found: {}",
+            shader_source
+        );
         return;
     }
 
     // Compile Metal shader to AIR (Apple Intermediate Representation)
     let status = Command::new("xcrun")
         .args([
-            "-sdk", "macosx",
+            "-sdk",
+            "macosx",
             "metal",
-            "-c", shader_source,
-            "-o", &shader_air,
-            "-O3",                      // Optimize
-            "-ffast-math",              // Fast math
-            "-std=metal3.0",            // Metal 3.0 for M-series
+            "-c",
+            shader_source,
+            "-o",
+            &shader_air,
+            "-O3",           // Optimize
+            "-ffast-math",   // Fast math
+            "-std=metal3.0", // Metal 3.0 for M-series
         ])
         .status();
 
@@ -120,7 +123,10 @@ fn compile_metal_shaders() {
             println!("cargo:info=Compiled Metal shader to AIR");
         }
         Ok(s) => {
-            println!("cargo:warning=Metal shader compilation failed with status: {}", s);
+            println!(
+                "cargo:warning=Metal shader compilation failed with status: {}",
+                s
+            );
             return;
         }
         Err(e) => {
@@ -131,12 +137,7 @@ fn compile_metal_shaders() {
 
     // Link AIR to metallib
     let status = Command::new("xcrun")
-        .args([
-            "-sdk", "macosx",
-            "metallib",
-            &shader_air,
-            "-o", &shader_lib,
-        ])
+        .args(["-sdk", "macosx", "metallib", &shader_air, "-o", &shader_lib])
         .status();
 
     match status {
@@ -146,7 +147,10 @@ fn compile_metal_shaders() {
             println!("cargo:rustc-env=METAL_LIB_PATH={}", shader_lib);
         }
         Ok(s) => {
-            println!("cargo:warning=Metal library creation failed with status: {}", s);
+            println!(
+                "cargo:warning=Metal library creation failed with status: {}",
+                s
+            );
         }
         Err(e) => {
             println!("cargo:warning=Failed to run xcrun metallib: {}", e);

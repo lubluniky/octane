@@ -12,7 +12,7 @@ use crate::algorithms::config::{DDPGConfig, NoiseType};
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -49,8 +49,7 @@ impl OUNoise {
         let normal = Normal::new(0.0, 1.0).unwrap();
         for i in 0..self.state.len() {
             let noise: f32 = self.rng.sample(normal);
-            self.state[i] += self.theta * (self.mu[i] - self.state[i])
-                + self.sigma * noise;
+            self.state[i] += self.theta * (self.mu[i] - self.state[i]) + self.sigma * noise;
         }
         self.state.clone()
     }
@@ -116,8 +115,8 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         };
 
         // Create replay buffer
-        let buffer_config = ReplayBufferConfig::new(obs_dim, action_dim)
-            .capacity(config.buffer_size);
+        let buffer_config =
+            ReplayBufferConfig::new(obs_dim, action_dim).capacity(config.buffer_size);
         let replay_buffer = ReplayBuffer::new(buffer_config, device)?;
 
         // Create OU noise if configured
@@ -189,7 +188,11 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
 
         let mut in_dim = self.obs_dim;
         for (i, &hidden_size) in self.config.actor_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
@@ -209,7 +212,11 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
 
         let mut in_dim = self.obs_dim + self.action_dim;
         for (i, &hidden_size) in self.config.critic_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
@@ -226,8 +233,16 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         let mut x = obs.clone();
 
         for (i, &hidden_size) in self.config.actor_hidden_sizes.iter().enumerate() {
-            let in_dim = if i == 0 { self.obs_dim } else { self.config.actor_hidden_sizes[i - 1] };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let in_dim = if i == 0 {
+                self.obs_dim
+            } else {
+                self.config.actor_hidden_sizes[i - 1]
+            };
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             x = linear.forward(&x)?;
             x = x.relu()?;
         }
@@ -262,7 +277,11 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
             } else {
                 self.config.critic_hidden_sizes[i - 1]
             };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             h = linear.forward(&h)?;
             h = h.relu()?;
         }
@@ -305,16 +324,38 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
 
     /// Hard update targets.
     fn hard_update_targets(&mut self) -> Result<()> {
-        Self::copy_weights(&self.actor_var_map, &self.target_actor_var_map, "actor", "target_actor")?;
-        Self::copy_weights(&self.critic_var_map, &self.target_critic_var_map, "critic", "target_critic")?;
+        Self::copy_weights(
+            &self.actor_var_map,
+            &self.target_actor_var_map,
+            "actor",
+            "target_actor",
+        )?;
+        Self::copy_weights(
+            &self.critic_var_map,
+            &self.target_critic_var_map,
+            "critic",
+            "target_critic",
+        )?;
         Ok(())
     }
 
     /// Soft update targets.
     fn soft_update_targets(&mut self) -> Result<()> {
         let tau = self.config.tau;
-        Self::polyak_update(&self.actor_var_map, &self.target_actor_var_map, "actor", "target_actor", tau)?;
-        Self::polyak_update(&self.critic_var_map, &self.target_critic_var_map, "critic", "target_critic", tau)?;
+        Self::polyak_update(
+            &self.actor_var_map,
+            &self.target_actor_var_map,
+            "actor",
+            "target_actor",
+            tau,
+        )?;
+        Self::polyak_update(
+            &self.critic_var_map,
+            &self.target_critic_var_map,
+            "critic",
+            "target_critic",
+            tau,
+        )?;
         Ok(())
     }
 
@@ -361,13 +402,28 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         let batch = self.replay_buffer.sample(self.config.batch_size)?;
 
         // ========== Update Critic ==========
-        let target_actions = self.actor_forward(&batch.next_observations, &self.target_actor_var_map, "target_actor")?;
-        let target_q = self.critic_forward(&batch.next_observations, &target_actions, &self.target_critic_var_map, "target_critic")?;
+        let target_actions = self.actor_forward(
+            &batch.next_observations,
+            &self.target_actor_var_map,
+            "target_actor",
+        )?;
+        let target_q = self.critic_forward(
+            &batch.next_observations,
+            &target_actions,
+            &self.target_critic_var_map,
+            "target_critic",
+        )?;
 
         let not_done = (Tensor::ones_like(&batch.dones)? - &batch.dones)?;
-        let td_target = (&batch.rewards + (&target_q * self.config.gamma as f64)? * &not_done)?.detach();
+        let td_target =
+            (&batch.rewards + (&target_q * self.config.gamma as f64)? * &not_done)?.detach();
 
-        let current_q = self.critic_forward(&batch.observations, &batch.actions, &self.critic_var_map, "critic")?;
+        let current_q = self.critic_forward(
+            &batch.observations,
+            &batch.actions,
+            &self.critic_var_map,
+            "critic",
+        )?;
         let critic_loss = (&current_q - &td_target)?.sqr()?.mean_all()?;
 
         let critic_params = ParamsAdamW {
@@ -378,8 +434,14 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         critic_optimizer.backward_step(&critic_loss)?;
 
         // ========== Update Actor ==========
-        let actor_actions = self.actor_forward(&batch.observations, &self.actor_var_map, "actor")?;
-        let actor_q = self.critic_forward(&batch.observations, &actor_actions, &self.critic_var_map, "critic")?;
+        let actor_actions =
+            self.actor_forward(&batch.observations, &self.actor_var_map, "actor")?;
+        let actor_q = self.critic_forward(
+            &batch.observations,
+            &actor_actions,
+            &self.critic_var_map,
+            "critic",
+        )?;
         let actor_loss = actor_q.neg()?.mean_all()?;
 
         let actor_params = ParamsAdamW {
@@ -471,8 +533,16 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
                         episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32
                     },
                     std_reward: 0.0,
-                    policy_loss: if update_count > 0 { total_actor_loss / update_count as f32 } else { 0.0 },
-                    value_loss: if update_count > 0 { total_critic_loss / update_count as f32 } else { 0.0 },
+                    policy_loss: if update_count > 0 {
+                        total_actor_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
+                    value_loss: if update_count > 0 {
+                        total_critic_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
                     entropy: 0.0,
                     approx_kl: 0.0,
                     clip_fraction: 0.0,
@@ -497,7 +567,10 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
             }
         }
 
-        info!("DDPG training completed: {} timesteps", self.total_timesteps);
+        info!(
+            "DDPG training completed: {} timesteps",
+            self.total_timesteps
+        );
         Ok(())
     }
 

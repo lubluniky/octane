@@ -13,7 +13,7 @@ use crate::algorithms::config::SACConfig;
 use crate::algorithms::metrics::TrainMetrics;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::buffer::{ReplayBuffer, ReplayBufferConfig};
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
 use candle_core::{DType, Module, Tensor};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
@@ -88,8 +88,8 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         };
 
         // Create replay buffer
-        let buffer_config = ReplayBufferConfig::new(obs_dim, action_dim)
-            .capacity(config.buffer_size);
+        let buffer_config =
+            ReplayBufferConfig::new(obs_dim, action_dim).capacity(config.buffer_size);
         let replay_buffer = ReplayBuffer::new(buffer_config, device)?;
 
         // Target entropy: -dim(A) by default
@@ -185,7 +185,11 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
 
         let mut in_dim = self.obs_dim + self.action_dim;
         for (i, &hidden_size) in self.config.q_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             in_dim = hidden_size;
         }
 
@@ -203,8 +207,13 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         let mut x = obs.clone();
 
         for (i, &hidden_size) in self.config.policy_hidden_sizes.iter().enumerate() {
-            let in_dim = if i == 0 { self.obs_dim } else { self.config.policy_hidden_sizes[i - 1] };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("policy.layer_{}", i)))?;
+            let in_dim = if i == 0 {
+                self.obs_dim
+            } else {
+                self.config.policy_hidden_sizes[i - 1]
+            };
+            let linear =
+                candle_nn::linear(in_dim, hidden_size, vb.pp(format!("policy.layer_{}", i)))?;
             x = linear.forward(&x)?;
             x = x.relu()?;
         }
@@ -273,7 +282,13 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
     }
 
     /// Forward pass through Q-network.
-    fn q_forward(&self, obs: &Tensor, action: &Tensor, var_map: &VarMap, prefix: &str) -> Result<Tensor> {
+    fn q_forward(
+        &self,
+        obs: &Tensor,
+        action: &Tensor,
+        var_map: &VarMap,
+        prefix: &str,
+    ) -> Result<Tensor> {
         let candle_device = self.device.to_candle()?;
         let vb = VarBuilder::from_varmap(var_map, DType::F32, &candle_device);
 
@@ -287,7 +302,11 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
             } else {
                 self.config.q_hidden_sizes[i - 1]
             };
-            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("{}.layer_{}", prefix, i)))?;
+            let linear = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb.pp(format!("{}.layer_{}", prefix, i)),
+            )?;
             h = linear.forward(&h)?;
             h = h.relu()?;
         }
@@ -311,18 +330,25 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
     /// Soft update: polyak averaging.
     fn soft_update_targets(&mut self) -> Result<()> {
         let tau = self.config.tau;
-        Self::polyak_update(&self.q1_var_map, &self.target_q1_var_map, "q1", "target_q1", tau)?;
-        Self::polyak_update(&self.q2_var_map, &self.target_q2_var_map, "q2", "target_q2", tau)?;
+        Self::polyak_update(
+            &self.q1_var_map,
+            &self.target_q1_var_map,
+            "q1",
+            "target_q1",
+            tau,
+        )?;
+        Self::polyak_update(
+            &self.q2_var_map,
+            &self.target_q2_var_map,
+            "q2",
+            "target_q2",
+            tau,
+        )?;
         Ok(())
     }
 
     /// Copy weights from source to target var_map.
-    fn copy_weights(
-        src: &VarMap,
-        dst: &VarMap,
-        src_prefix: &str,
-        dst_prefix: &str,
-    ) -> Result<()> {
+    fn copy_weights(src: &VarMap, dst: &VarMap, src_prefix: &str, dst_prefix: &str) -> Result<()> {
         let src_data = src.data().lock().unwrap();
         let mut dst_data = dst.data().lock().unwrap();
 
@@ -371,8 +397,18 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         // Compute target Q-value
         let (next_actions, next_log_probs) = self.sample_action(&batch.next_observations, false)?;
 
-        let target_q1 = self.q_forward(&batch.next_observations, &next_actions, &self.target_q1_var_map, "target_q1")?;
-        let target_q2 = self.q_forward(&batch.next_observations, &next_actions, &self.target_q2_var_map, "target_q2")?;
+        let target_q1 = self.q_forward(
+            &batch.next_observations,
+            &next_actions,
+            &self.target_q1_var_map,
+            "target_q1",
+        )?;
+        let target_q2 = self.q_forward(
+            &batch.next_observations,
+            &next_actions,
+            &self.target_q2_var_map,
+            "target_q2",
+        )?;
         let target_q = target_q1.minimum(&target_q2)?;
 
         // Target: r + gamma * (1 - done) * (min_Q - alpha * log_pi)
@@ -382,11 +418,13 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         let td_target = (&batch.rewards + &soft_q_target * &not_done)?.detach();
 
         // Q1 loss
-        let current_q1 = self.q_forward(&batch.observations, &batch.actions, &self.q1_var_map, "q1")?;
+        let current_q1 =
+            self.q_forward(&batch.observations, &batch.actions, &self.q1_var_map, "q1")?;
         let q1_loss = (&current_q1 - &td_target)?.sqr()?.mean_all()?;
 
         // Q2 loss
-        let current_q2 = self.q_forward(&batch.observations, &batch.actions, &self.q2_var_map, "q2")?;
+        let current_q2 =
+            self.q_forward(&batch.observations, &batch.actions, &self.q2_var_map, "q2")?;
         let q2_loss = (&current_q2 - &td_target)?.sqr()?.mean_all()?;
 
         // Update Q1
@@ -425,7 +463,8 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
 
             // Simple gradient step for alpha (manual update since log_alpha is not in VarMap)
             let alpha_grad = -diff * self.alpha;
-            let new_log_alpha = self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad;
+            let new_log_alpha =
+                self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad;
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
 
@@ -518,8 +557,16 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
                         episode_rewards.iter().sum::<f32>() / episode_rewards.len() as f32
                     },
                     std_reward: 0.0,
-                    policy_loss: if update_count > 0 { total_policy_loss / update_count as f32 } else { 0.0 },
-                    value_loss: if update_count > 0 { total_q_loss / update_count as f32 } else { 0.0 },
+                    policy_loss: if update_count > 0 {
+                        total_policy_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
+                    value_loss: if update_count > 0 {
+                        total_q_loss / update_count as f32
+                    } else {
+                        0.0
+                    },
                     entropy: self.alpha,
                     approx_kl: 0.0,
                     clip_fraction: 0.0,

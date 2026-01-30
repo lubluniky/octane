@@ -1,6 +1,6 @@
 //! Action and observation space definitions.
 
-use crate::core::{Device, Result, OctaneError};
+use crate::core::{Device, OctaneError, Result};
 use candle_core::Tensor;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
