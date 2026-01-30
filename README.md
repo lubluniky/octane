@@ -49,8 +49,32 @@ All benchmarks performed on Apple M4 Max comparing Octane vs Python Stable-Basel
 
 ![Hero Chart](benchmarks/charts/hero_chart.png)
 
+### Metal GPU Acceleration (Apple Silicon)
+
+Up to **14x speedup** with Metal GPU on Apple M-series chips.
+
+![Metal GPU Speedup Overview](media/metal_speedup_overview.png)
+
+| Operation | CPU | Metal GPU | Speedup |
+|-----------|-----|-----------|---------|
+| MatMul 128x128 | 69µs | 4.9µs | **14.1x** |
+| MatMul 1024x1024 | 4.8ms | 734µs | **6.6x** |
+| MatMul 2048x2048 | 41ms | 6.0ms | **6.8x** |
+| Policy Inference (batch 512) | 986µs | 121µs | **8.2x** |
+| Policy Inference (batch 4096) | 6.4ms | 1.0ms | **6.3x** |
+| MLP Forward | 487µs | 134µs | **3.6x** |
+
 <details>
-<summary>Additional Benchmarks</summary>
+<summary>Detailed GPU Benchmarks</summary>
+
+![Matrix Multiplication Comparison](media/matmul_comparison.png)
+![Inference Comparison](media/inference_comparison.png)
+![Softmax Comparison](media/softmax_comparison.png)
+
+</details>
+
+<details>
+<summary>Additional CPU Benchmarks</summary>
 
 ![Environment Comparison](benchmarks/charts/env_comparison.png)
 ![Throughput Scaling](benchmarks/charts/throughput.png)

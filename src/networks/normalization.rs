@@ -459,6 +459,7 @@ impl RMSNorm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use candle_core::{DType, Device};
     use candle_nn::VarMap;
 
     fn setup_vb(device: &Device) -> VarBuilder<'static> {

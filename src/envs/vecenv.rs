@@ -191,7 +191,7 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     }
 
     /// Step with async processing (useful for I/O bound envs).
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "distributed")]
     pub async fn step_async(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
         // For I/O bound environments, use tokio for concurrent stepping
         use tokio::task;
