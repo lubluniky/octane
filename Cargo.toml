@@ -1,13 +1,18 @@
 [package]
 name = "octane-rs"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Octane Team"]
 description = "High-performance Reinforcement Learning library for Rust, optimized for Apple Silicon and NVIDIA GPUs"
 license = "GPL-2.0"
-repository = "https://github.com/lubluniky/octane-rs"
+repository = "https://github.com/lubluniky/rocket-rs"
 keywords = ["reinforcement-learning", "machine-learning", "gpu", "trading", "hpc"]
 categories = ["science", "algorithms"]
+
+[lib]
+name = "octane_rs"
+# For Python bindings, include cdylib
+crate-type = ["lib", "cdylib"]
 
 [features]
 default = ["cpu"]
@@ -22,6 +27,7 @@ wandb = ["dep:pyo3"]  # Weights & Biases integration (requires Python wandb)
 distributed = ["dep:tokio", "dep:tonic", "dep:prost"]  # Distributed training support
 grpc = ["distributed"]  # gRPC backend for distributed training
 half = ["dep:half"]  # Half-precision floating point support
+python = ["dep:pyo3", "pyo3/extension-module"]  # Python bindings
 full = ["metal", "cuda", "simd", "avx2", "half"]
 
 [dependencies]
