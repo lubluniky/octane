@@ -38,10 +38,6 @@ pub mod trading;
 pub mod tui;
 pub mod tuning;
 
-// Python bindings (only when building for Python)
-#[cfg(feature = "python")]
-pub mod python;
-
 // Re-exports for ergonomic API
 pub use crate::algorithms::{
     A2CAgent, A2CConfig, Agent, CQLAgent, CQLConfig, DDPGAgent, DDPGConfig, DQNAgent, DQNConfig,
