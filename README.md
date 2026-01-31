@@ -612,9 +612,140 @@ octane/
 │   │   └── mod.rs          # Profiler, ProfileScope
 │   ├── tuning/         # Hyperparameter optimization
 │   │   └── mod.rs          # Study, RandomSearch, GridSearch
-│   └── tui/            # Terminal UI
-│       └── mod.rs          # Training visualization
+│   ├── tui/            # Terminal UI
+│   │   └── mod.rs          # Training visualization
+│   │
+│   │   # ═══ TRADING-SPECIFIC MODULES ═══
+│   │
+│   ├── trading/        # Advanced trading environments
+│   │   ├── env.rs          # Order book, slippage, commissions
+│   │   ├── multi_asset.rs  # Portfolio of N assets
+│   │   ├── multi_timeframe.rs # M1/M5/H1/D1 support
+│   │   └── regime.rs       # HMM regime detection, GARCH
+│   ├── risk/           # Risk management
+│   │   ├── constraints.rs  # Safe RL, action masking
+│   │   ├── rewards.rs      # Sharpe/Sortino/Calmar shaping
+│   │   ├── position_sizing.rs # Kelly criterion, ATR
+│   │   └── drawdown.rs     # Max DD limits, recovery mode
+│   ├── metrics/        # Trading analytics
+│   │   ├── trading.rs      # VaR, CVaR, Sharpe, Win Rate
+│   │   ├── journal.rs      # Trade logging, attribution
+│   │   └── attribution.rs  # P&L breakdown
+│   ├── backtesting/    # Validation
+│   │   ├── walk_forward.rs # Walk-forward optimization
+│   │   ├── monte_carlo.rs  # Stress testing, bootstrap
+│   │   └── cross_validation.rs # Purged K-Fold, embargo
+│   ├── live/           # Live trading
+│   │   ├── paper.rs        # Paper trading engine
+│   │   ├── exchanges/      # Binance, Bybit connectors
+│   │   ├── execution.rs    # TWAP, VWAP, Iceberg
+│   │   └── monitor.rs      # Real-time P&L, alerts
+│   └── strategies/     # Advanced RL
+│       ├── ensemble.rs     # Multi-agent voting
+│       ├── hierarchical.rs # Two-level RL
+│       ├── meta.rs         # MAML adaptation
+│       └── imitation.rs    # Behavioral cloning
 └── benches/            # Criterion benchmarks
+```
+
+---
+
+## Trading Features
+
+Octane includes comprehensive trading-specific infrastructure:
+
+### Trading Environments
+
+```rust
+use octane_rs::trading::{AdvancedTradingEnv, AdvancedTradingConfig, SlippageModel};
+
+let config = AdvancedTradingConfig::default()
+    .slippage_model(SlippageModel::AlmgrenChriss {
+        temporary_impact: 0.1,
+        permanent_impact: 0.01
+    })
+    .enable_partial_fills(true)
+    .latency_ms(50);
+
+let env = AdvancedTradingEnv::new(config, market_data)?;
+```
+
+### Risk Management
+
+```rust
+use octane_rs::risk::{DrawdownController, DrawdownConfig, PositionSizer};
+
+// Drawdown control with recovery mode
+let controller = DrawdownController::new(
+    DrawdownConfig::default()
+        .max_drawdown(0.15)           // 15% max drawdown
+        .recovery_threshold(0.10)      // Enter recovery at 10%
+        .recovery_risk_factor(0.5)     // Halve risk in recovery
+);
+
+// Kelly criterion position sizing
+let sizer = PositionSizer::new(PositionSizingConfig::default()
+    .method(SizingMethod::HalfKelly));
+```
+
+### Backtesting & Validation
+
+```rust
+use octane_rs::backtesting::{WalkForwardOptimizer, MonteCarloSimulator, CrossValidator};
+
+// Walk-forward optimization
+let wfo = WalkForwardOptimizer::new(WalkForwardConfig::default()
+    .train_size(252)    // 1 year train
+    .test_size(63)      // 3 months test
+    .step_size(21));    // Monthly rolling
+
+// Monte Carlo stress testing
+let mc = MonteCarloSimulator::new(MonteCarloConfig::default()
+    .n_simulations(10_000)
+    .stress_scenarios(vec![
+        StressScenario::FlashCrash,
+        StressScenario::VolatilitySpike,
+    ]));
+
+// Purged cross-validation (prevents lookahead bias)
+let cv = CrossValidator::new(CVConfig::default()
+    .method(CVMethod::PurgedKFold { n_splits: 5, purge_gap: 5, embargo: 10 }));
+```
+
+### Live Trading
+
+```rust
+use octane_rs::live::{PaperTradingEngine, ExecutionEngine, ExecutionAlgorithm};
+
+// Paper trading with realistic simulation
+let paper = PaperTradingEngine::new(PaperTradingConfig::default()
+    .slippage_model(SlippageModel::VolumeWeighted)
+    .initial_balance(100_000.0));
+
+// Smart execution
+let executor = ExecutionEngine::new(ExecutionConfig::default()
+    .algorithm(ExecutionAlgorithm::TWAP { duration_secs: 300 }));
+```
+
+### Advanced Strategies
+
+```rust
+use octane_rs::strategies::{EnsembleAgent, HierarchicalAgent, AdaptiveAgent};
+
+// Ensemble of agents with voting
+let ensemble = EnsembleAgent::new(EnsembleConfig::default()
+    .voting_strategy(VotingStrategy::Boosting)
+    .weight_adaptation(WeightAdaptation::UCB1));
+
+// Hierarchical RL (timing + execution)
+let hierarchical = HierarchicalAgent::new(HierarchicalConfig::default()
+    .high_level_interval(100)   // Decide every 100 steps
+    .options(vec![TradingOption::Hold, TradingOption::AggressiveLong, ...]));
+
+// Meta-learning for regime adaptation
+let adaptive = AdaptiveAgent::new(MetaLearningConfig::default()
+    .strategy(AdaptationStrategy::RegimeAware)
+    .adaptation_steps(10));
 ```
 
 ---
@@ -644,6 +775,6 @@ Octane is licensed under the [GNU General Public License v2.0](LICENSE).
 
 **Built with Rust for maximum performance**
 
-*~42,000 lines of high-performance RL code*
+*~57,000 lines of high-performance RL code*
 
 </div>
