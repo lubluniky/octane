@@ -67,7 +67,7 @@ memmap2 = "0.9"
 pyo3 = { version = "0.23", optional = true }
 
 # Distributed training (optional)
-tonic = { version = "0.12", optional = true }
+tonic = { version = "0.14", optional = true }
 prost = { version = "0.13", optional = true }
 parking_lot = { version = "0.12", optional = true }  # Fast mutex for async env stepping
 
