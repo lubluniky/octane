@@ -645,12 +645,14 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             // Step environment
             let step_result = self.env.step(&actions, &self.device)?;
 
-            // Store transition
+            // Store transition with separate terminated/truncated signals
+            // This enables correct GAE calculation that bootstraps value for truncations
             buffer.add(
                 &obs,
                 &actions,
                 &step_result.rewards,
-                &step_result.dones()?,
+                &step_result.terminated,
+                &step_result.truncated,
                 &values,
                 &log_probs,
             )?;

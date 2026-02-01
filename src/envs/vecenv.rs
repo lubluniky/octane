@@ -6,6 +6,8 @@ use crate::core::OctaneError;
 use crate::envs::{Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rayon::prelude::*;
+#[cfg(feature = "distributed")]
+use std::thread::{self, JoinHandle};
 
 /// Configuration for vectorized environments.
 #[derive(Debug, Clone)]
@@ -22,6 +24,139 @@ impl Default for VecEnvConfig {
             num_envs: 1,
             auto_reset: true,
         }
+    }
+}
+
+/// Message sent to environment workers.
+#[cfg(feature = "distributed")]
+enum WorkerCommand {
+    /// Step the environment with the given action and device.
+    Step(Tensor, Device, bool),
+    /// Reset the environment.
+    Reset(Device),
+    /// Shutdown the worker thread.
+    Shutdown,
+}
+
+/// Result from an environment worker.
+#[cfg(feature = "distributed")]
+enum WorkerResponse {
+    /// Step result with optional auto-reset observation.
+    Step(Result<(StepResult, Option<ObsType>)>),
+    /// Reset result.
+    Reset(Result<ObsType>),
+}
+
+/// A persistent worker that owns an environment and runs on a dedicated thread.
+#[cfg(feature = "distributed")]
+struct EnvWorker {
+    /// Channel to send commands to the worker.
+    cmd_tx: crossbeam::channel::Sender<WorkerCommand>,
+    /// Channel to receive responses from the worker.
+    resp_rx: crossbeam::channel::Receiver<WorkerResponse>,
+    /// Handle to the worker thread.
+    handle: Option<JoinHandle<()>>,
+}
+
+#[cfg(feature = "distributed")]
+impl EnvWorker {
+    /// Create a new worker that owns the given environment.
+    fn new<E: Environment + Clone + 'static>(mut env: E) -> Self {
+        let (cmd_tx, cmd_rx) = crossbeam::channel::bounded::<WorkerCommand>(1);
+        let (resp_tx, resp_rx) = crossbeam::channel::bounded::<WorkerResponse>(1);
+
+        let handle = thread::spawn(move || {
+            while let Ok(cmd) = cmd_rx.recv() {
+                match cmd {
+                    WorkerCommand::Step(action, device, auto_reset) => {
+                        let result = env.step(&action, &device);
+                        let response = match result {
+                            Ok(step_result) => {
+                                let new_obs = if step_result.done() && auto_reset {
+                                    match env.reset(&device) {
+                                        Ok(obs) => Some(obs),
+                                        Err(e) => {
+                                            let _ = resp_tx.send(WorkerResponse::Step(Err(e)));
+                                            continue;
+                                        }
+                                    }
+                                } else {
+                                    None
+                                };
+                                WorkerResponse::Step(Ok((step_result, new_obs)))
+                            }
+                            Err(e) => WorkerResponse::Step(Err(e)),
+                        };
+                        if resp_tx.send(response).is_err() {
+                            break;
+                        }
+                    }
+                    WorkerCommand::Reset(device) => {
+                        let result = env.reset(&device);
+                        if resp_tx.send(WorkerResponse::Reset(result)).is_err() {
+                            break;
+                        }
+                    }
+                    WorkerCommand::Shutdown => {
+                        let _ = env.close();
+                        break;
+                    }
+                }
+            }
+        });
+
+        Self {
+            cmd_tx,
+            resp_rx,
+            handle: Some(handle),
+        }
+    }
+
+    /// Send a step command to the worker (non-blocking).
+    fn send_step(&self, action: Tensor, device: Device, auto_reset: bool) -> Result<()> {
+        self.cmd_tx
+            .send(WorkerCommand::Step(action, device, auto_reset))
+            .map_err(|_| OctaneError::Environment("Worker channel disconnected".into()))
+    }
+
+    /// Receive the step result (blocking).
+    fn recv_step(&self) -> Result<(StepResult, Option<ObsType>)> {
+        match self.resp_rx.recv() {
+            Ok(WorkerResponse::Step(result)) => result,
+            Ok(_) => Err(OctaneError::Environment("Unexpected response type".into())),
+            Err(_) => Err(OctaneError::Environment("Worker channel disconnected".into())),
+        }
+    }
+
+    /// Send a reset command to the worker (non-blocking).
+    fn send_reset(&self, device: Device) -> Result<()> {
+        self.cmd_tx
+            .send(WorkerCommand::Reset(device))
+            .map_err(|_| OctaneError::Environment("Worker channel disconnected".into()))
+    }
+
+    /// Receive the reset result (blocking).
+    fn recv_reset(&self) -> Result<ObsType> {
+        match self.resp_rx.recv() {
+            Ok(WorkerResponse::Reset(result)) => result,
+            Ok(_) => Err(OctaneError::Environment("Unexpected response type".into())),
+            Err(_) => Err(OctaneError::Environment("Worker channel disconnected".into())),
+        }
+    }
+
+    /// Shutdown the worker thread gracefully.
+    fn shutdown(&mut self) {
+        let _ = self.cmd_tx.send(WorkerCommand::Shutdown);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl Drop for EnvWorker {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 
@@ -57,9 +192,15 @@ impl VecStepResult {
 /// exclusive `&mut` access to its environment without synchronization overhead.
 /// This is significantly faster on ARM (Apple Silicon M-series) where atomic
 /// operations and mutex locks have higher overhead than on x86.
+///
+/// When the `distributed` feature is enabled and `new_async()` is used, spawns
+/// a persistent worker pool where each environment runs on its own dedicated
+/// thread. This eliminates the overhead of wrapping environments in `Arc<Mutex>`
+/// on every step, providing much better performance for I/O-bound environments.
 pub struct VecEnv<E: Environment + Clone> {
     /// Individual environments - no Arc/Mutex needed since par_iter_mut()
     /// guarantees exclusive access per thread.
+    /// Note: When using the persistent worker pool, this will be empty.
     envs: Vec<E>,
     /// Number of environments.
     num_envs: usize,
@@ -69,10 +210,17 @@ pub struct VecEnv<E: Environment + Clone> {
     obs_space: E::ObsSpace,
     /// Cached action space.
     act_space: E::ActSpace,
+    /// Persistent worker pool for async stepping (distributed feature only).
+    /// Each worker owns its environment and runs on a dedicated thread.
+    #[cfg(feature = "distributed")]
+    workers: Option<Vec<EnvWorker>>,
 }
 
 impl<E: Environment + Clone + 'static> VecEnv<E> {
-    /// Create a new vectorized environment.
+    /// Create a new vectorized environment for synchronous stepping.
+    ///
+    /// Uses Rayon's `par_iter_mut()` for parallel stepping, which is optimal
+    /// for CPU-bound environments where the step time is predictable.
     pub fn new(template_envs: Vec<E>, num_envs: usize) -> Self {
         let obs_space = template_envs[0].observation_space().clone();
         let act_space = template_envs[0].action_space().clone();
@@ -91,7 +239,50 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             },
             obs_space,
             act_space,
+            #[cfg(feature = "distributed")]
+            workers: None,
         }
+    }
+
+    /// Create a new vectorized environment with persistent worker threads.
+    ///
+    /// Each environment runs on its own dedicated thread, communicating via
+    /// crossbeam channels. This eliminates the overhead of creating `Arc<Mutex>`
+    /// wrappers on every step, providing much better performance for I/O-bound
+    /// or latency-sensitive environments (e.g., network simulators, trading envs).
+    ///
+    /// Use `step_async()` with this mode for optimal performance.
+    #[cfg(feature = "distributed")]
+    pub fn new_async(template_envs: Vec<E>, num_envs: usize) -> Self {
+        let obs_space = template_envs[0].observation_space().clone();
+        let act_space = template_envs[0].action_space().clone();
+
+        // Create environments and spawn workers
+        let workers: Vec<EnvWorker> = (0..num_envs)
+            .map(|i| {
+                let env = template_envs[i % template_envs.len()].clone();
+                EnvWorker::new(env)
+            })
+            .collect();
+
+        Self {
+            envs: Vec::new(), // Environments are owned by workers
+            num_envs,
+            config: VecEnvConfig {
+                num_envs,
+                auto_reset: true,
+            },
+            obs_space,
+            act_space,
+            workers: Some(workers),
+        }
+    }
+
+    /// Check if this VecEnv is using the persistent worker pool.
+    #[cfg(feature = "distributed")]
+    #[inline]
+    pub fn is_async(&self) -> bool {
+        self.workers.is_some()
     }
 
     /// Number of parallel environments.
@@ -111,7 +302,28 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     }
 
     /// Reset all environments in parallel.
+    ///
+    /// When using the persistent worker pool (`new_async()`), sends reset commands
+    /// to all workers in parallel and collects responses.
     pub fn reset(&mut self, device: &Device) -> Result<Tensor> {
+        #[cfg(feature = "distributed")]
+        if let Some(ref workers) = self.workers {
+            // Use the worker pool: send all reset commands in parallel
+            for worker in workers {
+                worker.send_reset(*device)?;
+            }
+
+            // Collect all responses
+            let mut obs_vec = Vec::with_capacity(self.num_envs);
+            for worker in workers {
+                let obs = worker.recv_reset()?;
+                obs_vec.push(obs);
+            }
+
+            return Tensor::stack(&obs_vec, 0).map_err(Into::into);
+        }
+
+        // Standard mode: use rayon parallel iteration
         let observations: Vec<Result<ObsType>> = self
             .envs
             .par_iter_mut()
@@ -188,51 +400,101 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         })
     }
 
-    /// Step with async processing (useful for I/O bound envs).
+    /// Step with async processing using the persistent worker pool.
     ///
-    /// Uses `parking_lot::Mutex` for lower overhead than `std::sync::Mutex`.
-    /// Each environment is wrapped temporarily for the async operation.
+    /// **IMPORTANT**: For optimal performance, create the VecEnv using `new_async()`
+    /// which spawns dedicated worker threads. This eliminates the overhead of
+    /// wrapping environments in `Arc<Mutex>` on every step.
+    ///
+    /// When using the worker pool:
+    /// - Sends step commands to all workers in parallel via crossbeam channels
+    /// - Workers process steps on their dedicated threads (no locking needed)
+    /// - Collects results as they complete
+    ///
+    /// When NOT using the worker pool (fallback for VecEnv created with `new()`):
+    /// - Falls back to the synchronous `step()` method wrapped in spawn_blocking
     #[cfg(feature = "distributed")]
     pub async fn step_async(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
-        use parking_lot::Mutex;
-        use std::sync::Arc;
-        use tokio::task;
-
         let num_envs = self.num_envs;
         let auto_reset = self.config.auto_reset;
 
+        // Split actions for each environment
         let action_list: Vec<Tensor> = (0..num_envs)
             .map(|i| actions.get(i))
             .collect::<candle_core::Result<Vec<_>>>()?;
 
-        // Temporarily wrap envs in Arc<parking_lot::Mutex> for async access
-        // parking_lot::Mutex uses spin-lock - much faster on ARM than std::sync::Mutex
-        let wrapped_envs: Vec<Arc<Mutex<E>>> = std::mem::take(&mut self.envs)
-            .into_iter()
-            .map(|env| Arc::new(Mutex::new(env)))
-            .collect();
+        // FAST PATH: Use persistent worker pool if available
+        if let Some(ref workers) = self.workers {
+            // Send all step commands in parallel (non-blocking sends)
+            for (worker, action) in workers.iter().zip(action_list.into_iter()) {
+                worker.send_step(action, *device, auto_reset)?;
+            }
 
-        let mut handles = Vec::with_capacity(num_envs);
+            // Collect results (blocking receives, but workers run in parallel)
+            let mut obs_vec = Vec::with_capacity(num_envs);
+            let mut rewards = Vec::with_capacity(num_envs);
+            let mut terminated = Vec::with_capacity(num_envs);
+            let mut truncated = Vec::with_capacity(num_envs);
+            let mut infos = Vec::with_capacity(num_envs);
+
+            for worker in workers {
+                let (step_result, auto_reset_obs) = worker.recv_step()?;
+
+                let obs = auto_reset_obs.unwrap_or(step_result.observation);
+                obs_vec.push(obs);
+                rewards.push(step_result.reward);
+                terminated.push(if step_result.terminated { 1.0f32 } else { 0.0 });
+                truncated.push(if step_result.truncated { 1.0f32 } else { 0.0 });
+                infos.push(step_result.info);
+            }
+
+            let candle_device = device.to_candle()?;
+            return Ok(VecStepResult {
+                observations: Tensor::stack(&obs_vec, 0)?,
+                rewards: Tensor::from_slice(&rewards, &[num_envs], &candle_device)?,
+                terminated: Tensor::from_slice(&terminated, &[num_envs], &candle_device)?,
+                truncated: Tensor::from_slice(&truncated, &[num_envs], &candle_device)?,
+                infos,
+            });
+        }
+
+        // SLOW PATH (fallback): VecEnv was created with new() instead of new_async()
+        // Use Rayon parallel iteration in a spawn_blocking to not block the async runtime
+        //
+        // NOTE: For optimal performance, use new_async() which spawns persistent workers.
+        // This fallback still works but involves moving environments in and out of the closure.
+        use tokio::task;
+
+        let envs = std::mem::take(&mut self.envs);
         let device_clone = *device;
 
-        for (env, action) in wrapped_envs.iter().zip(action_list.into_iter()) {
-            let env = Arc::clone(env);
-            let action = action.clone();
-            let device = device_clone;
+        let (returned_envs, results): (Vec<E>, Vec<Result<(StepResult, Option<ObsType>)>>) =
+            task::spawn_blocking(move || {
+                // Process in parallel, collecting both results and environments
+                let processed: Vec<(E, Result<(StepResult, Option<ObsType>)>)> = envs
+                    .into_par_iter()
+                    .zip(action_list.into_par_iter())
+                    .map(|(mut env, action)| {
+                        let result = (|| {
+                            let step_result = env.step(&action, &device_clone)?;
+                            let new_obs = if step_result.done() && auto_reset {
+                                Some(env.reset(&device_clone)?)
+                            } else {
+                                None
+                            };
+                            Ok((step_result, new_obs))
+                        })();
+                        (env, result)
+                    })
+                    .collect();
 
-            handles.push(task::spawn_blocking(move || {
-                let mut env = env.lock();
-                let result = env.step(&action, &device)?;
+                // Separate environments from results
+                processed.into_iter().unzip()
+            })
+            .await
+            .map_err(|e| OctaneError::Environment(format!("Task join error: {}", e)))?;
 
-                let new_obs = if result.done() && auto_reset {
-                    Some(env.reset(&device)?)
-                } else {
-                    None
-                };
-
-                Ok::<_, OctaneError>((result, new_obs))
-            }));
-        }
+        self.envs = returned_envs;
 
         // Collect results
         let mut obs_vec = Vec::with_capacity(num_envs);
@@ -241,10 +503,8 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         let mut truncated = Vec::with_capacity(num_envs);
         let mut infos = Vec::with_capacity(num_envs);
 
-        for handle in handles {
-            let (step_result, auto_reset_obs) = handle
-                .await
-                .map_err(|e| OctaneError::Environment(format!("Task join error: {}", e)))??;
+        for result in results {
+            let (step_result, auto_reset_obs) = result?;
 
             let obs = auto_reset_obs.unwrap_or(step_result.observation);
             obs_vec.push(obs);
@@ -253,18 +513,6 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
             truncated.push(if step_result.truncated { 1.0f32 } else { 0.0 });
             infos.push(step_result.info);
         }
-
-        // Unwrap envs back from Arc<Mutex>
-        // Arc::try_unwrap succeeds since all spawn_blocking tasks have completed
-        self.envs = wrapped_envs
-            .into_iter()
-            .map(|arc| {
-                Arc::try_unwrap(arc)
-                    .ok()
-                    .expect("Arc should have single owner after tasks complete")
-                    .into_inner()
-            })
-            .collect();
 
         let candle_device = device.to_candle()?;
         Ok(VecStepResult {
@@ -277,7 +525,21 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     }
 
     /// Close all environments.
+    ///
+    /// When using the persistent worker pool, sends shutdown commands to all
+    /// workers and waits for them to terminate gracefully.
     pub fn close(&mut self) -> Result<()> {
+        #[cfg(feature = "distributed")]
+        if let Some(ref mut workers) = self.workers {
+            // Shutdown all workers - the Drop impl handles joining threads
+            for worker in workers.iter_mut() {
+                worker.shutdown();
+            }
+            self.workers = None;
+            return Ok(());
+        }
+
+        // Standard mode: close environments directly
         for env in &mut self.envs {
             env.close()?;
         }

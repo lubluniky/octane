@@ -116,6 +116,12 @@ pub use crate::tuning::{
     OptimizationDirection, ParamValue, RandomSearch, Sampler, Study, Trial, TrialState,
 };
 
+// SIMD-optimized operations
+pub use crate::simd::{
+    compute_gae_simd, compute_gae_simd_inplace, normalize_advantages_simd,
+    is_neon_available, simd_features_info, best_simd_width,
+};
+
 // Live trading infrastructure (requires distributed feature)
 #[cfg(feature = "distributed")]
 pub use crate::live::{

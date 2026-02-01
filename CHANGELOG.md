@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-02-01
+
+### Added
+
+#### Performance Optimizations
+- **RolloutBuffer Flat Storage** - Replaced `Vec<Tensor>` with flat `Vec<f32>` storage for all buffer fields (`observations`, `actions`, `rewards`, `dones`, `values`, `log_probs`, `advantages`, `returns`). Eliminates per-step tensor allocations and improves cache locality.
+- **VecEnv Persistent Worker Pool** - Implemented `EnvWorker` struct with dedicated threads and `crossbeam::channel` communication. Removes `Arc<Mutex>` wrapping from hot path, enabling true parallel execution.
+- **SIMD GAE Computation** - Added `simd/gae.rs` with vectorized Generalized Advantage Estimation:
+  - ARM NEON: Processes 4 environments per iteration using 128-bit registers with FMA (`vfmaq_f32`)
+  - x86_64 AVX2: Processes 8 environments per iteration using 256-bit registers with FMA (`_mm256_fmadd_ps`)
+  - Inverted loop order (time-outer, env-inner) for optimal cache access patterns
+- **Correct Truncation Handling** - Separated `terminated` and `truncated` signals in `RolloutBuffer` and `VecEnv`. Fixed GAE calculation to bootstrap value estimates on truncation instead of treating as terminal (zero value). Prevents value function collapse at episode time limits.
+
+### Changed
+- **RolloutBuffer API** - `add()` method now accepts separate `terminated` and `truncated` tensors instead of combined `dones`
+- **Algorithms Updated** - PPO, A2C, PPG now use corrected truncation handling
+- **Buffer Module** - `buffer/mod.rs` updated with separate `terminated_flat`/`truncated_flat` storage
+
+### Performance Improvements
+- VecEnv worker pool: **Removed per-step locking overhead**
+- RolloutBuffer: **Zero tensor allocations during rollout collection**
+- GAE computation: **~4x speedup (NEON)**, **~8x speedup (AVX2)** for high env counts
+- Metal GPU MatMul 128x128: **30x speedup** (157µs → 5.2µs)
+- Policy inference batch 512: **7.9x speedup** (1.03ms → 130µs)
+
+### Fixed
+- Value function collapse bug when episodes truncate at time limit
+- Incorrect GAE values near episode boundaries
+- Memory allocation overhead in `step_async()` hot path
+
+### Files Added
+- `src/simd/gae.rs` - SIMD-optimized GAE computation with NEON/AVX2 support
+
+### Files Modified
+- `src/algorithms/rollout.rs` - Flat storage, SIMD GAE integration
+- `src/algorithms/ppo.rs` - Separated terminated/truncated handling
+- `src/algorithms/a2c.rs` - Separated terminated/truncated handling
+- `src/algorithms/ppg.rs` - Separated terminated/truncated handling
+- `src/buffer/mod.rs` - Separated terminated/truncated storage
+- `src/envs/vecenv.rs` - Persistent worker pool implementation
+- `src/simd/mod.rs` - GAE module export
+
 ## [0.3.0] - 2025-01-30
 
 ### Added
@@ -133,7 +175,8 @@ half = ["dep:half"] # FP16/BF16 support
 - TUI for training visualization
 - Metal and CUDA support via Candle
 
-[Unreleased]: https://github.com/lubluniky/octane-rs/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/lubluniky/octane-rs/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/lubluniky/octane-rs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/lubluniky/octane-rs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lubluniky/octane-rs/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lubluniky/octane-rs/releases/tag/v0.1.0

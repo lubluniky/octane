@@ -45,6 +45,8 @@
 
 All benchmarks performed on Apple M4 Max comparing Octane vs Python Stable-Baselines3.
 
+### Octane vs Python SB3
+
 | Steps | Octane | SB3 (Python) | Speedup |
 |-------|--------|--------------|---------|
 | 500K | ~0.6s | ~600s | **1000x** |
@@ -56,24 +58,45 @@ All benchmarks performed on Apple M4 Max comparing Octane vs Python Stable-Basel
 |--------|--------|--------------|
 | FPS | 800,000 - 1,800,000 | ~833 |
 
-### Performance Charts
+### VecEnv Parallel Scaling (v0.4.0)
 
-![Hero Chart](benchmarks/charts/hero_chart.png)
+| Environments | Time per Step | Throughput |
+|--------------|---------------|------------|
+| 1 | 907ns | 1.1M steps/s |
+| 8 | 27µs | 296K steps/s |
+| 32 | 64µs | 500K steps/s |
+| 128 | 166µs | 771K steps/s |
+| 512 | 500µs | 1.02M steps/s |
+| 1024 | 792µs | 1.29M steps/s |
+
+### PPO Operations (v0.4.0)
+
+| Operation | Size | Time |
+|-----------|------|------|
+| PPO Loss | 64 batch | 1.87µs |
+| PPO Loss | 1024 batch | 4.74µs |
+| MLP Forward | 32x64 | 22.9µs |
+| MLP Forward | 512x512 | 5.2ms |
+| Advantage Norm | 16384 | 31.2µs |
 
 ### Metal GPU Acceleration (Apple Silicon)
 
-Up to **14x speedup** with Metal GPU on Apple M-series chips.
+Up to **30x speedup** with Metal GPU on Apple M-series chips.
 
 ![Metal GPU Speedup Overview](media/metal_speedup_overview.png)
 
 | Operation | CPU | Metal GPU | Speedup |
 |-----------|-----|-----------|---------|
-| MatMul 128x128 | 69µs | 4.9µs | **14.1x** |
-| MatMul 1024x1024 | 4.8ms | 734µs | **6.6x** |
-| MatMul 2048x2048 | 41ms | 6.0ms | **6.8x** |
-| Policy Inference (batch 512) | 986µs | 121µs | **8.2x** |
-| Policy Inference (batch 4096) | 6.4ms | 1.0ms | **6.3x** |
-| MLP Forward | 487µs | 134µs | **3.6x** |
+| MatMul 128x128 | 157µs | 5.2µs | **30x** |
+| MatMul 512x512 | 1.1ms | 107µs | **10x** |
+| MatMul 1024x1024 | 6.6ms | 912µs | **7.2x** |
+| MatMul 2048x2048 | 47.6ms | 6.4ms | **7.4x** |
+| Policy Inference (batch 512) | 1.03ms | 130µs | **7.9x** |
+| Policy Inference (batch 2048) | 3.2ms | 534µs | **6.0x** |
+| Policy Inference (batch 4096) | 6.1ms | 1.1ms | **5.5x** |
+| MLP Forward (256x128) | 471µs | 142µs | **3.3x** |
+| Softmax 256x1024 | 882µs | 386µs | **2.3x** |
+| Softmax 512x2048 | 3.5ms | 1.7ms | **2.0x** |
 
 <details>
 <summary>Detailed GPU Benchmarks</summary>

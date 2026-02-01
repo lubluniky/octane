@@ -94,8 +94,12 @@ pub struct RolloutBuffer {
     actions_flat: Vec<f32>,
     /// Rewards collected during rollout [buffer_size * num_envs].
     rewards_flat: Vec<f32>,
-    /// Done flags collected during rollout [buffer_size * num_envs].
-    dones_flat: Vec<f32>,
+    /// Termination flags collected during rollout [buffer_size * num_envs].
+    /// True episode endings (goal reached, failure, etc.) - bootstrap value should be 0.
+    terminated_flat: Vec<f32>,
+    /// Truncation flags collected during rollout [buffer_size * num_envs].
+    /// Time-limit cutoffs - bootstrap value should be used (episode was cut short).
+    truncated_flat: Vec<f32>,
     /// Value estimates collected during rollout [buffer_size * num_envs].
     values_flat: Vec<f32>,
     /// Log probabilities collected during rollout [buffer_size * num_envs].
@@ -108,8 +112,10 @@ pub struct RolloutBuffer {
     actions: Option<Tensor>,
     /// Rewards [buffer_size, num_envs].
     rewards: Option<Tensor>,
-    /// Done flags [buffer_size, num_envs].
-    dones: Option<Tensor>,
+    /// Termination flags [buffer_size, num_envs].
+    terminated: Option<Tensor>,
+    /// Truncation flags [buffer_size, num_envs].
+    truncated: Option<Tensor>,
     /// Value estimates [buffer_size, num_envs].
     values: Option<Tensor>,
     /// Log probabilities [buffer_size, num_envs].
@@ -176,14 +182,16 @@ impl RolloutBuffer {
             obs_flat: Vec::with_capacity(obs_capacity),
             actions_flat: Vec::with_capacity(actions_capacity),
             rewards_flat: Vec::with_capacity(scalar_capacity),
-            dones_flat: Vec::with_capacity(scalar_capacity),
+            terminated_flat: Vec::with_capacity(scalar_capacity),
+            truncated_flat: Vec::with_capacity(scalar_capacity),
             values_flat: Vec::with_capacity(scalar_capacity),
             log_probs_flat: Vec::with_capacity(scalar_capacity),
             // Stacked tensors (built later)
             observations: None,
             actions: None,
             rewards: None,
-            dones: None,
+            terminated: None,
+            truncated: None,
             values: None,
             log_probs: None,
             // Computed after rollout
@@ -201,19 +209,27 @@ impl RolloutBuffer {
     /// * `obs` - Observations [num_envs, ...obs_shape]
     /// * `action` - Actions [num_envs, action_dim]
     /// * `reward` - Rewards [num_envs]
-    /// * `done` - Done flags [num_envs]
+    /// * `terminated` - Termination flags [num_envs] (true episode endings)
+    /// * `truncated` - Truncation flags [num_envs] (time-limit cutoffs)
     /// * `value` - Value estimates [num_envs]
     /// * `log_prob` - Log probabilities [num_envs]
     ///
     /// # Returns
     ///
     /// `Ok(())` on success, error if buffer is already full.
+    ///
+    /// # Note
+    ///
+    /// Distinguishing between termination and truncation is critical for correct
+    /// value estimation. Terminations (goal/failure) should zero the bootstrap,
+    /// while truncations (time limits) should bootstrap the value.
     pub fn add(
         &mut self,
         obs: &Tensor,
         action: &Tensor,
         reward: &Tensor,
-        done: &Tensor,
+        terminated: &Tensor,
+        truncated: &Tensor,
         value: &Tensor,
         log_prob: &Tensor,
     ) -> Result<()> {
@@ -227,7 +243,8 @@ impl RolloutBuffer {
         self.validate_obs_shape(obs)?;
         self.validate_action_shape(action)?;
         self.validate_scalar_shape(reward)?;
-        self.validate_scalar_shape(done)?;
+        self.validate_scalar_shape(terminated)?;
+        self.validate_scalar_shape(truncated)?;
         self.validate_scalar_shape(value)?;
         self.validate_scalar_shape(log_prob)?;
 
@@ -235,14 +252,16 @@ impl RolloutBuffer {
         let obs_data: Vec<f32> = obs.flatten_all()?.to_vec1()?;
         let action_data: Vec<f32> = action.flatten_all()?.to_vec1()?;
         let reward_data: Vec<f32> = reward.to_vec1()?;
-        let done_data: Vec<f32> = done.to_vec1()?;
+        let terminated_data: Vec<f32> = terminated.to_vec1()?;
+        let truncated_data: Vec<f32> = truncated.to_vec1()?;
         let value_data: Vec<f32> = value.to_vec1()?;
         let log_prob_data: Vec<f32> = log_prob.to_vec1()?;
 
         self.obs_flat.extend_from_slice(&obs_data);
         self.actions_flat.extend_from_slice(&action_data);
         self.rewards_flat.extend_from_slice(&reward_data);
-        self.dones_flat.extend_from_slice(&done_data);
+        self.terminated_flat.extend_from_slice(&terminated_data);
+        self.truncated_flat.extend_from_slice(&truncated_data);
         self.values_flat.extend_from_slice(&value_data);
         self.log_probs_flat.extend_from_slice(&log_prob_data);
 
@@ -286,8 +305,13 @@ impl RolloutBuffer {
             scalar_shape.as_slice(),
             &candle_device,
         )?);
-        self.dones = Some(Tensor::from_vec(
-            std::mem::take(&mut self.dones_flat),
+        self.terminated = Some(Tensor::from_vec(
+            std::mem::take(&mut self.terminated_flat),
+            scalar_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.truncated = Some(Tensor::from_vec(
+            std::mem::take(&mut self.truncated_flat),
             scalar_shape.as_slice(),
             &candle_device,
         )?);
@@ -307,24 +331,27 @@ impl RolloutBuffer {
 
     /// Compute returns and advantages using Generalized Advantage Estimation (GAE).
     ///
-    /// This implements the GAE formula:
+    /// This implements the GAE formula with correct truncation handling:
     /// ```text
-    /// delta_t = r_t + gamma * V(s_{t+1}) * (1 - done) - V(s_t)
+    /// delta_t = r_t + gamma * V(s_{t+1}) * (1 - terminated) - V(s_t)
     /// A_t = delta_t + gamma * lambda * (1 - done) * A_{t+1}
     /// ```
     ///
-    /// The computation proceeds in reverse order from the last timestep.
+    /// **Critical: Truncation vs Termination**
+    /// - `terminated`: True episode ending (goal/failure). Bootstrap value = 0.
+    /// - `truncated`: Time-limit cutoff. Bootstrap value = V(s').
+    ///
+    /// This fixes the value function collapse bug where time-limit truncations
+    /// were incorrectly treated as terminal states.
     ///
     /// # Arguments
     ///
     /// * `last_values` - Value estimates for the state after the last step [num_envs]
-    /// * `last_dones` - Done flags for the last step [num_envs]
     /// * `gamma` - Discount factor (typically 0.99)
     /// * `gae_lambda` - GAE lambda parameter (typically 0.95)
     pub fn compute_returns_and_advantages(
         &mut self,
         last_values: &Tensor,
-        last_dones: &Tensor,
         gamma: f32,
         gae_lambda: f32,
     ) -> Result<()> {
@@ -339,10 +366,14 @@ impl RolloutBuffer {
             .rewards
             .as_ref()
             .ok_or_else(|| OctaneError::Buffer("Rewards not available".to_string()))?;
-        let dones = self
-            .dones
+        let terminated = self
+            .terminated
             .as_ref()
-            .ok_or_else(|| OctaneError::Buffer("Dones not available".to_string()))?;
+            .ok_or_else(|| OctaneError::Buffer("Terminated flags not available".to_string()))?;
+        let truncated = self
+            .truncated
+            .as_ref()
+            .ok_or_else(|| OctaneError::Buffer("Truncated flags not available".to_string()))?;
         let values = self
             .values
             .as_ref()
@@ -361,7 +392,8 @@ impl RolloutBuffer {
             // Get tensors for this step
             let reward = rewards.get(step)?; // [num_envs]
             let value = values.get(step)?; // [num_envs]
-            let done = dones.get(step)?; // [num_envs]
+            let term = terminated.get(step)?; // [num_envs]
+            let trunc = truncated.get(step)?; // [num_envs]
 
             // Get next value: either from buffer or from last_values
             let next_value = if step == self.buffer_size - 1 {
@@ -370,31 +402,32 @@ impl RolloutBuffer {
                 values.get(step + 1)?
             };
 
-            // Get next done for masking GAE accumulator
-            let next_done = if step == self.buffer_size - 1 {
-                last_dones.clone()
-            } else {
-                dones.get(step + 1)?
-            };
+            // Compute done = terminated OR truncated for GAE propagation reset
+            let done = term.maximum(&trunc)?;
 
-            // not_done = 1 - done (for current step)
+            // **CRITICAL FIX**: Only mask bootstrap value for TERMINATIONS, not truncations
+            // not_terminated = 1 - terminated (NOT 1 - done!)
+            // This ensures we bootstrap value for truncated episodes
             let ones = Tensor::ones(&[self.num_envs], DType::F32, &candle_device)?;
-            let not_done = ones.sub(&done)?;
+            let not_terminated = ones.sub(&term)?;
 
-            // delta = reward + gamma * next_value * (1 - done) - value
-            // Note: we use (1 - done) to zero out the bootstrapped value when episode ended
+            // delta = reward + gamma * next_value * (1 - terminated) - value
+            // Truncations still bootstrap the value (episode was cut short artificially)
             let discounted_next_value = (&next_value * gamma as f64)?;
-            let masked_next_value = (&discounted_next_value * &not_done)?;
+            let masked_next_value = (&discounted_next_value * &not_terminated)?;
             let delta = ((&reward + &masked_next_value)? - &value)?;
 
-            // not_done for next step (for masking the GAE accumulator)
+            // For GAE propagation, we reset at episode boundaries (terminated OR truncated)
+            // We use the CURRENT step's done to reset the accumulator for the NEXT iteration
+            // (which computes the previous timestep)
             let ones_again = Tensor::ones(&[self.num_envs], DType::F32, &candle_device)?;
-            let next_not_done = ones_again.sub(&next_done)?;
+            let not_done = ones_again.sub(&done)?;
 
-            // A_t = delta_t + gamma * lambda * (1 - done_{t+1}) * A_{t+1}
+            // A_t = delta_t + gamma * lambda * (1 - done_t) * A_{t+1}
+            // The done mask ensures GAE doesn't propagate across episode boundaries
             let gae_discount = (gamma * gae_lambda) as f64;
             let discounted_gae = (&last_gae_lam * gae_discount)?;
-            let masked_gae = (&discounted_gae * &next_not_done)?;
+            let masked_gae = (&discounted_gae * &not_done)?;
             last_gae_lam = (&delta + &masked_gae)?;
 
             advantages_vec.push(last_gae_lam.clone());
@@ -534,10 +567,15 @@ impl RolloutBuffer {
         } else {
             self.rewards_flat.clear();
         }
-        if self.dones_flat.capacity() == 0 {
-            self.dones_flat = Vec::with_capacity(scalar_capacity);
+        if self.terminated_flat.capacity() == 0 {
+            self.terminated_flat = Vec::with_capacity(scalar_capacity);
         } else {
-            self.dones_flat.clear();
+            self.terminated_flat.clear();
+        }
+        if self.truncated_flat.capacity() == 0 {
+            self.truncated_flat = Vec::with_capacity(scalar_capacity);
+        } else {
+            self.truncated_flat.clear();
         }
         if self.values_flat.capacity() == 0 {
             self.values_flat = Vec::with_capacity(scalar_capacity);
@@ -554,7 +592,8 @@ impl RolloutBuffer {
         self.observations = None;
         self.actions = None;
         self.rewards = None;
-        self.dones = None;
+        self.terminated = None;
+        self.truncated = None;
         self.values = None;
         self.log_probs = None;
         // Clear computed values
@@ -751,11 +790,12 @@ mod tests {
             let obs = Tensor::ones(&[2, 3], DType::F32, &candle_device)?;
             let action = Tensor::zeros(&[2, 1], DType::F32, &candle_device)?;
             let reward = Tensor::from_slice(&[1.0f32, 2.0], (2,), &candle_device)?;
-            let done = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let terminated = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let truncated = Tensor::zeros((2,), DType::F32, &candle_device)?;
             let value = Tensor::from_slice(&[0.5f32, 0.6], (2,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-0.5f32, -0.6], (2,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &done, &value, &log_prob)?;
+            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
             assert_eq!(buffer.position(), i + 1);
         }
 
@@ -775,17 +815,17 @@ mod tests {
             let obs = Tensor::ones(&[2, 4], DType::F32, &candle_device)?;
             let action = Tensor::zeros(&[2, 1], DType::F32, &candle_device)?;
             let reward = Tensor::from_slice(&[1.0f32, 1.0], (2,), &candle_device)?;
-            let done = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let terminated = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let truncated = Tensor::zeros((2,), DType::F32, &candle_device)?;
             let value = Tensor::from_slice(&[0.5f32, 0.5], (2,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-1.0f32, -1.0], (2,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &done, &value, &log_prob)?;
+            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
         }
 
         let last_values = Tensor::from_slice(&[0.5f32, 0.5], (2,), &candle_device)?;
-        let last_dones = Tensor::zeros((2,), DType::F32, &candle_device)?;
 
-        buffer.compute_returns_and_advantages(&last_values, &last_dones, 0.99, 0.95)?;
+        buffer.compute_returns_and_advantages(&last_values, 0.99, 0.95)?;
 
         assert!(buffer.advantages().is_some());
         assert!(buffer.returns().is_some());
@@ -810,17 +850,17 @@ mod tests {
             let obs = Tensor::ones(&[4, 6], DType::F32, &candle_device)?;
             let action = Tensor::zeros(&[4, 2], DType::F32, &candle_device)?;
             let reward = Tensor::from_slice(&[1.0f32, 1.0, 1.0, 1.0], (4,), &candle_device)?;
-            let done = Tensor::zeros((4,), DType::F32, &candle_device)?;
+            let terminated = Tensor::zeros((4,), DType::F32, &candle_device)?;
+            let truncated = Tensor::zeros((4,), DType::F32, &candle_device)?;
             let value = Tensor::from_slice(&[0.5f32, 0.5, 0.5, 0.5], (4,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-1.0f32, -1.0, -1.0, -1.0], (4,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &done, &value, &log_prob)?;
+            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
         }
 
         let last_values = Tensor::from_slice(&[0.5f32, 0.5, 0.5, 0.5], (4,), &candle_device)?;
-        let last_dones = Tensor::zeros((4,), DType::F32, &candle_device)?;
 
-        buffer.compute_returns_and_advantages(&last_values, &last_dones, 0.99, 0.95)?;
+        buffer.compute_returns_and_advantages(&last_values, 0.99, 0.95)?;
 
         // Get batches of size 8 (total = 32, so 4 batches)
         let batches = buffer.get_batches(8)?;
@@ -849,11 +889,12 @@ mod tests {
             let obs = Tensor::ones(&[2, 4], DType::F32, &candle_device)?;
             let action = Tensor::zeros(&[2, 1], DType::F32, &candle_device)?;
             let reward = Tensor::ones((2,), DType::F32, &candle_device)?;
-            let done = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let terminated = Tensor::zeros((2,), DType::F32, &candle_device)?;
+            let truncated = Tensor::zeros((2,), DType::F32, &candle_device)?;
             let value = Tensor::ones((2,), DType::F32, &candle_device)?;
             let log_prob = Tensor::ones((2,), DType::F32, &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &done, &value, &log_prob)?;
+            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
         }
 
         assert!(buffer.is_full());
@@ -870,7 +911,7 @@ mod tests {
 
     #[test]
     fn test_episode_boundaries() -> Result<()> {
-        // Test that GAE properly handles episode boundaries (done=1)
+        // Test that GAE properly handles episode boundaries (terminated=1)
         let device = make_device();
         let candle_device = device.to_candle()?;
         let mut buffer = RolloutBuffer::new(4, 1, &[2], 1, &device)?;
@@ -878,51 +919,55 @@ mod tests {
         let obs = Tensor::ones(&[1, 2], DType::F32, &candle_device)?;
         let action = Tensor::zeros(&[1, 1], DType::F32, &candle_device)?;
         let log_prob = Tensor::from_slice(&[-1.0f32], (1,), &candle_device)?;
+        let no_truncation = Tensor::zeros((1,), DType::F32, &candle_device)?;
 
-        // Step 0: reward=1, value=0.5, not done
+        // Step 0: reward=1, value=0.5, not terminated
         buffer.add(
             &obs,
             &action,
             &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?,
-            &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?, // not done
+            &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?, // not terminated
+            &no_truncation,
             &Tensor::from_slice(&[0.5f32], (1,), &candle_device)?,
             &log_prob,
         )?;
 
-        // Step 1: reward=2, value=0.5, DONE (episode ends)
+        // Step 1: reward=2, value=0.5, TERMINATED (episode ends)
         buffer.add(
             &obs,
             &action,
             &Tensor::from_slice(&[2.0f32], (1,), &candle_device)?,
-            &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?, // done!
+            &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?, // terminated!
+            &no_truncation,
             &Tensor::from_slice(&[0.5f32], (1,), &candle_device)?,
             &log_prob,
         )?;
 
-        // Step 2: reward=1, value=0.5, not done (new episode)
+        // Step 2: reward=1, value=0.5, not terminated (new episode)
         buffer.add(
             &obs,
             &action,
             &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?,
             &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
+            &no_truncation,
             &Tensor::from_slice(&[0.5f32], (1,), &candle_device)?,
             &log_prob,
         )?;
 
-        // Step 3: reward=1, value=0.5, not done
+        // Step 3: reward=1, value=0.5, not terminated
         buffer.add(
             &obs,
             &action,
             &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?,
             &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
+            &no_truncation,
             &Tensor::from_slice(&[0.5f32], (1,), &candle_device)?,
             &log_prob,
         )?;
 
         let last_values = Tensor::from_slice(&[0.5f32], (1,), &candle_device)?;
-        let last_dones = Tensor::zeros((1,), DType::F32, &candle_device)?;
 
-        buffer.compute_returns_and_advantages(&last_values, &last_dones, 0.99, 0.95)?;
+        buffer.compute_returns_and_advantages(&last_values, 0.99, 0.95)?;
 
         // Verify that advantages were computed
         assert!(buffer.advantages().is_some());
@@ -940,13 +985,16 @@ mod tests {
         let obs = Tensor::ones(&[1, 1], DType::F32, &candle_device)?;
         let action = Tensor::zeros(&[1, 1], DType::F32, &candle_device)?;
         let log_prob = Tensor::from_slice(&[-1.0f32], (1,), &candle_device)?;
+        let no_terminated = Tensor::zeros((1,), DType::F32, &candle_device)?;
+        let no_truncated = Tensor::zeros((1,), DType::F32, &candle_device)?;
 
         // Step 0: reward=1.0, value=0.0
         buffer.add(
             &obs,
             &action,
             &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?,
-            &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
+            &no_terminated,
+            &no_truncated,
             &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
             &log_prob,
         )?;
@@ -956,19 +1004,19 @@ mod tests {
             &obs,
             &action,
             &Tensor::from_slice(&[1.0f32], (1,), &candle_device)?,
-            &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
+            &no_terminated,
+            &no_truncated,
             &Tensor::from_slice(&[0.0f32], (1,), &candle_device)?,
             &log_prob,
         )?;
 
         let last_values = Tensor::from_slice(&[0.0f32], (1,), &candle_device)?;
-        let last_dones = Tensor::zeros((1,), DType::F32, &candle_device)?;
 
         // gamma=1.0, lambda=1.0 for simple calculation
         // With values=0 everywhere:
         // Step 1: delta = 1 + 1*0 - 0 = 1, A = 1
         // Step 0: delta = 1 + 1*0 - 0 = 1, A = 1 + 1*1*1 = 2
-        buffer.compute_returns_and_advantages(&last_values, &last_dones, 1.0, 1.0)?;
+        buffer.compute_returns_and_advantages(&last_values, 1.0, 1.0)?;
 
         let advantages = buffer.advantages().unwrap();
         let adv_vec: Vec<f32> = advantages.flatten_all()?.to_vec1()?;

@@ -74,6 +74,9 @@ pub mod td_error;
 // Log probability computation (cross-platform)
 pub mod log_prob;
 
+// GAE computation with optimized loop order (cross-platform)
+pub mod gae;
+
 // Re-exports from submodules
 #[cfg(target_arch = "x86_64")]
 pub use self::x86::{
@@ -93,6 +96,10 @@ pub use self::log_prob::{
     gaussian_entropy_simd, gaussian_log_prob_batch, gaussian_log_prob_simd,
     squashed_gaussian_log_prob_batch, squashed_gaussian_log_prob_from_squashed,
     squashed_gaussian_log_prob_simd,
+};
+
+pub use self::gae::{
+    compute_gae_simd, compute_gae_simd_inplace, normalize_advantages_simd,
 };
 
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
