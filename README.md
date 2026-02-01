@@ -1,4 +1,4 @@
-# Octane
+# Octane (ex. Rocket)
 
 <div align="center">
 
