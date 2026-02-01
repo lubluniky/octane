@@ -64,7 +64,7 @@ ordered-float = "4.0"
 memmap2 = "0.9"
 
 # Python interop (optional, for Gym compatibility)
-pyo3 = { version = "0.23", optional = true }
+pyo3 = { version = "0.27", optional = true }
 
 # Distributed training (optional)
 tonic = { version = "0.12", optional = true }
