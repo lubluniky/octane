@@ -1,10 +1,11 @@
 //! Vectorized environment implementation for massive parallelization.
 
-use crate::core::{Device, OctaneError, Result};
+use crate::core::{Device, Result};
+#[cfg(feature = "distributed")]
+use crate::core::OctaneError;
 use crate::envs::{Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
 
 /// Configuration for vectorized environments.
 #[derive(Debug, Clone)]
@@ -51,9 +52,15 @@ impl VecStepResult {
 }
 
 /// Vectorized environment wrapper for running multiple envs in parallel.
+///
+/// Uses `par_iter_mut()` for lock-free parallel stepping - each thread gets
+/// exclusive `&mut` access to its environment without synchronization overhead.
+/// This is significantly faster on ARM (Apple Silicon M-series) where atomic
+/// operations and mutex locks have higher overhead than on x86.
 pub struct VecEnv<E: Environment + Clone> {
-    /// Individual environments wrapped in Arc<Mutex> for parallel access.
-    envs: Vec<Arc<Mutex<E>>>,
+    /// Individual environments - no Arc/Mutex needed since par_iter_mut()
+    /// guarantees exclusive access per thread.
+    envs: Vec<E>,
     /// Number of environments.
     num_envs: usize,
     /// Configuration.
@@ -71,11 +78,9 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         let act_space = template_envs[0].action_space().clone();
 
         // Clone environments to reach num_envs total
-        let mut envs: Vec<Arc<Mutex<E>>> = Vec::with_capacity(num_envs);
-        for i in 0..num_envs {
-            let env = template_envs[i % template_envs.len()].clone();
-            envs.push(Arc::new(Mutex::new(env)));
-        }
+        let envs: Vec<E> = (0..num_envs)
+            .map(|i| template_envs[i % template_envs.len()].clone())
+            .collect();
 
         Self {
             envs,
@@ -109,13 +114,8 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     pub fn reset(&mut self, device: &Device) -> Result<Tensor> {
         let observations: Vec<Result<ObsType>> = self
             .envs
-            .par_iter()
-            .map(|env| {
-                let mut env = env
-                    .lock()
-                    .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
-                env.reset(device)
-            })
+            .par_iter_mut()
+            .map(|env| env.reset(device))
             .collect();
 
         // Check for errors and stack observations
@@ -127,25 +127,23 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     /// Step all environments in parallel.
     pub fn step(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
         let num_envs = self.num_envs;
+        let auto_reset = self.config.auto_reset;
 
         // Split actions for each environment
         let action_list: Vec<Tensor> = (0..num_envs)
             .map(|i| actions.get(i))
             .collect::<candle_core::Result<Vec<_>>>()?;
 
-        // Parallel step
+        // Parallel step - lock-free with par_iter_mut()
         let results: Vec<Result<(StepResult, Option<ObsType>)>> = self
             .envs
-            .par_iter()
+            .par_iter_mut()
             .zip(action_list.par_iter())
             .map(|(env, action)| {
-                let mut env = env
-                    .lock()
-                    .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
                 let result = env.step(action, device)?;
 
                 // Auto-reset if done
-                let new_obs = if result.done() && self.config.auto_reset {
+                let new_obs = if result.done() && auto_reset {
                     Some(env.reset(device)?)
                 } else {
                     None
@@ -191,31 +189,52 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     }
 
     /// Step with async processing (useful for I/O bound envs).
+    ///
+    /// Uses `parking_lot::Mutex` for lower overhead than `std::sync::Mutex`.
+    /// Each environment is wrapped temporarily for the async operation.
     #[cfg(feature = "distributed")]
     pub async fn step_async(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
-        // For I/O bound environments, use tokio for concurrent stepping
+        use parking_lot::Mutex;
+        use std::sync::Arc;
         use tokio::task;
 
         let num_envs = self.num_envs;
+        let auto_reset = self.config.auto_reset;
+
         let action_list: Vec<Tensor> = (0..num_envs)
             .map(|i| actions.get(i))
             .collect::<candle_core::Result<Vec<_>>>()?;
 
+        // Temporarily wrap envs in Arc<parking_lot::Mutex> for async access
+        // parking_lot::Mutex uses spin-lock - much faster on ARM than std::sync::Mutex
+        let wrapped_envs: Vec<Arc<Mutex<E>>> = std::mem::take(&mut self.envs)
+            .into_iter()
+            .map(|env| Arc::new(Mutex::new(env)))
+            .collect();
+
         let mut handles = Vec::with_capacity(num_envs);
         let device_clone = *device;
 
-        for (env, action) in self.envs.iter().zip(action_list.into_iter()) {
+        for (env, action) in wrapped_envs.iter().zip(action_list.into_iter()) {
             let env = Arc::clone(env);
             let action = action.clone();
             let device = device_clone;
 
             handles.push(task::spawn_blocking(move || {
-                let mut env = env.lock().unwrap();
-                env.step(&action, &device)
+                let mut env = env.lock();
+                let result = env.step(&action, &device)?;
+
+                let new_obs = if result.done() && auto_reset {
+                    Some(env.reset(&device)?)
+                } else {
+                    None
+                };
+
+                Ok::<_, OctaneError>((result, new_obs))
             }));
         }
 
-        // Collect results (simplified - full impl would mirror sync version)
+        // Collect results
         let mut obs_vec = Vec::with_capacity(num_envs);
         let mut rewards = Vec::with_capacity(num_envs);
         let mut terminated = Vec::with_capacity(num_envs);
@@ -223,16 +242,29 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         let mut infos = Vec::with_capacity(num_envs);
 
         for handle in handles {
-            let result = handle
+            let (step_result, auto_reset_obs) = handle
                 .await
                 .map_err(|e| OctaneError::Environment(format!("Task join error: {}", e)))??;
 
-            obs_vec.push(result.observation);
-            rewards.push(result.reward);
-            terminated.push(if result.terminated { 1.0f32 } else { 0.0 });
-            truncated.push(if result.truncated { 1.0f32 } else { 0.0 });
-            infos.push(result.info);
+            let obs = auto_reset_obs.unwrap_or(step_result.observation);
+            obs_vec.push(obs);
+            rewards.push(step_result.reward);
+            terminated.push(if step_result.terminated { 1.0f32 } else { 0.0 });
+            truncated.push(if step_result.truncated { 1.0f32 } else { 0.0 });
+            infos.push(step_result.info);
         }
+
+        // Unwrap envs back from Arc<Mutex>
+        // Arc::try_unwrap succeeds since all spawn_blocking tasks have completed
+        self.envs = wrapped_envs
+            .into_iter()
+            .map(|arc| {
+                Arc::try_unwrap(arc)
+                    .ok()
+                    .expect("Arc should have single owner after tasks complete")
+                    .into_inner()
+            })
+            .collect();
 
         let candle_device = device.to_candle()?;
         Ok(VecStepResult {
@@ -246,14 +278,11 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
 
     /// Close all environments.
     pub fn close(&mut self) -> Result<()> {
-        for env in &self.envs {
-            let mut env = env
-                .lock()
-                .map_err(|e| OctaneError::Environment(format!("Lock poisoned: {}", e)))?;
+        for env in &mut self.envs {
             env.close()?;
         }
         Ok(())
     }
 }
 
-// Note: VecEnv is Send + Sync when E is Send + Sync (via Arc<Mutex<E>>)
+// Note: VecEnv is Send + Sync when E is Send + Sync

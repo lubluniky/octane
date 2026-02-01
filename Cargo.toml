@@ -19,7 +19,7 @@ avx2 = []  # Enable AVX2 SIMD optimizations (x86_64)
 avx512 = ["avx2"]  # Enable AVX-512 SIMD optimizations (x86_64, implies avx2)
 gym = ["dep:pyo3"]  # Python Gym/Gymnasium compatibility
 wandb = ["dep:pyo3"]  # Weights & Biases integration (requires Python wandb)
-distributed = ["dep:tokio", "dep:tonic", "dep:prost"]  # Distributed training support
+distributed = ["dep:tokio", "dep:tonic", "dep:prost", "dep:parking_lot"]  # Distributed training support
 grpc = ["distributed"]  # gRPC backend for distributed training
 half = ["dep:half"]  # Half-precision floating point support
 full = ["metal", "cuda", "simd", "avx2", "half"]
@@ -69,6 +69,7 @@ pyo3 = { version = "0.23", optional = true }
 # Distributed training (optional)
 tonic = { version = "0.12", optional = true }
 prost = { version = "0.13", optional = true }
+parking_lot = { version = "0.12", optional = true }  # Fast mutex for async env stepping
 
 # Half-precision support (optional)
 half = { version = "2.4", optional = true, features = ["std", "serde"] }
