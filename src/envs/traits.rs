@@ -83,6 +83,13 @@ pub trait Environment: Send + Sync + 'static {
     where
         Self: Sized + Clone,
     {
-        crate::envs::VecEnv::new(vec![self], num_envs)
+        #[cfg(feature = "distributed")]
+        {
+            crate::envs::VecEnv::new_async(vec![self], num_envs)
+        }
+        #[cfg(not(feature = "distributed"))]
+        {
+            crate::envs::VecEnv::new(vec![self], num_envs)
+        }
     }
 }

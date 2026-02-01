@@ -5,7 +5,7 @@
 use candle_core::Tensor;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use octane_rs::core::Device;
-use octane_rs::envs::{Environment, MarketData, Space, TradingEnv};
+use octane_rs::envs::{Environment, MarketData, Space, TradingEnv, VecEnv};
 
 fn benchmark_single_env_step(c: &mut Criterion) {
     let device = Device::cpu();
@@ -36,6 +36,30 @@ fn benchmark_vecenv_step(c: &mut Criterion) {
         let data = MarketData::synthetic(10000, 42);
         let env = TradingEnv::new(data).unwrap();
         let mut vec_env = env.make_vectorized(*num_envs);
+        let _ = vec_env.reset(&device).unwrap();
+
+        let candle_device = device.to_candle().unwrap();
+        let actions =
+            Tensor::zeros(&[*num_envs, 1], candle_core::DType::F32, &candle_device).unwrap();
+
+        group.bench_with_input(BenchmarkId::from_parameter(num_envs), num_envs, |b, _| {
+            b.iter(|| black_box(vec_env.step(&actions, &device).unwrap()))
+        });
+    }
+
+    group.finish();
+}
+
+#[cfg(feature = "distributed")]
+fn benchmark_vecenv_step_async(c: &mut Criterion) {
+    let device = Device::cpu();
+
+    let mut group = c.benchmark_group("vecenv_step_async");
+
+    for num_envs in [1, 8, 32, 128, 512, 1024].iter() {
+        let data = MarketData::synthetic(10000, 42);
+        let template_env = TradingEnv::new(data).unwrap();
+        let mut vec_env = VecEnv::new_async(vec![template_env], *num_envs);
         let _ = vec_env.reset(&device).unwrap();
 
         let candle_device = device.to_candle().unwrap();
@@ -88,10 +112,21 @@ fn benchmark_tensor_ops(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(not(feature = "distributed"))]
 criterion_group!(
     benches,
     benchmark_single_env_step,
     benchmark_vecenv_step,
+    benchmark_env_reset,
+    benchmark_tensor_ops,
+);
+
+#[cfg(feature = "distributed")]
+criterion_group!(
+    benches,
+    benchmark_single_env_step,
+    benchmark_vecenv_step,
+    benchmark_vecenv_step_async,
     benchmark_env_reset,
     benchmark_tensor_ops,
 );

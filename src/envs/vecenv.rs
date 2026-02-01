@@ -337,16 +337,56 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
     }
 
     /// Step all environments in parallel.
+    ///
+    /// Automatically uses the worker pool if created with `new_async()`,
+    /// otherwise uses Rayon parallel iteration on `self.envs`.
     pub fn step(&mut self, actions: &Tensor, device: &Device) -> Result<VecStepResult> {
         let num_envs = self.num_envs;
         let auto_reset = self.config.auto_reset;
 
-        // Split actions for each environment
+        // Split actions for each environment (parallelized for 1024+ envs)
         let action_list: Vec<Tensor> = (0..num_envs)
-            .map(|i| actions.get(i))
-            .collect::<candle_core::Result<Vec<_>>>()?;
+            .into_par_iter()
+            .map(|i| actions.get(i).expect("failed to get action"))
+            .collect();
 
-        // Parallel step - lock-free with par_iter_mut()
+        // FAST PATH: Use persistent worker pool if available (from new_async)
+        #[cfg(feature = "distributed")]
+        if let Some(ref workers) = self.workers {
+            // Send all step commands (non-blocking)
+            for (worker, action) in workers.iter().zip(action_list.into_iter()) {
+                worker.send_step(action, *device, auto_reset)?;
+            }
+
+            // Collect results (blocking receives, but workers run in parallel)
+            let mut obs_vec = Vec::with_capacity(num_envs);
+            let mut rewards = Vec::with_capacity(num_envs);
+            let mut terminated = Vec::with_capacity(num_envs);
+            let mut truncated = Vec::with_capacity(num_envs);
+            let mut infos = Vec::with_capacity(num_envs);
+
+            for worker in workers.iter() {
+                let (step_result, auto_reset_obs) = worker.recv_step()?;
+
+                let obs = auto_reset_obs.unwrap_or(step_result.observation);
+                obs_vec.push(obs);
+                rewards.push(step_result.reward);
+                terminated.push(if step_result.terminated { 1.0f32 } else { 0.0 });
+                truncated.push(if step_result.truncated { 1.0f32 } else { 0.0 });
+                infos.push(step_result.info);
+            }
+
+            let candle_device = device.to_candle()?;
+            return Ok(VecStepResult {
+                observations: Tensor::stack(&obs_vec, 0)?,
+                rewards: Tensor::from_slice(&rewards, &[num_envs], &candle_device)?,
+                terminated: Tensor::from_slice(&terminated, &[num_envs], &candle_device)?,
+                truncated: Tensor::from_slice(&truncated, &[num_envs], &candle_device)?,
+                infos,
+            });
+        }
+
+        // STANDARD PATH: Parallel step with Rayon - lock-free with par_iter_mut()
         let results: Vec<Result<(StepResult, Option<ObsType>)>> = self
             .envs
             .par_iter_mut()
@@ -418,10 +458,11 @@ impl<E: Environment + Clone + 'static> VecEnv<E> {
         let num_envs = self.num_envs;
         let auto_reset = self.config.auto_reset;
 
-        // Split actions for each environment
+        // Split actions for each environment (parallelized for 1024+ envs)
         let action_list: Vec<Tensor> = (0..num_envs)
-            .map(|i| actions.get(i))
-            .collect::<candle_core::Result<Vec<_>>>()?;
+            .into_par_iter()
+            .map(|i| actions.get(i).expect("failed to get action"))
+            .collect();
 
         // FAST PATH: Use persistent worker pool if available
         if let Some(ref workers) = self.workers {
