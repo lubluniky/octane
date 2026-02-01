@@ -56,8 +56,9 @@ pub struct RolloutBatch {
 /// Pre-allocated rollout buffer for on-policy algorithms.
 ///
 /// Stores transitions from vectorized environments and computes GAE advantages.
-/// The buffer uses pre-allocated vectors for efficiency - collecting data into
-/// vectors and then stacking into tensors for computation.
+/// Uses flat `Vec<f32>` storage to avoid intermediate tensor allocations -
+/// data is collected directly into pre-allocated vectors and converted to
+/// tensors only once when the buffer is full.
 ///
 /// # Layout
 ///
@@ -66,6 +67,12 @@ pub struct RolloutBatch {
 /// - `num_envs`: Number of parallel environments
 ///
 /// When sampling batches, these are flattened to `[buffer_size * num_envs, ...]`.
+///
+/// # Performance
+///
+/// This design eliminates the double-copy problem of `Vec<Tensor>` + `stack()`:
+/// - Old: input → clone() → Vec<Tensor> → stack() → final Tensor (2 copies)
+/// - New: input → extend() → Vec<f32> → from_vec() → final Tensor (1 copy)
 pub struct RolloutBuffer {
     /// Number of steps per rollout.
     buffer_size: usize,
@@ -73,24 +80,26 @@ pub struct RolloutBuffer {
     num_envs: usize,
     /// Observation shape (single env, single step).
     obs_shape: Vec<usize>,
+    /// Total observation size (product of obs_shape).
+    obs_size: usize,
     /// Action dimension.
     action_dim: usize,
     /// Device for tensor operations.
     device: Device,
 
-    // Storage vectors (collect during rollout, then stack)
-    /// Observations collected during rollout.
-    obs_vec: Vec<Tensor>,
-    /// Actions collected during rollout.
-    actions_vec: Vec<Tensor>,
-    /// Rewards collected during rollout.
-    rewards_vec: Vec<Tensor>,
-    /// Done flags collected during rollout.
-    dones_vec: Vec<Tensor>,
-    /// Value estimates collected during rollout.
-    values_vec: Vec<Tensor>,
-    /// Log probabilities collected during rollout.
-    log_probs_vec: Vec<Tensor>,
+    // Flat storage vectors (pre-allocated, single contiguous block)
+    /// Observations collected during rollout [buffer_size * num_envs * obs_size].
+    obs_flat: Vec<f32>,
+    /// Actions collected during rollout [buffer_size * num_envs * action_dim].
+    actions_flat: Vec<f32>,
+    /// Rewards collected during rollout [buffer_size * num_envs].
+    rewards_flat: Vec<f32>,
+    /// Done flags collected during rollout [buffer_size * num_envs].
+    dones_flat: Vec<f32>,
+    /// Value estimates collected during rollout [buffer_size * num_envs].
+    values_flat: Vec<f32>,
+    /// Log probabilities collected during rollout [buffer_size * num_envs].
+    log_probs_flat: Vec<f32>,
 
     // Stacked tensors (built after rollout is complete)
     /// Observations [buffer_size, num_envs, ...obs_shape].
@@ -150,19 +159,26 @@ impl RolloutBuffer {
             ));
         }
 
+        // Compute flat sizes for pre-allocation
+        let obs_size: usize = obs_shape.iter().product();
+        let obs_capacity = buffer_size * num_envs * obs_size;
+        let actions_capacity = buffer_size * num_envs * action_dim;
+        let scalar_capacity = buffer_size * num_envs;
+
         Ok(Self {
             buffer_size,
             num_envs,
             obs_shape: obs_shape.to_vec(),
+            obs_size,
             action_dim,
             device: *device,
-            // Pre-allocate vectors with capacity
-            obs_vec: Vec::with_capacity(buffer_size),
-            actions_vec: Vec::with_capacity(buffer_size),
-            rewards_vec: Vec::with_capacity(buffer_size),
-            dones_vec: Vec::with_capacity(buffer_size),
-            values_vec: Vec::with_capacity(buffer_size),
-            log_probs_vec: Vec::with_capacity(buffer_size),
+            // Pre-allocate flat vectors with exact capacity (single allocation)
+            obs_flat: Vec::with_capacity(obs_capacity),
+            actions_flat: Vec::with_capacity(actions_capacity),
+            rewards_flat: Vec::with_capacity(scalar_capacity),
+            dones_flat: Vec::with_capacity(scalar_capacity),
+            values_flat: Vec::with_capacity(scalar_capacity),
+            log_probs_flat: Vec::with_capacity(scalar_capacity),
             // Stacked tensors (built later)
             observations: None,
             actions: None,
@@ -215,33 +231,76 @@ impl RolloutBuffer {
         self.validate_scalar_shape(value)?;
         self.validate_scalar_shape(log_prob)?;
 
-        // Add to vectors (clone to own the data)
-        self.obs_vec.push(obs.clone());
-        self.actions_vec.push(action.clone());
-        self.rewards_vec.push(reward.clone());
-        self.dones_vec.push(done.clone());
-        self.values_vec.push(value.clone());
-        self.log_probs_vec.push(log_prob.clone());
+        // Flatten tensors and extend into pre-allocated vectors (single copy)
+        let obs_data: Vec<f32> = obs.flatten_all()?.to_vec1()?;
+        let action_data: Vec<f32> = action.flatten_all()?.to_vec1()?;
+        let reward_data: Vec<f32> = reward.to_vec1()?;
+        let done_data: Vec<f32> = done.to_vec1()?;
+        let value_data: Vec<f32> = value.to_vec1()?;
+        let log_prob_data: Vec<f32> = log_prob.to_vec1()?;
+
+        self.obs_flat.extend_from_slice(&obs_data);
+        self.actions_flat.extend_from_slice(&action_data);
+        self.rewards_flat.extend_from_slice(&reward_data);
+        self.dones_flat.extend_from_slice(&done_data);
+        self.values_flat.extend_from_slice(&value_data);
+        self.log_probs_flat.extend_from_slice(&log_prob_data);
 
         self.pos += 1;
         if self.pos >= self.buffer_size {
             self.full = true;
-            // Stack all vectors into tensors
+            // Build tensors from flat vectors
             self.finalize_collection()?;
         }
 
         Ok(())
     }
 
-    /// Stack collected vectors into tensors.
+    /// Build tensors from flat vectors (zero-copy when possible).
     fn finalize_collection(&mut self) -> Result<()> {
-        // Stack along dimension 0 to get [buffer_size, num_envs, ...]
-        self.observations = Some(Tensor::stack(&self.obs_vec, 0)?);
-        self.actions = Some(Tensor::stack(&self.actions_vec, 0)?);
-        self.rewards = Some(Tensor::stack(&self.rewards_vec, 0)?);
-        self.dones = Some(Tensor::stack(&self.dones_vec, 0)?);
-        self.values = Some(Tensor::stack(&self.values_vec, 0)?);
-        self.log_probs = Some(Tensor::stack(&self.log_probs_vec, 0)?);
+        let candle_device = self.device.to_candle()?;
+
+        // Build observation shape: [buffer_size, num_envs, ...obs_shape]
+        let mut obs_tensor_shape = vec![self.buffer_size, self.num_envs];
+        obs_tensor_shape.extend_from_slice(&self.obs_shape);
+
+        // Build action shape: [buffer_size, num_envs, action_dim]
+        let actions_shape = vec![self.buffer_size, self.num_envs, self.action_dim];
+
+        // Scalar shape: [buffer_size, num_envs]
+        let scalar_shape = vec![self.buffer_size, self.num_envs];
+
+        // Create tensors from flat vectors (moves data, no copy if same device)
+        self.observations = Some(Tensor::from_vec(
+            std::mem::take(&mut self.obs_flat),
+            obs_tensor_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.actions = Some(Tensor::from_vec(
+            std::mem::take(&mut self.actions_flat),
+            actions_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.rewards = Some(Tensor::from_vec(
+            std::mem::take(&mut self.rewards_flat),
+            scalar_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.dones = Some(Tensor::from_vec(
+            std::mem::take(&mut self.dones_flat),
+            scalar_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.values = Some(Tensor::from_vec(
+            std::mem::take(&mut self.values_flat),
+            scalar_shape.as_slice(),
+            &candle_device,
+        )?);
+        self.log_probs = Some(Tensor::from_vec(
+            std::mem::take(&mut self.log_probs_flat),
+            scalar_shape.as_slice(),
+            &candle_device,
+        )?);
 
         Ok(())
     }
@@ -449,17 +508,48 @@ impl RolloutBuffer {
     /// Reset the buffer for a new rollout.
     ///
     /// This clears all stored data and resets the position counter.
-    /// The pre-allocated capacity is preserved for the vectors.
+    /// Re-allocates flat vectors with the same capacity for the next rollout.
     pub fn reset(&mut self) {
         self.pos = 0;
         self.full = false;
-        // Clear vectors but keep capacity
-        self.obs_vec.clear();
-        self.actions_vec.clear();
-        self.rewards_vec.clear();
-        self.dones_vec.clear();
-        self.values_vec.clear();
-        self.log_probs_vec.clear();
+
+        // Re-allocate flat vectors (finalize_collection took ownership via mem::take)
+        let obs_capacity = self.buffer_size * self.num_envs * self.obs_size;
+        let actions_capacity = self.buffer_size * self.num_envs * self.action_dim;
+        let scalar_capacity = self.buffer_size * self.num_envs;
+
+        // Only re-allocate if vectors were consumed
+        if self.obs_flat.capacity() == 0 {
+            self.obs_flat = Vec::with_capacity(obs_capacity);
+        } else {
+            self.obs_flat.clear();
+        }
+        if self.actions_flat.capacity() == 0 {
+            self.actions_flat = Vec::with_capacity(actions_capacity);
+        } else {
+            self.actions_flat.clear();
+        }
+        if self.rewards_flat.capacity() == 0 {
+            self.rewards_flat = Vec::with_capacity(scalar_capacity);
+        } else {
+            self.rewards_flat.clear();
+        }
+        if self.dones_flat.capacity() == 0 {
+            self.dones_flat = Vec::with_capacity(scalar_capacity);
+        } else {
+            self.dones_flat.clear();
+        }
+        if self.values_flat.capacity() == 0 {
+            self.values_flat = Vec::with_capacity(scalar_capacity);
+        } else {
+            self.values_flat.clear();
+        }
+        if self.log_probs_flat.capacity() == 0 {
+            self.log_probs_flat = Vec::with_capacity(scalar_capacity);
+        } else {
+            self.log_probs_flat.clear();
+        }
+
         // Clear stacked tensors
         self.observations = None;
         self.actions = None;
