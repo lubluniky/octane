@@ -27,7 +27,7 @@ full = ["metal", "cuda", "simd", "avx2", "half"]
 [dependencies]
 # Tensor Backend - Candle (HuggingFace)
 candle-core = "0.8"
-candle-nn = "0.8"
+candle-nn = "0.10"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
