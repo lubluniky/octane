@@ -58,7 +58,7 @@ fn benchmark_softmax(c: &mut Criterion) {
             let _ = candle_nn::ops::softmax(&logits, 1).unwrap();
 
             group.bench_with_input(
-                BenchmarkId::new(*name, format!("{}x{}", batch, features)),
+                BenchmarkId::new(*name, format!("{batch}x{features}")),
                 &(*batch, *features),
                 |bench, _| {
                     bench.iter(|| {
@@ -137,7 +137,7 @@ fn benchmark_gae_tensors(c: &mut Criterion) {
             .unwrap();
 
         group.bench_function(
-            BenchmarkId::new(*name, format!("{}x{}", n_steps, n_envs)),
+            BenchmarkId::new(*name, format!("{n_steps}x{n_envs}")),
             |bench| {
                 bench.iter(|| {
                     let next_values = values.narrow(0, 1, n_steps - 1).unwrap();

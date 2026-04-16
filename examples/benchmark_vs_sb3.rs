@@ -141,10 +141,7 @@ fn main() {
     // Benchmark 1: 500K steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!(
-        "  BENCHMARK: 500,000 environment steps ({} parallel envs)",
-        num_envs
-    );
+    println!("  BENCHMARK: 500,000 environment steps ({num_envs} parallel envs)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -161,8 +158,7 @@ fn main() {
     println!("  │ Results: 500K steps                                         │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
     println!(
-        "  │ Octane:    {:>8.2}s    {:>12.0} FPS                  │",
-        time_500k, fps_500k
+        "  │ Octane:    {time_500k:>8.2}s    {fps_500k:>12.0} FPS                  │"
     );
     println!("  │ SB3 (ref):   ~600.00s    ~833 FPS (Python)               │");
     println!(
@@ -176,10 +172,7 @@ fn main() {
     // Benchmark 2: 5M steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!(
-        "  BENCHMARK: 5,000,000 environment steps ({} parallel envs)",
-        num_envs
-    );
+    println!("  BENCHMARK: 5,000,000 environment steps ({num_envs} parallel envs)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -196,8 +189,7 @@ fn main() {
     println!("  │ Results: 5M steps                                           │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
     println!(
-        "  │ Octane:    {:>8.2}s    {:>12.0} FPS                  │",
-        time_5m, fps_5m
+        "  │ Octane:    {time_5m:>8.2}s    {fps_5m:>12.0} FPS                  │"
     );
     println!("  │ SB3 (ref):   ~6000.0s    ~833 FPS (Python)               │");
     println!(

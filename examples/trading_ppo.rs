@@ -29,7 +29,7 @@ fn main() -> octane_rs::Result<()> {
     #[cfg(not(any(feature = "metal", feature = "cuda")))]
     let device = Device::cpu();
 
-    println!("Using device: {}", device);
+    println!("Using device: {device}");
 
     // 2. Create market data (synthetic for demo)
     let data = MarketData::synthetic(10000, 42);
@@ -47,7 +47,7 @@ fn main() -> octane_rs::Result<()> {
     // 4. Vectorize for parallel simulation (128 parallel envs)
     let num_envs = 128;
     let vec_env = env.make_vectorized(num_envs);
-    println!("Vectorized to {} parallel environments", num_envs);
+    println!("Vectorized to {num_envs} parallel environments");
 
     // 5. Configure PPO with optimal hyperparameters for trading
     let config = PPOConfig::default()
@@ -62,14 +62,14 @@ fn main() -> octane_rs::Result<()> {
         .ent_coef(0.01)
         .max_grad_norm(0.5);
 
-    println!("PPO Config: {:?}", config);
+    println!("PPO Config: {config:?}");
 
     // 6. Create agent with environment and device
     let mut agent = PPOAgent::new(config, vec_env, device)?;
 
     // 7. Train with callback for metrics
     let total_timesteps = 100_000;
-    println!("\nStarting training for {} timesteps...\n", total_timesteps);
+    println!("\nStarting training for {total_timesteps} timesteps...\n");
 
     agent.train(total_timesteps, |metrics| {
         println!(

@@ -23,6 +23,7 @@
     clippy::same_item_push,
     clippy::too_many_arguments,
     clippy::type_complexity,
+    clippy::uninlined_format_args,
     clippy::upper_case_acronyms
 )]
 

@@ -51,7 +51,7 @@ fn benchmark_forward_pass(c: &mut Criterion) {
         let w3 = Tensor::randn(0.0f32, 0.1, &[*hidden_dim, 1], &candle_device).unwrap();
 
         group.bench_with_input(
-            BenchmarkId::new("mlp", format!("{}x{}", batch_size, hidden_dim)),
+            BenchmarkId::new("mlp", format!("{batch_size}x{hidden_dim}")),
             &(*batch_size, *hidden_dim),
             |b, _| {
                 b.iter(|| {
