@@ -755,8 +755,12 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         let option_termination_enabled = self.config.option_termination;
 
         // Check if we need to select a new option
-        let should_terminate = if option_termination_enabled && current_option.is_some() {
-            self.should_terminate(obs, current_option.unwrap())?
+        let should_terminate = if option_termination_enabled {
+            if let Some(option) = current_option {
+                self.should_terminate(obs, option)?
+            } else {
+                false
+            }
         } else {
             false
         };

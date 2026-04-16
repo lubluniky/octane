@@ -29,6 +29,7 @@
 use super::{Result, SimdError};
 
 #[cfg(target_arch = "x86_64")]
+#[allow(unused_imports)]
 use std::arch::x86_64::*;
 
 // ============================================================================
@@ -68,7 +69,7 @@ pub const AVX2_ALIGNMENT: usize = 32;
 pub const AVX512_ALIGNMENT: usize = 64;
 
 /// Log(2 * PI) constant for Gaussian computations.
-const LOG_2PI: f32 = 1.8378770664093453;
+const LOG_2PI: f32 = 1.837_877;
 
 /// Small epsilon for numerical stability.
 const EPSILON: f32 = 1e-8;
@@ -540,7 +541,7 @@ impl GaussianSamplerAvx2 {
         target_feature = "avx2",
         target_feature = "fma"
     )))]
-    pub fn sample_standard_normal(&mut self, count: usize) -> Result<Vec<f32>> {
+    pub fn sample_standard_normal(&mut self, _count: usize) -> Result<Vec<f32>> {
         Err(SimdError::InvalidParameter(
             "AVX2 not available - compile with target-feature=+avx2,+fma".to_string(),
         ))
