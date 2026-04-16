@@ -808,7 +808,7 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
                 let mut values: Vec<f32> = action_vecs.iter().map(|v| v[idx]).collect();
                 values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-                let median = if values.len() % 2 == 0 {
+                let median = if values.len().is_multiple_of(2) {
                     (values[values.len() / 2 - 1] + values[values.len() / 2]) / 2.0
                 } else {
                     values[values.len() / 2]
@@ -983,7 +983,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for EnsembleAgent<E> {
         let mean_reward = rewards_vec.iter().sum::<f32>() / rewards_vec.len() as f32;
 
         // Update agent performance
-        for (_i, perf) in self.agent_performance.iter_mut().enumerate() {
+        for perf in self.agent_performance.iter_mut() {
             // Use mean reward weighted by agreement with ensemble decision
             perf.update(mean_reward, self.config.performance_window);
         }

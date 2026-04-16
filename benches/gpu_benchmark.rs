@@ -6,7 +6,7 @@ use candle_core::{DType, Tensor};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn get_devices() -> Vec<(&'static str, candle_core::Device)> {
-    let mut devices = vec![("CPU", candle_core::Device::Cpu)];
+    let devices = vec![("CPU", candle_core::Device::Cpu)];
 
     #[cfg(feature = "metal")]
     {
@@ -127,7 +127,6 @@ fn benchmark_gae_tensors(c: &mut Criterion) {
         let values = Tensor::randn(0.0f32, 1.0, &[n_steps, n_envs], device).unwrap();
         let dones = Tensor::zeros(&[n_steps, n_envs], DType::F32, device).unwrap();
         let gamma = 0.99f32;
-        let gae_lambda = 0.95f32;
 
         // Warmup
         let next_values = values.narrow(0, 1, n_steps - 1).unwrap();

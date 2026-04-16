@@ -211,8 +211,8 @@ octane-rs = { version = "0.1", features = ["full"] }
 ### Build from Source
 
 ```bash
-git clone https://github.com/lubluniky/octane-rs
-cd octane-rs
+git clone https://github.com/lubluniky/rocket-rs
+cd rocket-rs
 
 # CPU only
 cargo build --release

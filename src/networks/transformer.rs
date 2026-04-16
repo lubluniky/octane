@@ -58,7 +58,7 @@ impl TransformerConfig {
     /// * `num_layers` - Number of transformer encoder layers
     pub fn new(d_model: usize, num_heads: usize, num_layers: usize) -> Self {
         assert!(
-            d_model % num_heads == 0,
+            d_model.is_multiple_of(num_heads),
             "d_model ({}) must be divisible by num_heads ({})",
             d_model,
             num_heads
@@ -140,7 +140,7 @@ pub struct MultiHeadAttention {
 impl MultiHeadAttention {
     /// Create a new MultiHeadAttention module.
     pub fn new(vb: VarBuilder<'_>, d_model: usize, num_heads: usize) -> CandleResult<Self> {
-        assert!(d_model % num_heads == 0);
+        assert!(d_model.is_multiple_of(num_heads));
         let head_dim = d_model / num_heads;
         let scale = 1.0 / (head_dim as f64).sqrt();
 
@@ -185,16 +185,20 @@ impl MultiHeadAttention {
         // Reshape for multi-head: [batch, seq, d_model] -> [batch, heads, seq, head_dim]
         let q = q
             .reshape(&[batch_size, query_len, self.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let k = k
             .reshape(&[batch_size, key_len, self.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let v = v
             .reshape(&[batch_size, key_len, self.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
 
         // Compute attention scores: Q @ K^T / sqrt(d_k)
-        let attn_scores = (q.matmul(&k.transpose(D::Minus2, D::Minus1)?)? * self.scale)?;
+        let k_t = k.transpose(D::Minus2, D::Minus1)?.contiguous()?;
+        let attn_scores = (q.matmul(&k_t)? * self.scale)?;
 
         // Apply mask if provided
         let attn_scores = match mask {
@@ -222,6 +226,7 @@ impl MultiHeadAttention {
         let d_model = self.num_heads * self.head_dim;
         let attn_output = attn_output
             .transpose(1, 2)?
+            .contiguous()?
             .reshape(&[batch_size, query_len, d_model])?;
 
         // Output projection
@@ -269,6 +274,7 @@ impl FeedForward {
 /// Consists of:
 /// 1. Multi-head self-attention with residual connection
 /// 2. Position-wise feed-forward network with residual connection
+///
 /// Both sub-layers have layer normalization (pre or post).
 #[derive(Debug)]
 pub struct TransformerEncoderLayer {

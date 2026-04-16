@@ -38,6 +38,8 @@
 //! use octane_rs::simd::{GaussianSampler, compute_gae, is_avx2_available};
 //!
 //! // Check available SIMD features
+#![allow(missing_docs)]
+
 //! if is_avx2_available() {
 //!     println!("AVX2 optimizations available");
 //! }
@@ -377,7 +379,7 @@ mod ffi {
 #[allow(dead_code)]
 fn check_alignment<T>(ptr: *const T, _name: &str) -> Result<()> {
     let addr = ptr as usize;
-    if addr % NEON_ALIGNMENT != 0 {
+    if !addr.is_multiple_of(NEON_ALIGNMENT) {
         return Err(SimdError::AlignmentError {
             required: NEON_ALIGNMENT,
             actual: addr % NEON_ALIGNMENT,

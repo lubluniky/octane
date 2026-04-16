@@ -259,28 +259,22 @@ impl RolloutBuffer {
         self.returns.clear();
         self.returns.resize(total_samples, 0.0f32);
 
-        // Compute combined done mask for SIMD path (terminated OR truncated)
-        // SIMD GAE uses a single done mask; we handle truncation correctly below
-        let dones: Vec<f32> = self
-            .terminated
-            .iter()
-            .zip(self.truncated.iter())
-            .map(|(&t, &tr)| t.max(tr))
-            .collect();
-
         // Try SIMD-optimized path first
         #[cfg(any(
             all(target_arch = "aarch64", target_feature = "neon"),
-            all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")
+            all(
+                target_arch = "x86_64",
+                target_feature = "avx2",
+                target_feature = "fma"
+            )
         ))]
         {
-            // Use SIMD-optimized GAE with inverted loop order
-            // For simplicity, use terminated as done mask (standard GAE behavior)
-            // The truncation handling is more complex and uses scalar path below
+            // Use SIMD-optimized GAE with separate bootstrap and trace-reset masks.
             if let Ok(()) = crate::simd::gae::compute_gae_simd_inplace(
                 &self.rewards[..total_samples],
                 &self.values[..total_samples],
-                &dones[..total_samples],
+                &self.terminated[..total_samples],
+                &self.truncated[..total_samples],
                 &mut self.advantages,
                 &mut self.returns,
                 self.pos,
@@ -540,6 +534,7 @@ impl Iterator for BatchSampler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use candle_core::Tensor;
 
     #[test]
     fn test_batch_sampler() {
@@ -567,5 +562,48 @@ mod tests {
         assert_eq!(buffer.capacity(), 40);
         assert_eq!(buffer.size(), 0);
         assert!(!buffer.is_full());
+    }
+
+    #[test]
+    fn test_rollout_buffer_bootstraps_truncated_steps() {
+        let mut buffer = RolloutBuffer::new(1, 1, 1, 1, Device::Cpu).unwrap();
+        let device = Device::Cpu;
+        let candle_device = device.to_candle().unwrap();
+
+        let obs = Tensor::from_slice(&[0.0f32], &[1, 1], &candle_device).unwrap();
+        let action = Tensor::from_slice(&[0.0f32], &[1, 1], &candle_device).unwrap();
+        let reward = Tensor::from_slice(&[1.0f32], &[1], &candle_device).unwrap();
+        let terminated = Tensor::from_slice(&[0.0f32], &[1], &candle_device).unwrap();
+        let truncated = Tensor::from_slice(&[1.0f32], &[1], &candle_device).unwrap();
+        let value = Tensor::from_slice(&[0.5f32], &[1], &candle_device).unwrap();
+        let log_prob = Tensor::from_slice(&[0.0f32], &[1], &candle_device).unwrap();
+        let last_values = Tensor::from_slice(&[0.75f32], &[1], &candle_device).unwrap();
+
+        buffer
+            .add(
+                &obs,
+                &action,
+                &reward,
+                &terminated,
+                &truncated,
+                &value,
+                &log_prob,
+            )
+            .unwrap();
+        buffer
+            .compute_returns_and_advantages(&last_values, 0.99, 0.95)
+            .unwrap();
+
+        let sample = buffer.get_all().unwrap();
+        let returns: Vec<f32> = sample.returns.to_vec1().unwrap();
+        assert!(
+            (returns[0] - 1.7425).abs() < 1e-4,
+            "unexpected return: {returns:?}"
+        );
+        let advantages: Vec<f32> = sample.advantages.to_vec1().unwrap();
+        assert!(
+            (advantages[0] - 1.2425).abs() < 1e-4,
+            "unexpected advantage: {advantages:?}"
+        );
     }
 }

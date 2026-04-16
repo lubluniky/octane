@@ -555,7 +555,7 @@ impl WalkForwardResult {
 
         ratios.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let mid = ratios.len() / 2;
-        if ratios.len() % 2 == 0 {
+        if ratios.len().is_multiple_of(2) {
             (ratios[mid - 1] + ratios[mid]) / 2.0
         } else {
             ratios[mid]

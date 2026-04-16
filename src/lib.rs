@@ -16,6 +16,15 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 #![allow(dead_code)] // Allow unused code during development
+#![allow(
+    clippy::if_same_then_else,
+    clippy::needless_range_loop,
+    clippy::only_used_in_recursion,
+    clippy::same_item_push,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    clippy::upper_case_acronyms,
+)]
 
 pub mod algorithms;
 pub mod backtesting;

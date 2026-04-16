@@ -613,7 +613,7 @@ impl CQLAgent {
             if let Some(ref log_alpha) = self.cql_log_alpha {
                 let current_log_alpha: f32 = log_alpha.to_scalar()?;
                 let new_log_alpha = current_log_alpha + self.config.learning_rate * alpha_grad;
-                let new_log_alpha = new_log_alpha.max(-10.0).min(10.0); // Clamp for stability
+                let new_log_alpha = new_log_alpha.clamp(-10.0, 10.0); // Clamp for stability
                 self.cql_log_alpha = Some(Tensor::new(&[new_log_alpha], &candle_device)?);
                 self.cql_alpha = new_log_alpha.exp();
             }
@@ -881,7 +881,6 @@ impl RLAlgorithm for CQLAgent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::algorithms::config::CQLConfig;
 
     #[test]

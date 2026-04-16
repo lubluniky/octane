@@ -58,10 +58,12 @@ pub enum DrawdownEvent {
 
 /// Risk scaling method based on drawdown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum RiskScaling {
     /// No scaling (constant risk).
     None,
     /// Linear reduction as drawdown increases.
+    #[default]
     Linear,
     /// Exponential reduction.
     Exponential,
@@ -71,16 +73,13 @@ pub enum RiskScaling {
     Sigmoid,
 }
 
-impl Default for RiskScaling {
-    fn default() -> Self {
-        RiskScaling::Linear
-    }
-}
 
 /// Current state of the drawdown controller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum DrawdownState {
     /// Normal trading.
+    #[default]
     Normal,
     /// In recovery mode (reduced risk).
     Recovery,
@@ -88,11 +87,6 @@ pub enum DrawdownState {
     Stopped,
 }
 
-impl Default for DrawdownState {
-    fn default() -> Self {
-        DrawdownState::Normal
-    }
-}
 
 /// Configuration for drawdown controller.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -385,9 +379,9 @@ impl DrawdownController {
         }
 
         // Determine state transitions and events
-        let event = self.determine_event(old_drawdown, old_peak, old_state, new_peak);
+        
 
-        event
+        self.determine_event(old_drawdown, old_peak, old_state, new_peak)
     }
 
     /// Determine what event (if any) occurred.

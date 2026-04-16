@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Octane Team"]
 description = "High-performance Reinforcement Learning library for Rust, optimized for Apple Silicon and NVIDIA GPUs"
 license = "GPL-2.0"
-repository = "https://github.com/lubluniky/octane-rs"
+repository = "https://github.com/lubluniky/rocket-rs"
 keywords = ["reinforcement-learning", "machine-learning", "gpu", "trading", "hpc"]
 categories = ["science", "algorithms"]
 

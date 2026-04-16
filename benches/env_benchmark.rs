@@ -5,7 +5,7 @@
 use candle_core::Tensor;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use octane_rs::core::Device;
-use octane_rs::envs::{Environment, MarketData, Space, TradingEnv, VecEnv};
+use octane_rs::envs::{Environment, MarketData, TradingEnv};
 
 fn benchmark_single_env_step(c: &mut Criterion) {
     let device = Device::cpu();

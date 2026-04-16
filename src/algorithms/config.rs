@@ -2,6 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+fn default_hidden_sizes() -> Vec<usize> {
+    vec![256, 256]
+}
+
 /// Configuration for Proximal Policy Optimization (PPO) algorithm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PPOConfig {
@@ -57,6 +61,11 @@ pub struct PPOConfig {
     /// Default: true
     pub use_lr_schedule: bool,
 
+    /// Hidden layer sizes for the policy and value networks.
+    /// Default: [256, 256]
+    #[serde(default = "default_hidden_sizes")]
+    pub hidden_sizes: Vec<usize>,
+
     /// Random seed for reproducibility.
     /// Default: None (use system entropy)
     pub seed: Option<u64>,
@@ -78,6 +87,7 @@ impl Default for PPOConfig {
             normalize_advantage: true,
             target_kl: None,
             use_lr_schedule: true,
+            hidden_sizes: default_hidden_sizes(),
             seed: None,
         }
     }
@@ -155,6 +165,12 @@ impl PPOConfig {
         self
     }
 
+    /// Builder-style setter for hidden layer sizes.
+    pub fn hidden_sizes(mut self, sizes: Vec<usize>) -> Self {
+        self.hidden_sizes = sizes;
+        self
+    }
+
     /// Builder-style setter for seed.
     pub fn seed(mut self, s: u64) -> Self {
         self.seed = Some(s);
@@ -177,6 +193,12 @@ impl PPOConfig {
         }
         if self.n_epochs == 0 {
             return Err("n_epochs must be positive".to_string());
+        }
+        if self.hidden_sizes.is_empty() {
+            return Err("hidden_sizes must not be empty".to_string());
+        }
+        if self.hidden_sizes.contains(&0) {
+            return Err("hidden_sizes must contain only positive layer sizes".to_string());
         }
         if !(0.0..=1.0).contains(&self.gamma) {
             return Err("gamma must be in [0, 1]".to_string());
@@ -1086,8 +1108,10 @@ impl CQLConfig {
 /// - CVaR: Risk-averse (focuses on worst-case outcomes)
 /// - Optimistic: Risk-seeking (focuses on best-case outcomes)
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum RiskMeasure {
     /// Expected value (mean of quantiles). Risk-neutral policy.
+    #[default]
     Mean,
     /// Conditional Value at Risk. Risk-averse policy.
     /// The parameter is the quantile level (e.g., 0.25 for CVaR_0.25).
@@ -1097,11 +1121,6 @@ pub enum RiskMeasure {
     Optimistic(f32),
 }
 
-impl Default for RiskMeasure {
-    fn default() -> Self {
-        RiskMeasure::Mean
-    }
-}
 
 /// Configuration for Implicit Quantile Networks (IQN) algorithm.
 ///
@@ -1334,6 +1353,7 @@ mod tests {
         assert_eq!(config.n_epochs, 10);
         assert!((config.gamma - 0.99).abs() < 1e-8);
         assert!((config.clip_range - 0.2).abs() < 1e-8);
+        assert_eq!(config.hidden_sizes, vec![256, 256]);
     }
 
     #[test]
@@ -1342,12 +1362,14 @@ mod tests {
             .learning_rate(1e-3)
             .n_steps(1024)
             .batch_size(32)
-            .gamma(0.95);
+            .gamma(0.95)
+            .hidden_sizes(vec![128, 64]);
 
         assert!((config.learning_rate - 1e-3).abs() < 1e-8);
         assert_eq!(config.n_steps, 1024);
         assert_eq!(config.batch_size, 32);
         assert!((config.gamma - 0.95).abs() < 1e-8);
+        assert_eq!(config.hidden_sizes, vec![128, 64]);
     }
 
     #[test]
@@ -1360,6 +1382,12 @@ mod tests {
 
         let invalid_batch = PPOConfig::default().batch_size(10000);
         assert!(invalid_batch.validate().is_err());
+
+        let invalid_hidden = PPOConfig::default().hidden_sizes(Vec::new());
+        assert!(invalid_hidden.validate().is_err());
+
+        let invalid_hidden_size = PPOConfig::default().hidden_sizes(vec![128, 0]);
+        assert!(invalid_hidden_size.validate().is_err());
     }
 
     #[test]

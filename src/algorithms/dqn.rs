@@ -404,7 +404,7 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
 
             // Training updates
             if self.total_timesteps >= self.config.learning_starts
-                && self.total_timesteps % self.config.train_freq == 0
+                && self.total_timesteps.is_multiple_of(self.config.train_freq)
             {
                 for _ in 0..self.config.gradient_steps {
                     let (loss, mean_q) = self.update()?;

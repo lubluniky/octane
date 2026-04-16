@@ -807,7 +807,7 @@ mod tests {
 
         // Expected: 1.0 + 0.99 * 1.0 * (0.5 - 0.2 * (-1.0)) - 0.3
         //         = 1.0 + 0.99 * (0.5 + 0.2) - 0.3 = 1.0 + 0.6930 - 0.3 = 1.393
-        let expected = 1.0 + gamma * (0.5 - alpha * (-1.0)) - 0.3;
+        let expected = 1.0 + gamma * (0.5 - -alpha) - 0.3;
         for &td in &td_errors {
             assert!((td - expected).abs() < 1e-5, "Expected {}, got {}", expected, td);
         }

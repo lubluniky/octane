@@ -629,22 +629,22 @@ impl RuleBasedExpert {
         let rules: Vec<(Box<dyn Fn(&[f32]) -> bool + Send + Sync>, Vec<f32>)> = vec![
             // If RSI > 70 (overbought), go short
             (
-                Box::new(|obs: &[f32]| obs.get(6).map_or(false, |&rsi| rsi > 70.0)),
+                Box::new(|obs: &[f32]| obs.get(6).is_some_and(|&rsi| rsi > 70.0)),
                 vec![-1.0],
             ),
             // If RSI < 30 (oversold), go long
             (
-                Box::new(|obs: &[f32]| obs.get(6).map_or(false, |&rsi| rsi < 30.0)),
+                Box::new(|obs: &[f32]| obs.get(6).is_some_and(|&rsi| rsi < 30.0)),
                 vec![1.0],
             ),
             // If SMA ratio > 1.02, trend following long
             (
-                Box::new(|obs: &[f32]| obs.get(5).map_or(false, |&sma| sma > 1.02)),
+                Box::new(|obs: &[f32]| obs.get(5).is_some_and(|&sma| sma > 1.02)),
                 vec![0.5],
             ),
             // If SMA ratio < 0.98, trend following short
             (
-                Box::new(|obs: &[f32]| obs.get(5).map_or(false, |&sma| sma < 0.98)),
+                Box::new(|obs: &[f32]| obs.get(5).is_some_and(|&sma| sma < 0.98)),
                 vec![-0.5],
             ),
         ];
@@ -664,12 +664,12 @@ impl RuleBasedExpert {
         let rules: Vec<(Box<dyn Fn(&[f32]) -> bool + Send + Sync>, Vec<f32>)> = vec![
             // If RSI > 80, fade the move (short)
             (
-                Box::new(|obs: &[f32]| obs.get(6).map_or(false, |&rsi| rsi > 80.0)),
+                Box::new(|obs: &[f32]| obs.get(6).is_some_and(|&rsi| rsi > 80.0)),
                 vec![-0.8],
             ),
             // If RSI < 20, fade the move (long)
             (
-                Box::new(|obs: &[f32]| obs.get(6).map_or(false, |&rsi| rsi < 20.0)),
+                Box::new(|obs: &[f32]| obs.get(6).is_some_and(|&rsi| rsi < 20.0)),
                 vec![0.8],
             ),
             // If volatility high and price extended, mean revert

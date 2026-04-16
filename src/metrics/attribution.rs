@@ -372,7 +372,7 @@ impl AttributionAnalyzer {
 
         let entry = self.report.time_attribution
             .entry(date_key)
-            .or_insert_with(AttributionEntry::new);
+            .or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -381,7 +381,7 @@ impl AttributionAnalyzer {
     fn add_asset_attribution(&mut self, pnl: f64, symbol: &str, duration_secs: i64) {
         let entry = self.report.asset_attribution
             .entry(symbol.to_string())
-            .or_insert_with(AttributionEntry::new);
+            .or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -395,7 +395,7 @@ impl AttributionAnalyzer {
 
         let entry = self.report.direction_attribution
             .entry(key.to_string())
-            .or_insert_with(AttributionEntry::new);
+            .or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -412,7 +412,7 @@ impl AttributionAnalyzer {
 
         let entry = self.report.regime_attribution
             .entry(key)
-            .or_insert_with(AttributionEntry::new);
+            .or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -425,7 +425,7 @@ impl AttributionAnalyzer {
         let key = format!("{:?}", time_of_day);
         let entry = self.report.time_of_day_attribution
             .entry(key)
-            .or_insert_with(AttributionEntry::new);
+            .or_default();
 
         entry.add_trade(pnl, duration_secs);
     }

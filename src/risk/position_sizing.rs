@@ -30,10 +30,12 @@ use std::collections::VecDeque;
 
 /// Position sizing method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum SizingMethod {
     /// Full Kelly criterion.
     FullKelly,
     /// Half Kelly (more conservative).
+    #[default]
     HalfKelly,
     /// Quarter Kelly (very conservative).
     QuarterKelly,
@@ -51,11 +53,6 @@ pub enum SizingMethod {
     Constant,
 }
 
-impl Default for SizingMethod {
-    fn default() -> Self {
-        SizingMethod::HalfKelly
-    }
-}
 
 /// Result of Kelly criterion calculation.
 #[derive(Debug, Clone)]

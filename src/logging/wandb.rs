@@ -632,6 +632,7 @@ fn config_value_to_py(py: Python<'_>, value: &ConfigValue) -> PyResult<PyObject>
 
 // Stub implementation when wandb feature is not enabled
 #[cfg(not(feature = "wandb"))]
+/// Stub W&B logger returned when the `wandb` feature is disabled.
 pub struct WandbLogger {
     _private: (),
 }
@@ -714,7 +715,7 @@ mod tests {
     fn test_config_value_conversions() {
         let _s: ConfigValue = "test".into();
         let _i: ConfigValue = 42i64.into();
-        let _f: ConfigValue = 3.14f64.into();
+        let _f: ConfigValue = std::f64::consts::PI.into();
         let _b: ConfigValue = true.into();
     }
 

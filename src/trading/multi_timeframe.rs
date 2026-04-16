@@ -260,7 +260,7 @@ impl TimeframeSynchronizer {
 
     /// Check if a bar boundary for a timeframe.
     pub fn is_bar_boundary(&self, base_idx: usize, timeframe: Timeframe) -> bool {
-        base_idx % timeframe.periods() == 0
+        base_idx.is_multiple_of(timeframe.periods())
     }
 }
 

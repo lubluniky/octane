@@ -458,7 +458,7 @@ impl CommissionModel {
                     .iter()
                     .filter(|(threshold, _)| volume_30d >= *threshold)
                     .map(|(_, rate)| *rate)
-                    .last()
+                    .next_back()
                     .unwrap_or(tiers.first().map(|(_, r)| *r).unwrap_or(0.001));
                 trade_value * rate
             }

@@ -51,7 +51,11 @@ fn demo_trading_metrics() {
     for (i, &ret) in returns.iter().enumerate() {
         calc.add_return(ret);
         if (i + 1) % 5 == 0 {
-            println!("  Week {}: Cumulative return = {:.2}%", (i + 1) / 5, calc.total_return() * 100.0);
+            println!(
+                "  Week {}: Cumulative return = {:.2}%",
+                (i + 1) / 5,
+                calc.total_return() * 100.0
+            );
         }
     }
 
@@ -67,15 +71,27 @@ fn demo_trading_metrics() {
 
     println!("\n=== Performance Metrics ===");
     println!("Total Return:        {:.2}%", metrics.total_return * 100.0);
-    println!("Annualized Return:   {:.2}%", metrics.annualized_return * 100.0);
-    println!("Annualized Vol:      {:.2}%", metrics.annualized_volatility * 100.0);
+    println!(
+        "Annualized Return:   {:.2}%",
+        metrics.annualized_return * 100.0
+    );
+    println!(
+        "Annualized Vol:      {:.2}%",
+        metrics.annualized_volatility * 100.0
+    );
     println!("Sharpe Ratio:        {:.2}", metrics.sharpe_ratio);
     println!("Sortino Ratio:       {:.2}", metrics.sortino_ratio);
     println!("Calmar Ratio:        {:.2}", metrics.calmar_ratio);
 
     println!("\n=== Risk Metrics ===");
-    println!("Max Drawdown:        {:.2}%", metrics.max_drawdown_pct * 100.0);
-    println!("VaR (95%):           {:.2}%", metrics.var_historical * 100.0);
+    println!(
+        "Max Drawdown:        {:.2}%",
+        metrics.max_drawdown_pct * 100.0
+    );
+    println!(
+        "VaR (95%):           {:.2}%",
+        metrics.var_historical * 100.0
+    );
     println!("CVaR (95%):          {:.2}%", metrics.cvar * 100.0);
     println!("Ulcer Index:         {:.2}", metrics.ulcer_index);
 
@@ -165,7 +181,8 @@ fn demo_trade_journal() {
     let wins = journal.filter_by_tags(&["win".to_string()]);
     println!("Winning trades:      {}", wins.len());
 
-    let aapl_trades = journal.get_all_trades()
+    let aapl_trades = journal
+        .get_all_trades()
         .iter()
         .filter(|t| t.symbol == "AAPL")
         .count();
@@ -185,8 +202,7 @@ fn demo_attribution() {
 
     let config = AttributionConfig::default()
         .enable_asset_attribution(true)
-        .enable_regime_attribution(true)
-        .enable_direction_attribution(true);
+        .enable_regime_attribution(true);
 
     let mut analyzer = AttributionAnalyzer::new(config);
 
@@ -265,10 +281,7 @@ fn demo_attribution() {
     for (asset, entry) in assets {
         println!(
             "  {:<8} ${:>8.2} ({:>5.1}%) - {} trades",
-            asset,
-            entry.pnl,
-            entry.contribution_pct,
-            entry.num_trades
+            asset, entry.pnl, entry.contribution_pct, entry.num_trades
         );
     }
 
@@ -290,10 +303,7 @@ fn demo_attribution() {
     for (regime, entry) in regimes {
         println!(
             "  {:<12} ${:>8.2} ({:>5.1}%) - {} trades",
-            regime,
-            entry.pnl,
-            entry.contribution_pct,
-            entry.num_trades
+            regime, entry.pnl, entry.contribution_pct, entry.num_trades
         );
     }
 

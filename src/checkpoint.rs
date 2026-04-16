@@ -355,7 +355,11 @@ impl CheckpointManager {
             timesteps: checkpoint.timesteps,
             episodes: checkpoint.episodes,
             iteration: checkpoint.iteration,
-            best_reward: checkpoint.best_reward,
+            best_reward: if checkpoint.best_reward.is_finite() {
+                Some(checkpoint.best_reward)
+            } else {
+                None
+            },
             metrics_history: checkpoint.metrics_history.clone(),
             config_json: checkpoint.config_json.clone(),
             timestamp: checkpoint.timestamp.clone(),
@@ -538,7 +542,7 @@ impl CheckpointManager {
             timesteps: meta.timesteps,
             episodes: meta.episodes,
             iteration: meta.iteration,
-            best_reward: meta.best_reward,
+            best_reward: meta.best_reward.unwrap_or(f32::NEG_INFINITY),
             metrics_history: meta.metrics_history,
             config_json: meta.config_json,
             timestamp: meta.timestamp,
@@ -642,7 +646,8 @@ struct CheckpointMetadata {
     timesteps: usize,
     episodes: usize,
     iteration: usize,
-    best_reward: f32,
+    #[serde(default)]
+    best_reward: Option<f32>,
     metrics_history: Vec<TrainMetrics>,
     config_json: String,
     timestamp: String,
@@ -849,9 +854,11 @@ mod tests {
 
     #[test]
     fn test_optimizer_state() {
-        let mut state = OptimizerState::default();
-        state.learning_rate = 0.001;
-        state.step = 100;
+        let mut state = OptimizerState {
+            learning_rate: 0.001,
+            step: 100,
+            ..Default::default()
+        };
         state.momentum.insert("w".to_string(), vec![0.1, 0.2]);
 
         let json = serde_json::to_string(&state).unwrap();
@@ -898,5 +905,20 @@ mod tests {
         let mut resumer = TrainingResumer::new(temp_dir.path());
         assert!(resumer.try_resume().unwrap());
         assert_eq!(resumer.starting_timesteps(), 5000);
+    }
+
+    #[test]
+    fn test_checkpoint_best_reward_non_finite_roundtrip() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut manager = CheckpointManager::new(temp_dir.path());
+
+        let mut checkpoint = Checkpoint::new();
+        checkpoint.timesteps = 7;
+        checkpoint.best_reward = f32::NEG_INFINITY;
+
+        let path = manager.save(&checkpoint).unwrap();
+        let loaded = manager.load(&path).unwrap();
+
+        assert_eq!(loaded.best_reward, f32::NEG_INFINITY);
     }
 }

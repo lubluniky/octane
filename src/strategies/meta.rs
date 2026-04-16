@@ -418,11 +418,15 @@ pub struct Task {
     pub regime: MarketRegime,
     /// Support set (for adaptation).
     pub support_obs: Vec<Vec<f32>>,
+    /// Support actions aligned with `support_obs`.
     pub support_actions: Vec<Vec<f32>>,
+    /// Support rewards aligned with `support_obs`.
     pub support_rewards: Vec<f32>,
     /// Query set (for evaluation).
     pub query_obs: Vec<Vec<f32>>,
+    /// Query actions aligned with `query_obs`.
     pub query_actions: Vec<Vec<f32>>,
+    /// Query rewards aligned with `query_obs`.
     pub query_rewards: Vec<f32>,
 }
 
@@ -791,7 +795,7 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let context_embedding = self.encode_context(context)?;
 
         // Detect regime (periodically)
-        let (regime, _confidence) = if self.total_timesteps % self.config.regime_detection_frequency == 0 {
+        let (regime, _confidence) = if self.total_timesteps.is_multiple_of(self.config.regime_detection_frequency) {
             let (r, c) = self.detect_regime(&context_embedding)?;
             self.current_regime = r;
             (r, c)

@@ -14,12 +14,14 @@ use std::collections::VecDeque;
 
 /// Market regime types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum MarketRegime {
     /// Strong upward trend.
     BullTrend,
     /// Strong downward trend.
     BearTrend,
     /// Range-bound/sideways market.
+    #[default]
     Range,
     /// High volatility regime.
     HighVolatility,
@@ -79,11 +81,6 @@ impl MarketRegime {
     }
 }
 
-impl Default for MarketRegime {
-    fn default() -> Self {
-        MarketRegime::Range
-    }
-}
 
 /// Regime transition event.
 #[derive(Debug, Clone)]

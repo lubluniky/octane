@@ -39,7 +39,7 @@ use std::arch::aarch64::*;
 // ============================================================================
 
 /// Log(2 * PI) constant.
-const LOG_2PI: f32 = 1.8378770664093453;
+const LOG_2PI: f32 = 1.837_877;
 
 /// Small epsilon for numerical stability.
 const EPSILON: f32 = 1e-6;

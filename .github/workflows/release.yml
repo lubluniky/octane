@@ -30,8 +30,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          release_name: Octane-RS ${{ steps.get_version.outputs.version }}
           draft: false
           prerelease: false
 
@@ -44,19 +44,19 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: rocket-rs-linux-x86_64
+            artifact_name: octane-rs-linux-x86_64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact_name: rocket-rs-linux-aarch64
+            artifact_name: octane-rs-linux-aarch64
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: rocket-rs-macos-x86_64
+            artifact_name: octane-rs-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: rocket-rs-macos-aarch64
+            artifact_name: octane-rs-macos-aarch64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: rocket-rs-windows-x86_64
+            artifact_name: octane-rs-windows-x86_64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,24 +73,24 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} --bin octane-tui
 
       - name: Strip binary (Linux/macOS)
         if: matrix.os != 'windows-latest'
-        run: strip target/${{ matrix.target }}/release/rocket-tui
+        run: strip target/${{ matrix.target }}/release/octane-tui
 
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf ${{ matrix.artifact_name }}.tar.gz rocket-tui
+          tar czf ${{ matrix.artifact_name }}.tar.gz octane-tui
           mv ${{ matrix.artifact_name }}.tar.gz ../../../
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           cd target/${{ matrix.target }}/release
-          7z a ${{ matrix.artifact_name }}.zip rocket-tui.exe
+          7z a ${{ matrix.artifact_name }}.zip octane-tui.exe
           mv ${{ matrix.artifact_name }}.zip ../../../
         shell: pwsh
 
