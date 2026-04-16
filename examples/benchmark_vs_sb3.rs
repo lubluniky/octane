@@ -157,9 +157,7 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 500K steps                                         │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!(
-        "  │ Octane:    {time_500k:>8.2}s    {fps_500k:>12.0} FPS                  │"
-    );
+    println!("  │ Octane:    {time_500k:>8.2}s    {fps_500k:>12.0} FPS                  │");
     println!("  │ SB3 (ref):   ~600.00s    ~833 FPS (Python)               │");
     println!(
         "  │ Speedup:     {:>8.1}x faster                              │",
@@ -188,9 +186,7 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 5M steps                                           │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!(
-        "  │ Octane:    {time_5m:>8.2}s    {fps_5m:>12.0} FPS                  │"
-    );
+    println!("  │ Octane:    {time_5m:>8.2}s    {fps_5m:>12.0} FPS                  │");
     println!("  │ SB3 (ref):   ~6000.0s    ~833 FPS (Python)               │");
     println!(
         "  │ Speedup:     {:>8.1}x faster                              │",

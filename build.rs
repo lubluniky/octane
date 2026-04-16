@@ -16,8 +16,7 @@ fn main() {
         compile_simd_code(&target_arch);
     }
 
-    // Compile Metal shaders on macOS
-    #[cfg(target_os = "macos")]
+    // Compile Metal shaders when targeting macOS.
     if target_os == "macos" {
         compile_metal_shaders();
     }
