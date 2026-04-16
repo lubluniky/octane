@@ -1,8 +1,8 @@
 //! Vectorized environment implementation for massive parallelization.
 
-use crate::core::{Device, Result};
 #[cfg(feature = "distributed")]
 use crate::core::OctaneError;
+use crate::core::{Device, Result};
 use crate::envs::{Environment, ObsType, StepInfo, StepResult};
 use candle_core::Tensor;
 use rayon::prelude::*;
@@ -124,7 +124,9 @@ impl EnvWorker {
         match self.resp_rx.recv() {
             Ok(WorkerResponse::Step(result)) => result,
             Ok(_) => Err(OctaneError::Environment("Unexpected response type".into())),
-            Err(_) => Err(OctaneError::Environment("Worker channel disconnected".into())),
+            Err(_) => Err(OctaneError::Environment(
+                "Worker channel disconnected".into(),
+            )),
         }
     }
 
@@ -140,7 +142,9 @@ impl EnvWorker {
         match self.resp_rx.recv() {
             Ok(WorkerResponse::Reset(result)) => result,
             Ok(_) => Err(OctaneError::Environment("Unexpected response type".into())),
-            Err(_) => Err(OctaneError::Environment("Worker channel disconnected".into())),
+            Err(_) => Err(OctaneError::Environment(
+                "Worker channel disconnected".into(),
+            )),
         }
     }
 

@@ -174,8 +174,7 @@ impl DemoReplayBuffer {
     /// Add a demonstration to the buffer.
     pub fn add_demonstration(&mut self, demo: Demonstration) {
         // Check capacity
-        while self.total_transitions + demo.len() > self.capacity
-            && !self.demonstrations.is_empty()
+        while self.total_transitions + demo.len() > self.capacity && !self.demonstrations.is_empty()
         {
             // Remove oldest demonstration
             let removed = self.demonstrations.remove(0);
@@ -322,7 +321,11 @@ impl DemoReplayBuffer {
         let candle_device = device.to_candle()?;
 
         Ok(DemoBatch {
-            observations: Tensor::from_slice(&obs_batch, &[batch_size, self.obs_dim], &candle_device)?,
+            observations: Tensor::from_slice(
+                &obs_batch,
+                &[batch_size, self.obs_dim],
+                &candle_device,
+            )?,
             actions: Tensor::from_slice(
                 &action_batch,
                 &[batch_size, self.action_dim],
@@ -352,14 +355,18 @@ impl DemoReplayBuffer {
         if self.demonstrations.is_empty() {
             0.0
         } else {
-            self.demonstrations.iter().map(|d| d.episode_return).sum::<f32>()
+            self.demonstrations
+                .iter()
+                .map(|d| d.episode_return)
+                .sum::<f32>()
                 / self.demonstrations.len() as f32
         }
     }
 
     /// Filter demonstrations by quality threshold.
     pub fn filter_by_quality(&mut self, min_return: f32) {
-        self.demonstrations.retain(|d| d.episode_return >= min_return);
+        self.demonstrations
+            .retain(|d| d.episode_return >= min_return);
         self.rebuild_flattened_data();
     }
 
@@ -367,13 +374,18 @@ impl DemoReplayBuffer {
     pub fn save(&self, path: &Path) -> Result<()> {
         let candle_device = candle_core::Device::Cpu;
 
-        let obs_tensor = Tensor::from_slice(&self.obs_data, &[self.total_transitions, self.obs_dim], &candle_device)?;
+        let obs_tensor = Tensor::from_slice(
+            &self.obs_data,
+            &[self.total_transitions, self.obs_dim],
+            &candle_device,
+        )?;
         let action_tensor = Tensor::from_slice(
             &self.action_data,
             &[self.total_transitions, self.action_dim],
             &candle_device,
         )?;
-        let reward_tensor = Tensor::from_slice(&self.reward_data, &[self.total_transitions], &candle_device)?;
+        let reward_tensor =
+            Tensor::from_slice(&self.reward_data, &[self.total_transitions], &candle_device)?;
 
         let mut tensors = std::collections::HashMap::new();
         tensors.insert("observations".to_string(), obs_tensor);
@@ -383,7 +395,11 @@ impl DemoReplayBuffer {
         candle_core::safetensors::save(&tensors, path)?;
 
         // Save metadata
-        let metadata: Vec<DemoMetadata> = self.demonstrations.iter().map(|d| d.metadata.clone()).collect();
+        let metadata: Vec<DemoMetadata> = self
+            .demonstrations
+            .iter()
+            .map(|d| d.metadata.clone())
+            .collect();
         let metadata_path = path.with_extension("json");
         let metadata_json = serde_json::to_string_pretty(&metadata)?;
         std::fs::write(metadata_path, metadata_json)?;
@@ -887,10 +903,7 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
                 // For discrete actions
                 let log_probs = candle_nn::ops::log_softmax(predicted, 1)?;
                 let target_indices = target.to_dtype(DType::I64)?;
-                let nll = log_probs
-                    .gather(&target_indices, 1)?
-                    .neg()?
-                    .mean_all()?;
+                let nll = log_probs.gather(&target_indices, 1)?.neg()?.mean_all()?;
                 Ok(nll)
             }
             ImitationLoss::Huber => {
@@ -912,9 +925,9 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
                 // Assume Gaussian output
                 let diff = (predicted - target)?;
                 let candle_device = self.device.to_candle()?;
-                let const_term = Tensor::new(&[0.5 * (2.0 * std::f32::consts::PI).ln()], &candle_device)?;
-                Ok(((diff.sqr()? * 0.5)?.broadcast_add(&const_term))?
-                    .mean_all()?)
+                let const_term =
+                    Tensor::new(&[0.5 * (2.0 * std::f32::consts::PI).ln()], &candle_device)?;
+                Ok(((diff.sqr()? * 0.5)?.broadcast_add(&const_term))?.mean_all()?)
             }
         }
     }
@@ -929,7 +942,8 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
     /// Load demonstrations from file.
     pub fn load_demonstrations(&mut self, path: &Path) -> Result<()> {
         self.demo_buffer.load(path, &self.device)?;
-        self.demo_buffer.filter_by_quality(self.config.min_demo_quality);
+        self.demo_buffer
+            .filter_by_quality(self.config.min_demo_quality);
         Ok(())
     }
 
@@ -989,7 +1003,11 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
     fn dagger_step(&mut self) -> Result<f32> {
         let expert = match &self.expert {
             Some(e) => e,
-            None => return Err(OctaneError::InvalidConfig("No expert set for DAgger".into())),
+            None => {
+                return Err(OctaneError::InvalidConfig(
+                    "No expert set for DAgger".into(),
+                ))
+            }
         };
 
         let num_envs = self.env.num_envs();
@@ -1023,7 +1041,8 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
             for env_idx in 0..num_envs {
                 new_demo.add(
                     obs_vec[env_idx * self.obs_dim..(env_idx + 1) * self.obs_dim].to_vec(),
-                    expert_action_vec[env_idx * self.act_dim..(env_idx + 1) * self.act_dim].to_vec(),
+                    expert_action_vec[env_idx * self.act_dim..(env_idx + 1) * self.act_dim]
+                        .to_vec(),
                     Some(rewards_vec[env_idx]),
                 );
                 total_reward += rewards_vec[env_idx];
@@ -1057,8 +1076,10 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
             }
         } else {
             // Add exploration noise during training
-            let noise_scale = 0.1 * (1.0 - self.pretrain_epochs_completed as f32
-                / self.config.pretrain_epochs as f32).max(0.01);
+            let noise_scale = 0.1
+                * (1.0
+                    - self.pretrain_epochs_completed as f32 / self.config.pretrain_epochs as f32)
+                    .max(0.01);
             let noise = Tensor::randn_like(&action, 0.0, noise_scale as f64)?;
             Ok((action + noise)?.tanh()?)
         }

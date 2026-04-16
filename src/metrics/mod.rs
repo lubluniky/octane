@@ -110,9 +110,5 @@ pub use attribution::{
     AttributionAnalyzer, AttributionConfig, AttributionEntry, AttributionReport, Direction,
     MarketRegime, TimeOfDay, TimePeriod,
 };
-pub use journal::{
-    JournalConfig, JournalStats, TradeDirection, TradeEntry, TradeJournal,
-};
-pub use trading::{
-    MetricsCalculator, MetricsConfig, TradingMetrics,
-};
+pub use journal::{JournalConfig, JournalStats, TradeDirection, TradeEntry, TradeJournal};
+pub use trading::{MetricsCalculator, MetricsConfig, TradingMetrics};

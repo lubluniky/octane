@@ -343,7 +343,11 @@ impl AdaptationContext {
                 num += x * (r - mean_reward);
                 den += x * x;
             }
-            if den > 0.0 { num / den } else { 0.0 }
+            if den > 0.0 {
+                num / den
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
@@ -360,7 +364,11 @@ impl AdaptationContext {
                 let r2 = self.rewards[i + 1] - mean_reward;
                 num += r1 * r2;
             }
-            if den > 0.0 { num / den } else { 0.0 }
+            if den > 0.0 {
+                num / den
+            } else {
+                0.0
+            }
         } else {
             0.0
         };
@@ -561,13 +569,15 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let vb_enc =
             VarBuilder::from_varmap(&self.context_encoder_var_map, DType::F32, &candle_device);
         // Input: flattened context (obs + action + reward for each timestep)
-        let context_input_dim =
-            (self.obs_dim + self.act_dim + 1) * self.config.context_window;
+        let context_input_dim = (self.obs_dim + self.act_dim + 1) * self.config.context_window;
         let mut in_dim = context_input_dim.max(1); // Ensure at least 1
 
         for (i, &hidden_size) in self.config.context_hidden_sizes.iter().enumerate() {
-            let _ =
-                candle_nn::linear(in_dim, hidden_size, vb_enc.pp(format!("encoder.layer_{}", i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb_enc.pp(format!("encoder.layer_{}", i)),
+            )?;
             in_dim = hidden_size;
         }
         let _ = candle_nn::linear(in_dim, self.config.context_dim, vb_enc.pp("encoder.output"))?;
@@ -578,8 +588,11 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let mut in_dim = policy_input_dim;
 
         for (i, &hidden_size) in self.config.policy_hidden_sizes.iter().enumerate() {
-            let _ =
-                candle_nn::linear(in_dim, hidden_size, vb_pol.pp(format!("policy.layer_{}", i)))?;
+            let _ = candle_nn::linear(
+                in_dim,
+                hidden_size,
+                vb_pol.pp(format!("policy.layer_{}", i)),
+            )?;
             in_dim = hidden_size;
         }
         let _ = candle_nn::linear(in_dim, self.act_dim, vb_pol.pp("policy.output"))?;
@@ -607,15 +620,10 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
     /// Encode context into embedding.
     fn encode_context(&self, context: &AdaptationContext) -> Result<Tensor> {
         let candle_device = self.device.to_candle()?;
-        let vb = VarBuilder::from_varmap(
-            &self.context_encoder_var_map,
-            DType::F32,
-            &candle_device,
-        );
+        let vb = VarBuilder::from_varmap(&self.context_encoder_var_map, DType::F32, &candle_device);
 
         // Flatten context into single vector
-        let context_input_dim =
-            (self.obs_dim + self.act_dim + 1) * self.config.context_window;
+        let context_input_dim = (self.obs_dim + self.act_dim + 1) * self.config.context_window;
 
         let mut input_vec = vec![0.0f32; context_input_dim];
         let step_dim = self.obs_dim + self.act_dim + 1;
@@ -665,11 +673,8 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
     /// Detect current market regime.
     fn detect_regime(&self, context_embedding: &Tensor) -> Result<(MarketRegime, f32)> {
         let candle_device = self.device.to_candle()?;
-        let vb = VarBuilder::from_varmap(
-            &self.regime_classifier_var_map,
-            DType::F32,
-            &candle_device,
-        );
+        let vb =
+            VarBuilder::from_varmap(&self.regime_classifier_var_map, DType::F32, &candle_device);
 
         let linear1 = candle_nn::linear(self.config.context_dim, 64, vb.pp("regime.layer_0"))?;
         let x = linear1.forward(context_embedding)?.relu()?;
@@ -702,7 +707,8 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let batch_size = obs.dim(0)?;
 
         // Broadcast context embedding
-        let context_broadcast = context_embedding.broadcast_as(&[batch_size, self.config.context_dim])?;
+        let context_broadcast =
+            context_embedding.broadcast_as(&[batch_size, self.config.context_dim])?;
 
         // Regime one-hot
         let regime_one_hot = regime.to_one_hot();
@@ -759,8 +765,7 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
                 .take(n_samples)
                 .flat_map(|o| o.clone())
                 .collect();
-            let obs =
-                Tensor::from_slice(&obs_data, &[n_samples, self.obs_dim], &candle_device)?;
+            let obs = Tensor::from_slice(&obs_data, &[n_samples, self.obs_dim], &candle_device)?;
 
             let rewards: Vec<f32> = context.rewards.iter().take(n_samples).cloned().collect();
             let rewards_tensor = Tensor::from_slice(&rewards, &[n_samples], &candle_device)?;
@@ -795,7 +800,10 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let context_embedding = self.encode_context(context)?;
 
         // Detect regime (periodically)
-        let (regime, _confidence) = if self.total_timesteps.is_multiple_of(self.config.regime_detection_frequency) {
+        let (regime, _confidence) = if self
+            .total_timesteps
+            .is_multiple_of(self.config.regime_detection_frequency)
+        {
             let (r, c) = self.detect_regime(&context_embedding)?;
             self.current_regime = r;
             (r, c)
@@ -820,13 +828,7 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
     }
 
     /// Update context after action.
-    pub fn update_context(
-        &mut self,
-        env_idx: usize,
-        obs: Vec<f32>,
-        action: Vec<f32>,
-        reward: f32,
-    ) {
+    pub fn update_context(&mut self, env_idx: usize, obs: Vec<f32>, action: Vec<f32>, reward: f32) {
         self.contexts[env_idx].add(obs, action, reward, self.config.context_window);
     }
 
@@ -914,8 +916,10 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for AdaptiveAgent<E> {
             let dones_vec: Vec<f32> = step_result.dones()?.to_vec1()?;
 
             for env_idx in 0..num_envs {
-                let obs_slice = obs_vec[env_idx * self.obs_dim..(env_idx + 1) * self.obs_dim].to_vec();
-                let action_slice = actions_vec[env_idx * self.act_dim..(env_idx + 1) * self.act_dim].to_vec();
+                let obs_slice =
+                    obs_vec[env_idx * self.obs_dim..(env_idx + 1) * self.obs_dim].to_vec();
+                let action_slice =
+                    actions_vec[env_idx * self.act_dim..(env_idx + 1) * self.act_dim].to_vec();
                 let reward = rewards_vec[env_idx];
 
                 self.update_context(env_idx, obs_slice.clone(), action_slice.clone(), reward);

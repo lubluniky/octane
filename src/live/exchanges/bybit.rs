@@ -18,13 +18,13 @@
 
 use crate::live::error::{LiveTradingError, Result};
 use crate::live::exchanges::{
-    ApiCredentials, ConnectionStatus, ExchangeConnector, ExchangeInfo, OrderBookCallback,
-    OrderCallback, PositionCallback, RateLimit, RateLimitType, RateLimiter, SymbolInfo,
-    TradeCallback, hmac_sha256,
+    hmac_sha256, ApiCredentials, ConnectionStatus, ExchangeConnector, ExchangeInfo,
+    OrderBookCallback, OrderCallback, PositionCallback, RateLimit, RateLimitType, RateLimiter,
+    SymbolInfo, TradeCallback,
 };
 use crate::live::types::{
-    Balance, Candle, Interval, Order, OrderBook, OrderStatus, OrderType, Position, Side, Ticker,
-    TimeInForce, Trade, current_timestamp_ms,
+    current_timestamp_ms, Balance, Candle, Interval, Order, OrderBook, OrderStatus, OrderType,
+    Position, Side, Ticker, TimeInForce, Trade,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -335,19 +335,35 @@ impl BybitConnector {
 
     // Simulated API call helpers
 
-    async fn api_get(&self, _endpoint: &str, _params: &[(&str, &str)]) -> Result<serde_json::Value> {
+    async fn api_get(
+        &self,
+        _endpoint: &str,
+        _params: &[(&str, &str)],
+    ) -> Result<serde_json::Value> {
         Ok(serde_json::json!({"retCode": 0, "result": {}}))
     }
 
-    async fn api_post(&self, _endpoint: &str, _body: &serde_json::Value) -> Result<serde_json::Value> {
+    async fn api_post(
+        &self,
+        _endpoint: &str,
+        _body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
         Ok(serde_json::json!({"retCode": 0, "result": {}}))
     }
 
-    async fn api_get_signed(&self, _endpoint: &str, _params: &[(&str, &str)]) -> Result<serde_json::Value> {
+    async fn api_get_signed(
+        &self,
+        _endpoint: &str,
+        _params: &[(&str, &str)],
+    ) -> Result<serde_json::Value> {
         Ok(serde_json::json!({"retCode": 0, "result": {}}))
     }
 
-    async fn api_post_signed(&self, _endpoint: &str, _body: &serde_json::Value) -> Result<serde_json::Value> {
+    async fn api_post_signed(
+        &self,
+        _endpoint: &str,
+        _body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
         Ok(serde_json::json!({"retCode": 0, "result": {}}))
     }
 }
@@ -425,7 +441,10 @@ impl ExchangeConnector for BybitConnector {
         };
 
         let _response = self
-            .api_get_signed("/v5/account/wallet-balance", &[("accountType", account_type)])
+            .api_get_signed(
+                "/v5/account/wallet-balance",
+                &[("accountType", account_type)],
+            )
             .await?;
 
         Ok(Vec::new())
@@ -562,10 +581,7 @@ impl ExchangeConnector for BybitConnector {
         let end_str = end_time.map(|e| e.to_string());
         let limit_str = limit.map(|l| l.to_string());
 
-        let mut params: Vec<(&str, &str)> = vec![
-            ("category", &category),
-            ("symbol", &symbol_str),
-        ];
+        let mut params: Vec<(&str, &str)> = vec![("category", &category), ("symbol", &symbol_str)];
         if let Some(ref start) = start_str {
             params.push(("startTime", start));
         }
@@ -594,10 +610,7 @@ impl ExchangeConnector for BybitConnector {
         let end_str = end_time.map(|e| e.to_string());
         let limit_str = limit.map(|l| l.to_string());
 
-        let mut params: Vec<(&str, &str)> = vec![
-            ("category", &category),
-            ("symbol", &symbol_str),
-        ];
+        let mut params: Vec<(&str, &str)> = vec![("category", &category), ("symbol", &symbol_str)];
         if let Some(ref start) = start_str {
             params.push(("startTime", start));
         }
@@ -743,7 +756,10 @@ impl ExchangeConnector for BybitConnector {
     }
 
     async fn subscribe_trades(&mut self, symbols: &[&str], _callback: TradeCallback) -> Result<()> {
-        let topics: Vec<String> = symbols.iter().map(|s| format!("publicTrade.{}", s)).collect();
+        let topics: Vec<String> = symbols
+            .iter()
+            .map(|s| format!("publicTrade.{}", s))
+            .collect();
 
         let _subscribe_msg = serde_json::json!({
             "op": "subscribe",

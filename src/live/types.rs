@@ -75,7 +75,10 @@ impl OrderStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            OrderStatus::Filled | OrderStatus::Cancelled | OrderStatus::Rejected | OrderStatus::Expired
+            OrderStatus::Filled
+                | OrderStatus::Cancelled
+                | OrderStatus::Rejected
+                | OrderStatus::Expired
         )
     }
 
@@ -184,7 +187,12 @@ impl Order {
     }
 
     /// Create a stop-loss order.
-    pub fn stop_loss(symbol: impl Into<String>, side: Side, quantity: f64, stop_price: f64) -> Self {
+    pub fn stop_loss(
+        symbol: impl Into<String>,
+        side: Side,
+        quantity: f64,
+        stop_price: f64,
+    ) -> Self {
         let now = current_timestamp_ms();
         Self {
             client_order_id: generate_client_order_id(),
@@ -552,12 +560,24 @@ mod tests {
         let book = OrderBook {
             symbol: "BTCUSDT".to_string(),
             bids: vec![
-                OrderBookLevel { price: 50000.0, quantity: 1.0 },
-                OrderBookLevel { price: 49990.0, quantity: 2.0 },
+                OrderBookLevel {
+                    price: 50000.0,
+                    quantity: 1.0,
+                },
+                OrderBookLevel {
+                    price: 49990.0,
+                    quantity: 2.0,
+                },
             ],
             asks: vec![
-                OrderBookLevel { price: 50010.0, quantity: 1.5 },
-                OrderBookLevel { price: 50020.0, quantity: 2.5 },
+                OrderBookLevel {
+                    price: 50010.0,
+                    quantity: 1.5,
+                },
+                OrderBookLevel {
+                    price: 50020.0,
+                    quantity: 2.5,
+                },
             ],
             last_update_id: 12345,
             timestamp: current_timestamp_ms(),

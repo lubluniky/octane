@@ -26,9 +26,7 @@
 
 use crate::live::error::{LiveTradingError, Result};
 use crate::live::exchanges::ExchangeConnector;
-use crate::live::types::{
-    Order, Side, current_timestamp_ms, generate_client_order_id,
-};
+use crate::live::types::{current_timestamp_ms, generate_client_order_id, Order, Side};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -496,7 +494,13 @@ impl ExecutionEngine {
 
     /// Get active executions.
     pub async fn active_executions(&self) -> Vec<ExecutionResult> {
-        self.state.read().await.active_executions.values().cloned().collect()
+        self.state
+            .read()
+            .await
+            .active_executions
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Get execution result by ID.
@@ -531,8 +535,8 @@ impl ExecutionEngine {
         side: Side,
         quantity: f64,
     ) -> Result<ExecutionResult> {
-        let request = ExecutionRequest::new(symbol, side, quantity)
-            .algorithm(ExecutionAlgorithm::Market);
+        let request =
+            ExecutionRequest::new(symbol, side, quantity).algorithm(ExecutionAlgorithm::Market);
 
         self.execute(connector, request).await
     }
@@ -569,7 +573,9 @@ impl ExecutionEngine {
         // Store in active executions
         {
             let mut state = self.state.write().await;
-            state.active_executions.insert(request_id.clone(), result.clone());
+            state
+                .active_executions
+                .insert(request_id.clone(), result.clone());
         }
 
         // Calculate slice parameters
@@ -695,7 +701,9 @@ impl ExecutionEngine {
         // Store in active executions
         {
             let mut state = self.state.write().await;
-            state.active_executions.insert(request_id.clone(), result.clone());
+            state
+                .active_executions
+                .insert(request_id.clone(), result.clone());
         }
 
         // Get volume profile or use default
@@ -757,7 +765,8 @@ impl ExecutionEngine {
         }
 
         // Finalize
-        self.finalize_execution(&request_id, quantity, side, arrival_price).await
+        self.finalize_execution(&request_id, quantity, side, arrival_price)
+            .await
     }
 
     /// Execute using Iceberg algorithm.
@@ -775,7 +784,9 @@ impl ExecutionEngine {
 
         {
             let mut state = self.state.write().await;
-            state.active_executions.insert(request_id.clone(), result.clone());
+            state
+                .active_executions
+                .insert(request_id.clone(), result.clone());
         }
 
         let arrival_price = self.get_mid_price(connector, symbol).await?;
@@ -836,7 +847,8 @@ impl ExecutionEngine {
             tokio::time::sleep(Duration::from_millis(params.refill_delay_ms)).await;
         }
 
-        self.finalize_execution(&request_id, quantity, side, arrival_price).await
+        self.finalize_execution(&request_id, quantity, side, arrival_price)
+            .await
     }
 
     /// Execute a generic request.
@@ -846,12 +858,8 @@ impl ExecutionEngine {
         request: ExecutionRequest,
     ) -> Result<ExecutionResult> {
         match request.algorithm {
-            ExecutionAlgorithm::Market => {
-                self.execute_market_internal(connector, &request).await
-            }
-            ExecutionAlgorithm::Limit => {
-                self.execute_limit_internal(connector, &request).await
-            }
+            ExecutionAlgorithm::Market => self.execute_market_internal(connector, &request).await,
+            ExecutionAlgorithm::Limit => self.execute_limit_internal(connector, &request).await,
             ExecutionAlgorithm::TWAP => {
                 let params = TWAPParams::new(Duration::from_secs(300), 10);
                 self.execute_twap(
@@ -896,11 +904,8 @@ impl ExecutionEngine {
                     // Would need to get mid price
                     0.0
                 });
-                self.execute_limit_internal(
-                    connector,
-                    &request.limit_price(price),
-                )
-                .await
+                self.execute_limit_internal(connector, &request.limit_price(price))
+                    .await
             }
             _ => {
                 // Default to market
@@ -970,16 +975,18 @@ impl ExecutionEngine {
         let mut result = ExecutionResult::new(&request.request_id);
         result.status = ExecutionStatus::InProgress;
 
-        let price = request.limit_price.ok_or_else(|| {
-            LiveTradingError::Execution("Limit price required".into())
-        })?;
+        let price = request
+            .limit_price
+            .ok_or_else(|| LiveTradingError::Execution("Limit price required".into()))?;
 
         let order = Order::limit(&request.symbol, request.side, request.quantity, price);
 
         match connector.place_order(order).await {
             Ok(placed_order) => {
                 result.num_orders = 1;
-                result.child_orders.push(placed_order.client_order_id.clone());
+                result
+                    .child_orders
+                    .push(placed_order.client_order_id.clone());
 
                 // For limit orders, we'd need to wait for fills
                 // This is simplified - in production would monitor order status
@@ -993,7 +1000,9 @@ impl ExecutionEngine {
         }
 
         let mut state = self.state.write().await;
-        state.active_executions.insert(request.request_id.clone(), result.clone());
+        state
+            .active_executions
+            .insert(request.request_id.clone(), result.clone());
 
         Ok(result)
     }
@@ -1124,9 +1133,7 @@ mod tests {
 
     #[test]
     fn test_iceberg_params() {
-        let params = IcebergParams::new(0.1)
-            .price(50000.0)
-            .qty_variance(0.2);
+        let params = IcebergParams::new(0.1).price(50000.0).qty_variance(0.2);
 
         assert_eq!(params.display_qty, 0.1);
         assert_eq!(params.price, Some(50000.0));

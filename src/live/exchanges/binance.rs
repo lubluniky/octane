@@ -18,13 +18,13 @@
 
 use crate::live::error::{LiveTradingError, Result};
 use crate::live::exchanges::{
-    ApiCredentials, ConnectionStatus, ExchangeConnector, ExchangeInfo, OrderBookCallback,
-    OrderCallback, PositionCallback, RateLimit, RateLimitType, RateLimiter, SymbolInfo,
-    TradeCallback, hmac_sha256,
+    hmac_sha256, ApiCredentials, ConnectionStatus, ExchangeConnector, ExchangeInfo,
+    OrderBookCallback, OrderCallback, PositionCallback, RateLimit, RateLimitType, RateLimiter,
+    SymbolInfo, TradeCallback,
 };
 use crate::live::types::{
-    Balance, Candle, Interval, Order, OrderBook, OrderStatus, OrderType, Position,
-    Side, Ticker, TimeInForce, Trade, current_timestamp_ms,
+    current_timestamp_ms, Balance, Candle, Interval, Order, OrderBook, OrderStatus, OrderType,
+    Position, Side, Ticker, TimeInForce, Trade,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -335,17 +335,29 @@ impl BinanceConnector {
 
     // Simulated API call helpers (in production, use actual HTTP client)
 
-    async fn api_get(&self, _endpoint: &str, _params: &[(&str, &str)]) -> Result<serde_json::Value> {
+    async fn api_get(
+        &self,
+        _endpoint: &str,
+        _params: &[(&str, &str)],
+    ) -> Result<serde_json::Value> {
         // Placeholder - would use reqwest or similar
         Ok(serde_json::json!({}))
     }
 
-    async fn api_post(&self, _endpoint: &str, _params: &[(&str, &str)]) -> Result<serde_json::Value> {
+    async fn api_post(
+        &self,
+        _endpoint: &str,
+        _params: &[(&str, &str)],
+    ) -> Result<serde_json::Value> {
         // Placeholder - would use reqwest or similar
         Ok(serde_json::json!({}))
     }
 
-    async fn api_delete(&self, _endpoint: &str, _params: &[(&str, &str)]) -> Result<serde_json::Value> {
+    async fn api_delete(
+        &self,
+        _endpoint: &str,
+        _params: &[(&str, &str)],
+    ) -> Result<serde_json::Value> {
         // Placeholder - would use reqwest or similar
         Ok(serde_json::json!({}))
     }
@@ -555,10 +567,7 @@ impl ExchangeConnector for BinanceConnector {
     }
 
     async fn cancel_order(&self, symbol: &str, order_id: &str) -> Result<Order> {
-        let params = [
-            ("symbol", symbol),
-            ("origClientOrderId", order_id),
-        ];
+        let params = [("symbol", symbol), ("origClientOrderId", order_id)];
 
         let endpoint = match self.config.market_type {
             BinanceMarketType::Spot => "/api/v3/order",
@@ -585,10 +594,7 @@ impl ExchangeConnector for BinanceConnector {
     }
 
     async fn get_order(&self, symbol: &str, order_id: &str) -> Result<Order> {
-        let params = [
-            ("symbol", symbol),
-            ("origClientOrderId", order_id),
-        ];
+        let params = [("symbol", symbol), ("origClientOrderId", order_id)];
 
         let endpoint = match self.config.market_type {
             BinanceMarketType::Spot => "/api/v3/order",
@@ -769,7 +775,10 @@ impl ExchangeConnector for BinanceConnector {
             params.push(("limit".to_string(), lim.to_string()));
         }
 
-        let params_ref: Vec<(&str, &str)> = params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let params_ref: Vec<(&str, &str)> = params
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
         let endpoint = match self.config.market_type {
             BinanceMarketType::Spot => "/api/v3/klines",
@@ -895,8 +904,7 @@ mod tests {
         let spot = BinanceConnector::new(spot_config);
         assert!(spot.rest_base_url().contains("api.binance.com"));
 
-        let futures_config = BinanceConfig::default()
-            .market_type(BinanceMarketType::Futures);
+        let futures_config = BinanceConfig::default().market_type(BinanceMarketType::Futures);
         let futures = BinanceConnector::new(futures_config);
         assert!(futures.rest_base_url().contains("fapi.binance.com"));
 

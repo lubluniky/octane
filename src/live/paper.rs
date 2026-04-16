@@ -27,8 +27,8 @@
 
 use crate::live::error::{LiveTradingError, Result};
 use crate::live::types::{
-    Balance, Order, OrderBook, OrderBookLevel, OrderStatus, OrderType, Position, Side,
-    Trade, current_timestamp_ms,
+    current_timestamp_ms, Balance, Order, OrderBook, OrderBookLevel, OrderStatus, OrderType,
+    Position, Side, Trade,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -360,7 +360,11 @@ impl SimulatedOrderBook {
             remaining -= fill_qty;
         }
 
-        let avg_price = if filled > 0.0 { total_cost / filled } else { 0.0 };
+        let avg_price = if filled > 0.0 {
+            total_cost / filled
+        } else {
+            0.0
+        };
         (filled, avg_price)
     }
 }
@@ -517,7 +521,8 @@ impl PaperTradingEngine {
             order = self.execute_fill(&order, price)?;
         } else {
             // Add to open orders for limit/stop orders
-            self.open_orders.insert(order.client_order_id.clone(), order.clone());
+            self.open_orders
+                .insert(order.client_order_id.clone(), order.clone());
         }
 
         Ok(order)
@@ -626,9 +631,7 @@ impl PaperTradingEngine {
         }
 
         if order.order_type == OrderType::Limit && order.price.is_none() {
-            return Err(LiveTradingError::Order(
-                "Limit order requires price".into(),
-            ));
+            return Err(LiveTradingError::Order("Limit order requires price".into()));
         }
 
         Ok(())
@@ -696,7 +699,8 @@ impl PaperTradingEngine {
         match order.side {
             Side::Buy => {
                 let price = order.price.unwrap_or(0.0);
-                let locked = order.remaining_quantity() * price * (1.0 + self.config.commission_rate);
+                let locked =
+                    order.remaining_quantity() * price * (1.0 + self.config.commission_rate);
                 if let Some(balance) = self.balances.get_mut(&quote) {
                     balance.locked -= locked.min(balance.locked);
                     balance.free += locked.min(balance.locked);
@@ -725,7 +729,10 @@ impl PaperTradingEngine {
         // Determine fill quantity based on fill model
         let fill_quantity = match self.config.fill_model {
             FillModel::Immediate => order.remaining_quantity(),
-            FillModel::Partial { fill_probability, min_fill_ratio } => {
+            FillModel::Partial {
+                fill_probability,
+                min_fill_ratio,
+            } => {
                 if self.rng.gen::<f64>() < fill_probability {
                     order.remaining_quantity()
                 } else {
@@ -748,7 +755,8 @@ impl PaperTradingEngine {
 
         // Update order
         order.filled_quantity += fill_quantity;
-        let total_value = order.average_fill_price.unwrap_or(0.0) * (order.filled_quantity - fill_quantity)
+        let total_value = order.average_fill_price.unwrap_or(0.0)
+            * (order.filled_quantity - fill_quantity)
             + fill_price * fill_quantity;
         order.average_fill_price = Some(total_value / order.filled_quantity);
         order.updated_at = current_timestamp_ms();
@@ -770,7 +778,11 @@ impl PaperTradingEngine {
             price: fill_price,
             quantity: fill_quantity,
             commission,
-            commission_asset: self.config.commission_asset.clone().unwrap_or_else(|| "USDT".to_string()),
+            commission_asset: self
+                .config
+                .commission_asset
+                .clone()
+                .unwrap_or_else(|| "USDT".to_string()),
             timestamp: current_timestamp_ms(),
             is_maker: order.order_type == OrderType::Limit,
         };
@@ -805,11 +817,17 @@ impl PaperTradingEngine {
             SlippageModel::Random { min_bps, max_bps } => {
                 self.rng.gen_range(min_bps..max_bps) / 10000.0
             }
-            SlippageModel::VolumeWeighted { base_bps, impact_factor } => {
+            SlippageModel::VolumeWeighted {
+                base_bps,
+                impact_factor,
+            } => {
                 let size_factor = (order.quantity * price / 10000.0).sqrt();
                 (base_bps + impact_factor * size_factor) / 10000.0
             }
-            SlippageModel::SquareRoot { impact, daily_volume } => {
+            SlippageModel::SquareRoot {
+                impact,
+                daily_volume,
+            } => {
                 let participation = (order.quantity * price) / daily_volume;
                 impact * participation.sqrt()
             }
@@ -862,7 +880,10 @@ impl PaperTradingEngine {
     }
 
     fn update_position(&mut self, symbol: &str, side: Side, quantity: f64, price: f64) {
-        let position = self.positions.entry(symbol.to_string()).or_insert(Position::new(symbol));
+        let position = self
+            .positions
+            .entry(symbol.to_string())
+            .or_insert(Position::new(symbol));
 
         let old_size = position.size;
         let old_entry = position.entry_price;

@@ -29,8 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 /// Position sizing method.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SizingMethod {
     /// Full Kelly criterion.
     FullKelly,
@@ -52,7 +51,6 @@ pub enum SizingMethod {
     /// Constant position size.
     Constant,
 }
-
 
 /// Result of Kelly criterion calculation.
 #[derive(Debug, Clone)]
@@ -502,12 +500,7 @@ impl PositionSizer {
     }
 
     /// Calculate position size with explicit parameters.
-    pub fn calculate_size_with_params(
-        &self,
-        win_rate: f64,
-        avg_win: f64,
-        avg_loss: f64,
-    ) -> f64 {
+    pub fn calculate_size_with_params(&self, win_rate: f64, avg_win: f64, avg_loss: f64) -> f64 {
         let kelly_result = KellyCalculator::calculate_from_params(win_rate, avg_win, avg_loss);
 
         let raw_size = match self.config.method {

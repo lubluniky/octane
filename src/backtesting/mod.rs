@@ -105,6 +105,6 @@ pub use monte_carlo::{
 
 // Cross-validation exports
 pub use cross_validation::{
-    CVConfig, CVFold, CVMetrics, CVMethod, CVResult, CVScoring, CVSummary, CrossValidator,
+    CVConfig, CVFold, CVMethod, CVMetrics, CVResult, CVScoring, CVSummary, CrossValidator,
     MetricSummary,
 };

@@ -452,7 +452,10 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
 
         self.gradient_steps_done += 1;
 
-        if self.gradient_steps_done.is_multiple_of(self.config.policy_delay) {
+        if self
+            .gradient_steps_done
+            .is_multiple_of(self.config.policy_delay)
+        {
             // Update actor to maximize Q1
             let actor_actions =
                 self.actor_forward(&batch.observations, &self.actor_var_map, "actor")?;

@@ -539,10 +539,12 @@ mod tests {
         let mode_vec: Vec<f32> = mode.flatten_all()?.to_vec1()?;
 
         // Mode should be tanh(mean)
-        let expected = [0.0f32.tanh(),
+        let expected = [
+            0.0f32.tanh(),
             1.0f32.tanh(),
             (-1.0f32).tanh(),
-            2.0f32.tanh()];
+            2.0f32.tanh(),
+        ];
         for (i, &m) in mode_vec.iter().enumerate() {
             assert!((m - expected[i]).abs() < 1e-5);
         }

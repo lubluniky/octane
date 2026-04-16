@@ -370,16 +370,16 @@ impl AttributionAnalyzer {
         let days = timestamp / 86400;
         let date_key = format!("day_{}", days);
 
-        let entry = self.report.time_attribution
-            .entry(date_key)
-            .or_default();
+        let entry = self.report.time_attribution.entry(date_key).or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
 
     /// Add asset attribution.
     fn add_asset_attribution(&mut self, pnl: f64, symbol: &str, duration_secs: i64) {
-        let entry = self.report.asset_attribution
+        let entry = self
+            .report
+            .asset_attribution
             .entry(symbol.to_string())
             .or_default();
 
@@ -393,7 +393,9 @@ impl AttributionAnalyzer {
             Direction::Short => "short",
         };
 
-        let entry = self.report.direction_attribution
+        let entry = self
+            .report
+            .direction_attribution
             .entry(key.to_string())
             .or_default();
 
@@ -410,9 +412,7 @@ impl AttributionAnalyzer {
             MarketRegime::Custom(s) => s.clone(),
         };
 
-        let entry = self.report.regime_attribution
-            .entry(key)
-            .or_default();
+        let entry = self.report.regime_attribution.entry(key).or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -423,9 +423,7 @@ impl AttributionAnalyzer {
         let time_of_day = TimeOfDay::from_hour(hour);
 
         let key = format!("{:?}", time_of_day);
-        let entry = self.report.time_of_day_attribution
-            .entry(key)
-            .or_default();
+        let entry = self.report.time_of_day_attribution.entry(key).or_default();
 
         entry.add_trade(pnl, duration_secs);
     }
@@ -433,9 +431,7 @@ impl AttributionAnalyzer {
     /// Add factor attribution.
     fn add_factor_attribution(&mut self, pnl: f64, exposures: HashMap<String, f64>) {
         for (factor, exposure) in exposures {
-            let contribution = self.report.factor_attribution
-                .entry(factor)
-                .or_insert(0.0);
+            let contribution = self.report.factor_attribution.entry(factor).or_insert(0.0);
 
             *contribution += pnl * exposure;
         }
@@ -570,10 +566,8 @@ mod tests {
 
     #[test]
     fn test_factor_attribution() {
-        let config = AttributionConfig::default().factor_names(vec![
-            "momentum".to_string(),
-            "mean_reversion".to_string(),
-        ]);
+        let config = AttributionConfig::default()
+            .factor_names(vec!["momentum".to_string(), "mean_reversion".to_string()]);
         let mut analyzer = AttributionAnalyzer::new(config);
 
         let mut exposures = HashMap::new();
@@ -584,7 +578,10 @@ mod tests {
 
         let report = analyzer.get_report();
         assert_eq!(*report.factor_attribution.get("momentum").unwrap(), 80.0);
-        assert_eq!(*report.factor_attribution.get("mean_reversion").unwrap(), 20.0);
+        assert_eq!(
+            *report.factor_attribution.get("mean_reversion").unwrap(),
+            20.0
+        );
     }
 
     #[test]

@@ -27,7 +27,7 @@
 //! ```
 
 use crate::live::error::{LiveTradingError, Result};
-use crate::live::types::{Balance, Order, Position, Trade, current_timestamp_ms};
+use crate::live::types::{current_timestamp_ms, Balance, Order, Position, Trade};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -517,7 +517,9 @@ impl Monitor {
     pub async fn start(&mut self) -> Result<()> {
         let mut running = self.running.write().await;
         if *running {
-            return Err(LiveTradingError::Monitoring("Monitor already running".into()));
+            return Err(LiveTradingError::Monitoring(
+                "Monitor already running".into(),
+            ));
         }
         *running = true;
         drop(running);
@@ -702,7 +704,9 @@ impl Monitor {
     /// Update position.
     pub async fn update_position(&self, position: Position) {
         let mut state = self.state.write().await;
-        state.positions.insert(position.symbol.clone(), position.clone());
+        state
+            .positions
+            .insert(position.symbol.clone(), position.clone());
 
         // Recalculate metrics
         self.recalculate_pnl(&mut state);
@@ -760,7 +764,9 @@ impl Monitor {
         if order.status.is_terminal() {
             state.open_orders.remove(&order.client_order_id);
         } else {
-            state.open_orders.insert(order.client_order_id.clone(), order.clone());
+            state
+                .open_orders
+                .insert(order.client_order_id.clone(), order.clone());
         }
 
         if self.config.enable_streaming {
@@ -925,8 +931,8 @@ impl Monitor {
             short_exposure,
             num_positions: state.positions.len(),
             leverage,
-            var_95: 0.0,      // Would need historical data to calculate
-            cvar_95: 0.0,     // Would need historical data to calculate
+            var_95: 0.0,       // Would need historical data to calculate
+            cvar_95: 0.0,      // Would need historical data to calculate
             sharpe_ratio: 0.0, // Would need historical returns
             sortino_ratio: 0.0,
             win_rate,
@@ -1035,10 +1041,7 @@ impl Monitor {
                     triggered,
                     current,
                     *threshold,
-                    format!(
-                        "Daily loss ${:.2} exceeds limit ${:.2}",
-                        current, threshold
-                    ),
+                    format!("Daily loss ${:.2} exceeds limit ${:.2}", current, threshold),
                 )
             }
             AlertType::HighLatency { threshold_ms } => {

@@ -367,12 +367,7 @@ pub struct HierarchicalReplayBuffer {
 
 impl HierarchicalReplayBuffer {
     /// Create a new hierarchical buffer.
-    pub fn new(
-        capacity: usize,
-        obs_dim: usize,
-        action_dim: usize,
-        device: Device,
-    ) -> Result<Self> {
+    pub fn new(capacity: usize, obs_dim: usize, action_dim: usize, device: Device) -> Result<Self> {
         let low_config = ReplayBufferConfig::new(obs_dim, action_dim).capacity(capacity);
         let low_level_buffer = ReplayBuffer::new(low_config, device)?;
 
@@ -404,7 +399,8 @@ impl HierarchicalReplayBuffer {
         next_obs: &[f32],
         done: bool,
     ) {
-        self.low_level_buffer.add(obs, action, reward, next_obs, done);
+        self.low_level_buffer
+            .add(obs, action, reward, next_obs, done);
     }
 
     /// Sample high-level batch.
@@ -417,21 +413,22 @@ impl HierarchicalReplayBuffer {
             .map(|_| self.rng.gen_range(0..self.high_level_buffer.len()))
             .collect();
 
-        Some(indices.iter().map(|&i| self.high_level_buffer[i].clone()).collect())
+        Some(
+            indices
+                .iter()
+                .map(|&i| self.high_level_buffer[i].clone())
+                .collect(),
+        )
     }
 
     /// Sample low-level batch.
-    pub fn sample_low_level(
-        &mut self,
-        batch_size: usize,
-    ) -> Result<crate::buffer::ReplayBatch> {
+    pub fn sample_low_level(&mut self, batch_size: usize) -> Result<crate::buffer::ReplayBatch> {
         self.low_level_buffer.sample(batch_size)
     }
 
     /// Check if can sample.
     pub fn can_sample(&self, batch_size: usize) -> bool {
-        self.high_level_buffer.len() >= batch_size
-            && self.low_level_buffer.can_sample(batch_size)
+        self.high_level_buffer.len() >= batch_size && self.low_level_buffer.can_sample(batch_size)
     }
 }
 
@@ -560,7 +557,8 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         let vb_high = VarBuilder::from_varmap(&self.high_var_map, DType::F32, &candle_device);
         let mut in_dim = self.obs_dim;
         for (i, &hidden_size) in self.config.high_hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(in_dim, hidden_size, vb_high.pp(format!("high.layer_{}", i)))?;
+            let _ =
+                candle_nn::linear(in_dim, hidden_size, vb_high.pp(format!("high.layer_{}", i)))?;
             in_dim = hidden_size;
         }
         let _ = candle_nn::linear(in_dim, self.config.num_options, vb_high.pp("high.output"))?;
@@ -626,7 +624,12 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
     }
 
     /// Forward pass through low-level policy.
-    fn low_level_forward(&self, obs: &Tensor, option: usize, goal: Option<&Goal>) -> Result<Tensor> {
+    fn low_level_forward(
+        &self,
+        obs: &Tensor,
+        option: usize,
+        goal: Option<&Goal>,
+    ) -> Result<Tensor> {
         let candle_device = self.device.to_candle()?;
         let vb = VarBuilder::from_varmap(&self.low_var_map, DType::F32, &candle_device);
 
@@ -637,7 +640,8 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         option_one_hot[option] = 1.0;
         let option_tensor =
             Tensor::from_slice(&option_one_hot, &[self.config.num_options], &candle_device)?;
-        let option_broadcast = option_tensor.broadcast_as(&[batch_size, self.config.num_options])?;
+        let option_broadcast =
+            option_tensor.broadcast_as(&[batch_size, self.config.num_options])?;
 
         // Build input
         let input = if self.config.goal_conditioned {
@@ -651,8 +655,7 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         };
 
         let mut x = input;
-        let input_dim =
-            self.obs_dim + self.goal_dim + self.config.num_options;
+        let input_dim = self.obs_dim + self.goal_dim + self.config.num_options;
 
         for (i, &hidden_size) in self.config.low_hidden_sizes.iter().enumerate() {
             let in_dim = if i == 0 {
@@ -660,8 +663,7 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
             } else {
                 self.config.low_hidden_sizes[i - 1]
             };
-            let linear =
-                candle_nn::linear(in_dim, hidden_size, vb.pp(format!("low.layer_{}", i)))?;
+            let linear = candle_nn::linear(in_dim, hidden_size, vb.pp(format!("low.layer_{}", i)))?;
             x = linear.forward(&x)?;
             x = x.tanh()?;
         }
@@ -687,8 +689,11 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         // Create option one-hot
         let mut option_one_hot = vec![0.0f32; self.config.num_options];
         option_one_hot[option] = 1.0;
-        let option_tensor =
-            Tensor::from_slice(&option_one_hot, &[1, self.config.num_options], &candle_device)?;
+        let option_tensor = Tensor::from_slice(
+            &option_one_hot,
+            &[1, self.config.num_options],
+            &candle_device,
+        )?;
 
         let input = Tensor::cat(&[obs, &option_tensor], 1)?;
 
@@ -827,18 +832,11 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
 
         // Prepare batch data
         let obs_data: Vec<f32> = batch.iter().flat_map(|t| t.obs.clone()).collect();
-        let obs = Tensor::from_slice(
-            &obs_data,
-            &[batch.len(), self.obs_dim],
-            &candle_device,
-        )?;
+        let obs = Tensor::from_slice(&obs_data, &[batch.len(), self.obs_dim], &candle_device)?;
 
         let next_obs_data: Vec<f32> = batch.iter().flat_map(|t| t.next_obs.clone()).collect();
-        let next_obs = Tensor::from_slice(
-            &next_obs_data,
-            &[batch.len(), self.obs_dim],
-            &candle_device,
-        )?;
+        let next_obs =
+            Tensor::from_slice(&next_obs_data, &[batch.len(), self.obs_dim], &candle_device)?;
 
         let options: Vec<i64> = batch.iter().map(|t| t.option as i64).collect();
         let options_tensor = Tensor::from_slice(&options, &[batch.len()], &candle_device)?;
@@ -846,7 +844,10 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         let rewards: Vec<f32> = batch.iter().map(|t| t.cumulative_reward).collect();
         let rewards_tensor = Tensor::from_slice(&rewards, &[batch.len()], &candle_device)?;
 
-        let dones: Vec<f32> = batch.iter().map(|t| if t.done { 1.0 } else { 0.0 }).collect();
+        let dones: Vec<f32> = batch
+            .iter()
+            .map(|t| if t.done { 1.0 } else { 0.0 })
+            .collect();
         let dones_tensor = Tensor::from_slice(&dones, &[batch.len()], &candle_device)?;
 
         // Compute target Q-values
@@ -941,8 +942,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for HierarchicalAgent<E> {
             let dones_vec: Vec<f32> = step_result.dones()?.to_vec1()?;
 
             for env_idx in 0..num_envs {
-                let obs_slice =
-                    &obs_vec[env_idx * self.obs_dim..(env_idx + 1) * self.obs_dim];
+                let obs_slice = &obs_vec[env_idx * self.obs_dim..(env_idx + 1) * self.obs_dim];
                 let action_slice =
                     &actions_vec[env_idx * self.act_dim..(env_idx + 1) * self.act_dim];
                 let next_obs_slice =

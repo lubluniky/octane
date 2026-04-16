@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 /// Market regime types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum MarketRegime {
     /// Strong upward trend.
     BullTrend,
@@ -80,7 +79,6 @@ impl MarketRegime {
         vec
     }
 }
-
 
 /// Regime transition event.
 #[derive(Debug, Clone)]
@@ -492,13 +490,7 @@ impl RegimeDetector {
         }
 
         let window = self.config.window_size.min(self.returns.len());
-        let recent_returns: Vec<f32> = self
-            .returns
-            .iter()
-            .rev()
-            .take(window)
-            .copied()
-            .collect();
+        let recent_returns: Vec<f32> = self.returns.iter().rev().take(window).copied().collect();
 
         // Simple trend: sum of returns
         let sum: f32 = recent_returns.iter().sum();
@@ -541,10 +533,7 @@ impl RegimeDetector {
         }
 
         // Check for transition using HMM uncertainty
-        let max_prob = self
-            .hmm_state_probs
-            .iter()
-            .fold(0.0f32, |a, &b| a.max(b));
+        let max_prob = self.hmm_state_probs.iter().fold(0.0f32, |a, &b| a.max(b));
         if max_prob < 0.5 {
             return MarketRegime::Transition;
         }
@@ -557,8 +546,7 @@ impl RegimeDetector {
         let mut probs = vec![0.0; MarketRegime::count()];
 
         // Base probabilities from indicators
-        let vol_high_prob =
-            (volatility / self.config.volatility_high_threshold).clamp(0.0, 1.0);
+        let vol_high_prob = (volatility / self.config.volatility_high_threshold).clamp(0.0, 1.0);
         let vol_low_prob =
             (1.0 - volatility / self.config.volatility_low_threshold).clamp(0.0, 1.0);
 
@@ -576,11 +564,7 @@ impl RegimeDetector {
         probs[MarketRegime::Range.index()] = 1.0 - trend_strength.abs();
 
         // Transition probability based on HMM uncertainty
-        let hmm_uncertainty = 1.0
-            - self
-                .hmm_state_probs
-                .iter()
-                .fold(0.0f32, |a, &b| a.max(b));
+        let hmm_uncertainty = 1.0 - self.hmm_state_probs.iter().fold(0.0f32, |a, &b| a.max(b));
         probs[MarketRegime::Transition.index()] = hmm_uncertainty;
 
         // Normalize

@@ -184,7 +184,11 @@ impl GaussianSamplerAvx2 {
     /// Uses Box-Muller transform: given U1, U2 ~ Uniform(0, 1),
     /// Z0 = sqrt(-2 * ln(U1)) * cos(2 * pi * U2)
     /// Z1 = sqrt(-2 * ln(U1)) * sin(2 * pi * U2)
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     pub fn sample_standard_normal(&mut self, count: usize) -> Result<Vec<f32>> {
         if !is_avx2_available() {
             return Err(SimdError::InvalidParameter(
@@ -208,7 +212,11 @@ impl GaussianSamplerAvx2 {
         Ok(output)
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn sample_standard_normal_avx2(&mut self, output: &mut Vec<f32>, count: usize) {
         let two_pi = _mm256_set1_ps(2.0 * std::f32::consts::PI);
@@ -295,7 +303,11 @@ impl GaussianSamplerAvx2 {
     }
 
     /// Fast log approximation using AVX2.
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     #[target_feature(enable = "avx2", enable = "fma")]
     #[inline]
     unsafe fn fast_log_avx2(&self, x: __m256) -> __m256 {
@@ -339,7 +351,11 @@ impl GaussianSamplerAvx2 {
     }
 
     /// Fast sin/cos approximation using AVX2.
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     #[target_feature(enable = "avx2", enable = "fma")]
     #[inline]
     unsafe fn fast_sincos_avx2(&self, x: __m256) -> (__m256, __m256) {
@@ -349,9 +365,7 @@ impl GaussianSamplerAvx2 {
         let pi = _mm256_set1_ps(std::f32::consts::PI);
 
         // x = x - 2*pi * round(x / (2*pi))
-        let n = _mm256_round_ps::<_MM_FROUND_TO_NEAREST_INT>(
-            _mm256_mul_ps(x, inv_two_pi),
-        );
+        let n = _mm256_round_ps::<_MM_FROUND_TO_NEAREST_INT>(_mm256_mul_ps(x, inv_two_pi));
         let x_reduced = _mm256_fnmadd_ps(n, two_pi, x);
 
         // Taylor series approximation
@@ -386,17 +400,17 @@ impl GaussianSamplerAvx2 {
             ),
         );
 
-        let cos_x = _mm256_fmadd_ps(
-            c6,
-            x6,
-            _mm256_fmadd_ps(c4, x4, _mm256_fmadd_ps(c2, x2, c0)),
-        );
+        let cos_x = _mm256_fmadd_ps(c6, x6, _mm256_fmadd_ps(c4, x4, _mm256_fmadd_ps(c2, x2, c0)));
 
         (sin_x, cos_x)
     }
 
     /// Sample with reparameterization: output = mean + std * N(0, 1).
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     pub fn sample(&mut self, mean: &[f32], std: &[f32]) -> Result<Vec<f32>> {
         if mean.len() != std.len() {
             return Err(SimdError::SizeMismatch {
@@ -415,15 +429,13 @@ impl GaussianSamplerAvx2 {
         Ok(output)
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn reparameterize_avx2(
-        &self,
-        mean: &[f32],
-        std: &[f32],
-        z: &[f32],
-        output: &mut [f32],
-    ) {
+    unsafe fn reparameterize_avx2(&self, mean: &[f32], std: &[f32], z: &[f32], output: &mut [f32]) {
         let n = mean.len();
         let chunks = n / 8;
         let remainder = n % 8;
@@ -446,7 +458,11 @@ impl GaussianSamplerAvx2 {
     }
 
     /// Sample and compute log probability simultaneously.
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     pub fn sample_with_log_prob(
         &mut self,
         mean: &[f32],
@@ -470,7 +486,11 @@ impl GaussianSamplerAvx2 {
         Ok((output, log_prob))
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn sample_with_log_prob_avx2(
         &self,
@@ -515,21 +535,33 @@ impl GaussianSamplerAvx2 {
     }
 
     // Fallback implementations for when AVX2 is not available at compile time
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
     pub fn sample_standard_normal(&mut self, count: usize) -> Result<Vec<f32>> {
         Err(SimdError::InvalidParameter(
             "AVX2 not available - compile with target-feature=+avx2,+fma".to_string(),
         ))
     }
 
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
     pub fn sample(&mut self, _mean: &[f32], _std: &[f32]) -> Result<Vec<f32>> {
         Err(SimdError::InvalidParameter(
             "AVX2 not available - compile with target-feature=+avx2,+fma".to_string(),
         ))
     }
 
-    #[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    )))]
     pub fn sample_with_log_prob(
         &mut self,
         _mean: &[f32],
@@ -702,9 +734,7 @@ impl GaussianSamplerAvx512 {
         let two_pi = _mm512_set1_ps(2.0 * std::f32::consts::PI);
         let inv_two_pi = _mm512_set1_ps(1.0 / (2.0 * std::f32::consts::PI));
 
-        let n = _mm512_roundscale_ps::<0>(
-            _mm512_mul_ps(x, inv_two_pi),
-        );
+        let n = _mm512_roundscale_ps::<0>(_mm512_mul_ps(x, inv_two_pi));
         let x_reduced = _mm512_fnmadd_ps(n, two_pi, x);
 
         let x2 = _mm512_mul_ps(x_reduced, x_reduced);
@@ -730,9 +760,7 @@ impl GaussianSamplerAvx512 {
         let two_pi = _mm512_set1_ps(2.0 * std::f32::consts::PI);
         let inv_two_pi = _mm512_set1_ps(1.0 / (2.0 * std::f32::consts::PI));
 
-        let n = _mm512_roundscale_ps::<0>(
-            _mm512_mul_ps(x, inv_two_pi),
-        );
+        let n = _mm512_roundscale_ps::<0>(_mm512_mul_ps(x, inv_two_pi));
         let x_reduced = _mm512_fnmadd_ps(n, two_pi, x);
 
         let x2 = _mm512_mul_ps(x_reduced, x_reduced);
@@ -825,7 +853,11 @@ impl GaussianSamplerAvx512 {
 /// # Returns
 ///
 /// Softmax probabilities with same shape as input.
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 pub fn softmax_avx2(input: &[f32], batch_size: usize, num_classes: usize) -> Result<Vec<f32>> {
     if input.len() != batch_size * num_classes {
         return Err(SimdError::SizeMismatch {
@@ -849,7 +881,11 @@ pub fn softmax_avx2(input: &[f32], batch_size: usize, num_classes: usize) -> Res
     Ok(output)
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn softmax_avx2_impl(
     input: &[f32],
@@ -926,7 +962,11 @@ unsafe fn softmax_avx2_impl(
 }
 
 /// Fast exp approximation using AVX2.
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[inline]
 unsafe fn fast_exp_avx2(x: __m256) -> __m256 {
@@ -970,7 +1010,11 @@ unsafe fn fast_exp_avx2(x: __m256) -> __m256 {
     _mm256_mul_ps(p, scale)
 }
 
-#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+#[cfg(not(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+)))]
 pub fn softmax_avx2(_input: &[f32], _batch_size: usize, _num_classes: usize) -> Result<Vec<f32>> {
     Err(SimdError::InvalidParameter(
         "AVX2 not available - compile with target-feature=+avx2,+fma".to_string(),
@@ -1030,12 +1074,7 @@ pub fn gather_batch_f32_avx2(
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 #[target_feature(enable = "avx2")]
-unsafe fn gather_batch_f32_avx2_impl(
-    src: &[f32],
-    indices: &[usize],
-    dst: &mut [f32],
-    dim: usize,
-) {
+unsafe fn gather_batch_f32_avx2_impl(src: &[f32], indices: &[usize], dst: &mut [f32], dim: usize) {
     let batch_size = indices.len();
     let chunks = dim / 8;
 
@@ -1088,7 +1127,11 @@ pub fn gather_batch_f32_avx2(
 /// # Returns
 ///
 /// Tuple of (advantages, returns) each with shape [num_steps, num_envs]
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 pub fn compute_gae_avx2(
     rewards: &[f32],
     values: &[f32],
@@ -1100,7 +1143,8 @@ pub fn compute_gae_avx2(
     last_values: &[f32],
 ) -> Result<(Vec<f32>, Vec<f32>)> {
     let expected_len = num_steps * num_envs;
-    if rewards.len() != expected_len || values.len() != expected_len || dones.len() != expected_len {
+    if rewards.len() != expected_len || values.len() != expected_len || dones.len() != expected_len
+    {
         return Err(SimdError::SizeMismatch {
             expected: expected_len,
             actual: rewards.len().min(values.len()).min(dones.len()),
@@ -1135,7 +1179,11 @@ pub fn compute_gae_avx2(
     Ok((advantages, returns))
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn compute_gae_avx2_impl(
     rewards: &[f32],
@@ -1213,7 +1261,11 @@ unsafe fn compute_gae_avx2_impl(
     }
 }
 
-#[cfg(not(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")))]
+#[cfg(not(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+)))]
 pub fn compute_gae_avx2(
     _rewards: &[f32],
     _values: &[f32],
@@ -1262,7 +1314,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     fn test_gaussian_sampler_avx2() {
         if !is_avx2_available() {
             return;
@@ -1280,11 +1336,19 @@ mod tests {
 
         // Mean should be close to 0, variance close to 1
         assert!(mean.abs() < 0.5, "Mean {} too far from 0", mean);
-        assert!((variance - 1.0).abs() < 0.5, "Variance {} too far from 1", variance);
+        assert!(
+            (variance - 1.0).abs() < 0.5,
+            "Variance {} too far from 1",
+            variance
+        );
     }
 
     #[test]
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     fn test_gaussian_reparameterize_avx2() {
         if !is_avx2_available() {
             return;
@@ -1308,7 +1372,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     fn test_softmax_avx2() {
         if !is_avx2_available() {
             return;
@@ -1330,7 +1398,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     fn test_gae_avx2() {
         if !is_avx2_available() {
             return;
@@ -1343,9 +1415,17 @@ mod tests {
         let dones = vec![0.0f32; num_steps * num_envs];
         let last_values = vec![0.5f32; num_envs];
 
-        let (advantages, returns) =
-            compute_gae_avx2(&rewards, &values, &dones, num_steps, num_envs, 0.99, 0.95, &last_values)
-                .unwrap();
+        let (advantages, returns) = compute_gae_avx2(
+            &rewards,
+            &values,
+            &dones,
+            num_steps,
+            num_envs,
+            0.99,
+            0.95,
+            &last_values,
+        )
+        .unwrap();
 
         assert_eq!(advantages.len(), num_steps * num_envs);
         assert_eq!(returns.len(), num_steps * num_envs);

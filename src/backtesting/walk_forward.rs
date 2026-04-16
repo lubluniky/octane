@@ -116,11 +116,11 @@ pub struct WalkForwardConfig {
 impl Default for WalkForwardConfig {
     fn default() -> Self {
         Self {
-            in_sample_size: 252,        // 1 year of daily data
-            out_of_sample_size: 63,     // 3 months
-            step_size: None,            // Defaults to out_of_sample_size
-            anchored: false,            // Rolling window by default
-            min_splits: 3,              // At least 3 OOS periods
+            in_sample_size: 252,    // 1 year of daily data
+            out_of_sample_size: 63, // 3 months
+            step_size: None,        // Defaults to out_of_sample_size
+            anchored: false,        // Rolling window by default
+            min_splits: 3,          // At least 3 OOS periods
             max_splits: None,
             objective: WalkForwardObjective::SharpeRatio,
             parallel: true,
@@ -577,24 +577,20 @@ impl WalkForwardResult {
 
     /// Get the best split by OOS performance.
     pub fn best_split(&self) -> Option<&SplitPerformance> {
-        self.split_results
-            .iter()
-            .max_by(|a, b| {
-                a.out_of_sample_objective
-                    .partial_cmp(&b.out_of_sample_objective)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+        self.split_results.iter().max_by(|a, b| {
+            a.out_of_sample_objective
+                .partial_cmp(&b.out_of_sample_objective)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Get the worst split by OOS performance.
     pub fn worst_split(&self) -> Option<&SplitPerformance> {
-        self.split_results
-            .iter()
-            .min_by(|a, b| {
-                a.out_of_sample_objective
-                    .partial_cmp(&b.out_of_sample_objective)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+        self.split_results.iter().min_by(|a, b| {
+            a.out_of_sample_objective
+                .partial_cmp(&b.out_of_sample_objective)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Check if the strategy passes walk-forward validation.
@@ -698,7 +694,11 @@ impl fmt::Display for WalkForwardSummary {
         writeln!(f, "Walk-Forward Optimization Summary")?;
         writeln!(f, "=================================")?;
         writeln!(f, "Splits: {}", self.n_splits)?;
-        writeln!(f, "Aggregated Return: {:.2}%", self.aggregated_return * 100.0)?;
+        writeln!(
+            f,
+            "Aggregated Return: {:.2}%",
+            self.aggregated_return * 100.0
+        )?;
         writeln!(f, "Aggregated Sharpe: {:.3}", self.aggregated_sharpe)?;
         writeln!(
             f,
@@ -820,11 +820,7 @@ impl WalkForwardOptimizer {
     /// # Returns
     ///
     /// A `WalkForwardResult` containing all split results and aggregated metrics.
-    pub fn run<F, G>(
-        &self,
-        optimize_fn: F,
-        evaluate_fn: G,
-    ) -> Result<WalkForwardResult>
+    pub fn run<F, G>(&self, optimize_fn: F, evaluate_fn: G) -> Result<WalkForwardResult>
     where
         F: Fn(usize, std::ops::Range<usize>) -> Result<(HashMap<String, f64>, SplitMetrics)>
             + Sync
@@ -838,16 +834,12 @@ impl WalkForwardOptimizer {
         let split_results: Vec<Result<SplitPerformance>> = if self.config.parallel {
             self.splits
                 .par_iter()
-                .map(|split| {
-                    self.run_split(split, &optimize_fn, &evaluate_fn)
-                })
+                .map(|split| self.run_split(split, &optimize_fn, &evaluate_fn))
                 .collect()
         } else {
             self.splits
                 .iter()
-                .map(|split| {
-                    self.run_split(split, &optimize_fn, &evaluate_fn)
-                })
+                .map(|split| self.run_split(split, &optimize_fn, &evaluate_fn))
                 .collect()
         };
 
@@ -875,8 +867,7 @@ impl WalkForwardOptimizer {
         G: Fn(usize, &HashMap<String, f64>, std::ops::Range<usize>) -> Result<SplitMetrics>,
     {
         // Run optimization on in-sample data
-        let (best_params, is_metrics) =
-            optimize_fn(split.index, split.in_sample_range())?;
+        let (best_params, is_metrics) = optimize_fn(split.index, split.in_sample_range())?;
 
         // Evaluate on out-of-sample data
         let oos_metrics = evaluate_fn(split.index, &best_params, split.out_of_sample_range())?;

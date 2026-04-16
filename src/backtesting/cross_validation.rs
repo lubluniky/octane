@@ -333,11 +333,7 @@ pub struct CVFold {
 
 impl CVFold {
     /// Create a new fold.
-    pub fn new(
-        fold_index: usize,
-        train_indices: Vec<usize>,
-        test_indices: Vec<usize>,
-    ) -> Self {
+    pub fn new(fold_index: usize, train_indices: Vec<usize>, test_indices: Vec<usize>) -> Self {
         Self {
             fold_index,
             train_indices,
@@ -613,21 +609,17 @@ impl CVResult {
     /// Get the best fold by a scoring metric.
     pub fn best_fold(&self, scoring: &CVScoring, maximize: bool) -> Option<&CVMetrics> {
         if maximize {
-            self.fold_results
-                .iter()
-                .max_by(|a, b| {
-                    a.get_score(scoring)
-                        .partial_cmp(&b.get_score(scoring))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+            self.fold_results.iter().max_by(|a, b| {
+                a.get_score(scoring)
+                    .partial_cmp(&b.get_score(scoring))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         } else {
-            self.fold_results
-                .iter()
-                .min_by(|a, b| {
-                    a.get_score(scoring)
-                        .partial_cmp(&b.get_score(scoring))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+            self.fold_results.iter().min_by(|a, b| {
+                a.get_score(scoring)
+                    .partial_cmp(&b.get_score(scoring))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         }
     }
 
@@ -780,9 +772,7 @@ impl CrossValidator {
         groups: Option<&[usize]>,
     ) -> Result<Vec<CVFold>> {
         match &self.config.method {
-            CVMethod::PurgedKFold { n_splits } => {
-                self.purged_kfold(data_length, *n_splits)
-            }
+            CVMethod::PurgedKFold { n_splits } => self.purged_kfold(data_length, *n_splits),
             CVMethod::CombinatorialPurged {
                 n_test_splits,
                 n_groups,
@@ -1127,8 +1117,10 @@ impl CrossValidator {
                 (i + 1) * groups_per_fold
             };
 
-            let test_groups: HashSet<usize> =
-                unique_groups[test_group_start..test_group_end].iter().copied().collect();
+            let test_groups: HashSet<usize> = unique_groups[test_group_start..test_group_end]
+                .iter()
+                .copied()
+                .collect();
 
             let test_indices: Vec<usize> = (0..data_length)
                 .filter(|&idx| test_groups.contains(&groups[idx]))
@@ -1328,8 +1320,10 @@ mod tests {
 
         // Check that same group is not in both train and test
         for fold in &folds {
-            let train_groups: HashSet<usize> = fold.train_indices.iter().map(|&i| groups[i]).collect();
-            let test_groups: HashSet<usize> = fold.test_indices.iter().map(|&i| groups[i]).collect();
+            let train_groups: HashSet<usize> =
+                fold.train_indices.iter().map(|&i| groups[i]).collect();
+            let test_groups: HashSet<usize> =
+                fold.test_indices.iter().map(|&i| groups[i]).collect();
             assert!(train_groups.is_disjoint(&test_groups));
         }
     }

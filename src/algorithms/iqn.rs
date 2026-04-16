@@ -269,7 +269,11 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
         let tau_samples: Vec<f32> = (0..batch_size * num_quantiles)
             .map(|_| self.rng.gen_range(0.0..1.0))
             .collect();
-        Ok(Tensor::from_slice(&tau_samples, (batch_size, num_quantiles), &candle_device)?)
+        Ok(Tensor::from_slice(
+            &tau_samples,
+            (batch_size, num_quantiles),
+            &candle_device,
+        )?)
     }
 
     /// Forward pass through IQN network (immutable version).

@@ -148,9 +148,9 @@ pub mod types;
 pub use error::{LiveTradingError, Result};
 pub use exchanges::{
     ApiCredentials, BinanceConfig, BinanceConnector, BinanceMarketType, BybitAccountType,
-    BybitCategory, BybitConfig, BybitConnector, ConnectionStatus, ExchangeConnector,
-    ExchangeInfo, OrderBookCallback, OrderBookUpdate, OrderCallback, PositionCallback,
-    RateLimit, RateLimiter, RateLimitType, SymbolInfo, TradeCallback, TradeUpdate,
+    BybitCategory, BybitConfig, BybitConnector, ConnectionStatus, ExchangeConnector, ExchangeInfo,
+    OrderBookCallback, OrderBookUpdate, OrderCallback, PositionCallback, RateLimit, RateLimitType,
+    RateLimiter, SymbolInfo, TradeCallback, TradeUpdate,
 };
 pub use execution::{
     ExecutionAlgorithm, ExecutionConfig, ExecutionEngine, ExecutionQualityMetrics,
@@ -166,8 +166,8 @@ pub use paper::{
     SlippageModel,
 };
 pub use types::{
-    Balance, Candle, Interval, Order, OrderBook, OrderBookLevel, OrderStatus, OrderType, Position,
-    Side, Ticker, TimeInForce, Trade, current_timestamp_ms, generate_client_order_id,
+    current_timestamp_ms, generate_client_order_id, Balance, Candle, Interval, Order, OrderBook,
+    OrderBookLevel, OrderStatus, OrderType, Position, Side, Ticker, TimeInForce, Trade,
 };
 
 /// Prelude for live trading - import all commonly used types.

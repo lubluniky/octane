@@ -449,13 +449,15 @@ impl ActionMask {
             .zip(self.mask.iter())
             .zip(default_action.iter())
             .zip(self.lower_bounds.iter().zip(self.upper_bounds.iter()))
-            .map(|(((a, m), d), (lo, hi))| {
-                if *m > 0.5 {
-                    a.clamp(*lo, *hi)
-                } else {
-                    *d
-                }
-            })
+            .map(
+                |(((a, m), d), (lo, hi))| {
+                    if *m > 0.5 {
+                        a.clamp(*lo, *hi)
+                    } else {
+                        *d
+                    }
+                },
+            )
             .collect()
     }
 
@@ -588,8 +590,8 @@ impl LagrangianRelaxation {
     pub fn update(&mut self, violations: &HashMap<String, f64>) {
         for (name, &violation) in violations {
             let multiplier = self.multipliers.entry(name.clone()).or_insert(0.0);
-            *multiplier = (*multiplier + self.learning_rate * violation)
-                .clamp(0.0, self.max_multiplier);
+            *multiplier =
+                (*multiplier + self.learning_rate * violation).clamp(0.0, self.max_multiplier);
         }
     }
 

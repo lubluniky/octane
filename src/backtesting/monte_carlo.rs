@@ -34,10 +34,10 @@
 //! ```
 
 use crate::core::{OctaneError, Result};
-use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_distr::{Distribution, Normal, Uniform};
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Confidence level for interval estimation.
@@ -698,7 +698,12 @@ impl MonteCarloSimulator {
     }
 
     /// Run a single bootstrap iteration.
-    fn bootstrap_single(&self, trades: &[f64], n_trades: usize, rng: &mut StdRng) -> (f64, f64, f64) {
+    fn bootstrap_single(
+        &self,
+        trades: &[f64],
+        n_trades: usize,
+        rng: &mut StdRng,
+    ) -> (f64, f64, f64) {
         let uniform = Uniform::new(0, n_trades);
         let mut sampled_trades = Vec::with_capacity(n_trades);
         for _ in 0..n_trades {
@@ -754,10 +759,7 @@ impl MonteCarloSimulator {
             })
             .collect();
         let realized_vols: Vec<f64> = paths.iter().map(|p| calculate_realized_vol(p)).collect();
-        let max_dds: Vec<f64> = paths
-            .iter()
-            .map(|p| calculate_price_drawdown(p))
-            .collect();
+        let max_dds: Vec<f64> = paths.iter().map(|p| calculate_price_drawdown(p)).collect();
 
         Ok(PricePathResult {
             n_simulations: n,
@@ -837,7 +839,11 @@ impl MonteCarloSimulator {
                     let last = *path.last().unwrap();
 
                     // Poisson jumps (approximation)
-                    let n_jumps = if rng.gen::<f64>() < poisson_rate { 1 } else { 0 };
+                    let n_jumps = if rng.gen::<f64>() < poisson_rate {
+                        1
+                    } else {
+                        0
+                    };
                     let jump = if n_jumps > 0 {
                         jump_normal.sample(rng).exp()
                     } else {
@@ -966,19 +972,21 @@ impl MonteCarloSimulator {
             // Calculate sensitivities (central difference)
             let delta_param = 2.0 * range * base_value;
             if delta_param.abs() > 1e-10 {
-                return_sensitivity
-                    .insert(param_name.clone(), (ret_up - ret_down) / delta_param);
+                return_sensitivity.insert(param_name.clone(), (ret_up - ret_down) / delta_param);
                 sharpe_sensitivity
                     .insert(param_name.clone(), (sharpe_up - sharpe_down) / delta_param);
-                drawdown_sensitivity
-                    .insert(param_name.clone(), (dd_up - dd_down) / delta_param);
+                drawdown_sensitivity.insert(param_name.clone(), (dd_up - dd_down) / delta_param);
             }
         }
 
         // Find most sensitive parameter
         let most_sensitive = return_sensitivity
             .iter()
-            .max_by(|a, b| a.1.abs().partial_cmp(&b.1.abs()).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.1.abs()
+                    .partial_cmp(&b.1.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(k, _)| k.clone())
             .unwrap_or_default();
 
@@ -1006,7 +1014,10 @@ impl MonteCarloSimulator {
         let upper_idx = (upper_pct * values.len() as f64).ceil() as usize;
 
         let lower = sorted.get(lower_idx).copied().unwrap_or(0.0);
-        let upper = sorted.get(upper_idx.min(sorted.len() - 1)).copied().unwrap_or(0.0);
+        let upper = sorted
+            .get(upper_idx.min(sorted.len() - 1))
+            .copied()
+            .unwrap_or(0.0);
 
         (lower, upper)
     }
@@ -1079,10 +1090,7 @@ fn calculate_realized_vol(prices: &[f64]) -> f64 {
         return 0.0;
     }
 
-    let returns: Vec<f64> = prices
-        .windows(2)
-        .map(|w| (w[1] / w[0]).ln())
-        .collect();
+    let returns: Vec<f64> = prices.windows(2).map(|w| (w[1] / w[0]).ln()).collect();
 
     std_dev(&returns) * (252.0_f64).sqrt() // Annualize
 }

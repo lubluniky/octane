@@ -866,18 +866,8 @@ impl AdvancedTradingEnv {
         if self.config.enable_partial_fills {
             // Simulate partial fill based on available liquidity
             let available_liquidity = match order.side {
-                OrderSide::Buy => self
-                    .order_book
-                    .asks
-                    .iter()
-                    .map(|l| l.quantity)
-                    .sum::<f32>(),
-                OrderSide::Sell => self
-                    .order_book
-                    .bids
-                    .iter()
-                    .map(|l| l.quantity)
-                    .sum::<f32>(),
+                OrderSide::Buy => self.order_book.asks.iter().map(|l| l.quantity).sum::<f32>(),
+                OrderSide::Sell => self.order_book.bids.iter().map(|l| l.quantity).sum::<f32>(),
             };
 
             let max_fill = available_liquidity * self.rng.gen_range(0.5..1.0);
@@ -947,8 +937,7 @@ impl AdvancedTradingEnv {
             && self.position_state.position.abs() >= 0.01
         {
             // Position flip - realize PnL and set new entry
-            let realized =
-                (execution_price - self.position_state.entry_price) * old_position.abs();
+            let realized = (execution_price - self.position_state.entry_price) * old_position.abs();
             self.position_state.realized_pnl += realized;
             self.position_state.entry_price = execution_price;
         }
@@ -1222,8 +1211,8 @@ impl Environment for AdvancedTradingEnv {
         }
 
         // Calculate reward (portfolio return)
-        let portfolio_before =
-            self.balance + self.position_state.position * price_before * self.config.initial_balance;
+        let portfolio_before = self.balance
+            + self.position_state.position * price_before * self.config.initial_balance;
         let portfolio_after = self.portfolio_value();
         let reward = (portfolio_after - portfolio_before) / self.config.initial_balance;
 
@@ -1284,8 +1273,12 @@ mod tests {
 
     #[test]
     fn test_slippage_models() {
-        let linear = SlippageModel::Linear { impact_factor: 0.001 };
-        let sqrt = SlippageModel::SquareRoot { impact_factor: 0.01 };
+        let linear = SlippageModel::Linear {
+            impact_factor: 0.001,
+        };
+        let sqrt = SlippageModel::SquareRoot {
+            impact_factor: 0.01,
+        };
 
         let slip1 = linear.calculate(100.0, 100.0, OrderSide::Buy);
         let slip2 = sqrt.calculate(100.0, 100.0, OrderSide::Buy);

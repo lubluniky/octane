@@ -151,7 +151,11 @@ impl PortfolioMetrics {
         let annualized_return = (1.0 + mean_return).powf(periods_per_year) - 1.0;
 
         // Standard deviation
-        let variance: f32 = returns.iter().map(|r| (r - mean_return).powi(2)).sum::<f32>() / n;
+        let variance: f32 = returns
+            .iter()
+            .map(|r| (r - mean_return).powi(2))
+            .sum::<f32>()
+            / n;
         let std_dev = variance.sqrt();
 
         // Downside deviation (for Sortino)
@@ -580,21 +584,13 @@ impl MultiAssetEnv {
     /// Get current prices for all assets.
     fn current_prices(&self) -> Vec<f32> {
         let idx = (self.start_idx + self.current_step).min(self.data.len() - 1);
-        self.data
-            .assets
-            .iter()
-            .map(|a| a.prices[idx][3])
-            .collect()
+        self.data.assets.iter().map(|a| a.prices[idx][3]).collect()
     }
 
     /// Get current volatilities.
     fn current_volatilities(&self) -> Vec<f32> {
         let idx = (self.start_idx + self.current_step).min(self.data.len() - 1);
-        self.data
-            .assets
-            .iter()
-            .map(|a| a.prices[idx][7])
-            .collect()
+        self.data.assets.iter().map(|a| a.prices[idx][7]).collect()
     }
 
     /// Execute rebalancing trades.
@@ -620,17 +616,19 @@ impl MultiAssetEnv {
             };
 
             // Calculate slippage and commission
-            let slippage = self
-                .config
-                .slippage_model
-                .calculate(quantity_delta.abs(), prices[i], side);
+            let slippage =
+                self.config
+                    .slippage_model
+                    .calculate(quantity_delta.abs(), prices[i], side);
             let execution_price = prices[i] + slippage;
 
             let is_maker = false; // Market orders are taker
-            let commission = self
-                .config
-                .commission_model
-                .calculate(quantity_delta.abs(), execution_price, is_maker, 0.0);
+            let commission = self.config.commission_model.calculate(
+                quantity_delta.abs(),
+                execution_price,
+                is_maker,
+                0.0,
+            );
 
             // Update position
             let old_position = self.portfolio.positions[i];
@@ -726,10 +724,7 @@ impl MultiAssetEnv {
                 < (asset_idx + 1) * lookback * features_per_step
                     + asset_idx * self.config.orderbook_depth * 4
             {
-                obs.insert(
-                    obs.len() - (end - start) * features_per_step,
-                    0.0,
-                );
+                obs.insert(obs.len() - (end - start) * features_per_step, 0.0);
             }
 
             // Order book
@@ -754,8 +749,7 @@ impl MultiAssetEnv {
         obs.push(self.portfolio.cash / self.config.initial_balance);
 
         // Portfolio metrics
-        let current_return =
-            (self.portfolio.total_value - self.initial_value) / self.initial_value;
+        let current_return = (self.portfolio.total_value - self.initial_value) / self.initial_value;
         let drawdown = (self.peak_value - self.portfolio.total_value) / self.peak_value;
         obs.push(current_return);
         obs.push(drawdown);

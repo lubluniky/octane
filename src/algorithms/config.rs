@@ -1107,8 +1107,7 @@ impl CQLConfig {
 /// - Mean: Risk-neutral (standard expected value)
 /// - CVaR: Risk-averse (focuses on worst-case outcomes)
 /// - Optimistic: Risk-seeking (focuses on best-case outcomes)
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum RiskMeasure {
     /// Expected value (mean of quantiles). Risk-neutral policy.
     #[default]
@@ -1120,7 +1119,6 @@ pub enum RiskMeasure {
     /// The parameter is the lower quantile to start from (e.g., 0.75).
     Optimistic(f32),
 }
-
 
 /// Configuration for Implicit Quantile Networks (IQN) algorithm.
 ///
