@@ -16,6 +16,16 @@
 
 #![warn(missing_docs, rust_2018_idioms)]
 #![allow(dead_code)] // Allow unused code during development
+#![allow(
+    clippy::if_same_then_else,
+    clippy::needless_range_loop,
+    clippy::only_used_in_recursion,
+    clippy::same_item_push,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    clippy::uninlined_format_args,
+    clippy::upper_case_acronyms
+)]
 
 pub mod algorithms;
 pub mod backtesting;
@@ -43,6 +53,13 @@ pub use crate::algorithms::{
     A2CAgent, A2CConfig, Agent, CQLAgent, CQLConfig, DDPGAgent, DDPGConfig, DQNAgent, DQNConfig,
     IQNAgent, IQNConfig, NoiseType, PPGAgent, PPGConfig, PPOAgent, PPOConfig, REDQAgent,
     REDQConfig, RiskMeasure, SACAgent, SACConfig, TD3Agent, TD3Config, TrainMetrics,
+};
+pub use crate::backtesting::{
+    BootstrapResult, CVConfig, CVFold, CVMethod, CVMetrics, CVResult, CVScoring, CVSummary,
+    ConfidenceLevel, CrossValidator, MetricSummary, MonteCarloConfig, MonteCarloResult,
+    MonteCarloSimulator, PerturbationResult, PriceModel, PricePathResult, SplitMetrics,
+    SplitPerformance, StressScenario, StressTestResult, WalkForwardConfig, WalkForwardObjective,
+    WalkForwardOptimizer, WalkForwardResult, WalkForwardSplit, WalkForwardSummary,
 };
 pub use crate::buffer::{
     ReplayBatch, ReplayBuffer, ReplayBufferConfig, RolloutBatch, RolloutBuffer, RolloutBufferConfig,
@@ -88,21 +105,6 @@ pub use crate::risk::{
     RewardShaperConfig, RiskParityShaper, RiskScaling, RollingStats, SharpeRewardShaper,
     SizingMethod, SortinoRewardShaper, UnderwaterCurve, VolatilitySizer,
 };
-pub use crate::trading::{
-    AdvancedTradingConfig, AdvancedTradingEnv, CommissionModel, GarchParams, HmmParams,
-    MarketRegime as TradingMarketRegime, MultiAssetConfig, MultiAssetEnv, MultiTimeframeConfig,
-    MultiTimeframeEnv, Order, OrderBook, OrderBookLevel, OrderSide, OrderStatus, OrderType,
-    PortfolioAction, PortfolioMetrics, PortfolioState, PositionType, RegimeCallback, RegimeConfig,
-    RegimeDetector, RegimeObservation, RegimeTransition, SlippageModel, Timeframe, TimeframeData,
-    TimeframeSynchronizer, TradingError,
-};
-pub use crate::backtesting::{
-    BootstrapResult, CVConfig, CVFold, CVMetrics, CVMethod, CVResult, CVScoring, CVSummary,
-    ConfidenceLevel, CrossValidator, MetricSummary, MonteCarloConfig, MonteCarloResult,
-    MonteCarloSimulator, PerturbationResult, PriceModel, PricePathResult, SplitMetrics,
-    SplitPerformance, StressScenario, StressTestResult, WalkForwardConfig, WalkForwardObjective,
-    WalkForwardOptimizer, WalkForwardResult, WalkForwardSplit, WalkForwardSummary,
-};
 pub use crate::strategies::{
     AdaptationContext, AdaptationStrategy, AdaptiveAgent, AgentPerformance, DemoBatch,
     DemoMetadata, DemoReplayBuffer, Demonstration, DiversityMetrics, EnsembleAgent, EnsembleConfig,
@@ -111,6 +113,14 @@ pub use crate::strategies::{
     MarketRegime as StrategyMarketRegime, MetaLearningConfig, RuleBasedExpert, Task, TradingOption,
     TrainingPhase, VotingStrategy, WeightAdaptation,
 };
+pub use crate::trading::{
+    AdvancedTradingConfig, AdvancedTradingEnv, CommissionModel, GarchParams, HmmParams,
+    MarketRegime as TradingMarketRegime, MultiAssetConfig, MultiAssetEnv, MultiTimeframeConfig,
+    MultiTimeframeEnv, Order, OrderBook, OrderBookLevel, OrderSide, OrderStatus, OrderType,
+    PortfolioAction, PortfolioMetrics, PortfolioState, PositionType, RegimeCallback, RegimeConfig,
+    RegimeDetector, RegimeObservation, RegimeTransition, SlippageModel, Timeframe, TimeframeData,
+    TimeframeSynchronizer, TradingError,
+};
 pub use crate::tuning::{
     CategoricalParam, FloatParam, GridConfig, GridSearch, HyperparameterSpace, IntParam,
     OptimizationDirection, ParamValue, RandomSearch, Sampler, Study, Trial, TrialState,
@@ -118,35 +128,78 @@ pub use crate::tuning::{
 
 // SIMD-optimized operations
 pub use crate::simd::{
-    compute_gae_simd, compute_gae_simd_inplace, normalize_advantages_simd,
-    is_neon_available, simd_features_info, best_simd_width,
+    best_simd_width, compute_gae_simd, compute_gae_simd_inplace, is_neon_available,
+    normalize_advantages_simd, simd_features_info,
 };
 
 // Live trading infrastructure (requires distributed feature)
 #[cfg(feature = "distributed")]
 pub use crate::live::{
+    // Monitoring
+    AlertConfig,
+    AlertNotification,
+    AlertSeverity,
+    AlertType,
+    // Exchange connectors
+    ApiCredentials,
+    // Types
+    Balance,
+    BinanceConfig,
+    BinanceConnector,
+    BinanceMarketType,
+    BybitAccountType,
+    BybitCategory,
+    BybitConfig,
+    BybitConnector,
+    Candle,
+    ComponentHealth,
+    ConnectionStatus,
+    ExchangeConnector,
+    ExchangeInfo,
+    // Execution
+    ExecutionAlgorithm,
+    ExecutionConfig,
+    ExecutionEngine,
+    ExecutionQualityMetrics,
+    ExecutionRequest,
+    ExecutionResult,
+    ExecutionStatus,
+    // Paper trading
+    FillModel,
+    HealthStatus,
+    IcebergParams,
+    Interval,
     // Error types
     LiveTradingError,
-    // Types
-    Balance, Candle, Interval, Order as LiveOrder, OrderBook as LiveOrderBook,
-    OrderBookLevel as LiveOrderBookLevel, OrderStatus as LiveOrderStatus,
-    OrderType as LiveOrderType, Position, Side, Ticker, TimeInForce, Trade,
-    // Paper trading
-    FillModel, PaperTradingConfig, PaperTradingEngine, PaperTradingStats,
-    SimulatedOrderBook, SlippageModel as LiveSlippageModel,
-    // Exchange connectors
-    ApiCredentials, BinanceConfig, BinanceConnector, BinanceMarketType,
-    BybitAccountType, BybitCategory, BybitConfig, BybitConnector,
-    ConnectionStatus, ExchangeConnector, ExchangeInfo, RateLimit, RateLimiter,
-    RateLimitType, SymbolInfo,
-    // Execution
-    ExecutionAlgorithm, ExecutionConfig, ExecutionEngine, ExecutionQualityMetrics,
-    ExecutionRequest, ExecutionResult, ExecutionStatus, IcebergParams, TWAPParams,
-    Urgency, VWAPParams,
-    // Monitoring
-    AlertConfig, AlertNotification, AlertSeverity, AlertType, ComponentHealth,
-    HealthStatus, Monitor, MonitorConfig, MonitorEvent, PnLSnapshot, RiskMetrics,
-    SystemHealth, TradingStats,
+    Monitor,
+    MonitorConfig,
+    MonitorEvent,
+    Order as LiveOrder,
+    OrderBook as LiveOrderBook,
+    OrderBookLevel as LiveOrderBookLevel,
+    OrderStatus as LiveOrderStatus,
+    OrderType as LiveOrderType,
+    PaperTradingConfig,
+    PaperTradingEngine,
+    PaperTradingStats,
+    PnLSnapshot,
+    Position,
+    RateLimit,
+    RateLimitType,
+    RateLimiter,
+    RiskMetrics,
+    Side,
+    SimulatedOrderBook,
+    SlippageModel as LiveSlippageModel,
+    SymbolInfo,
+    SystemHealth,
+    TWAPParams,
+    Ticker,
+    TimeInForce,
+    Trade,
+    TradingStats,
+    Urgency,
+    VWAPParams,
 };
 
 /// Prelude module for convenient imports.
@@ -177,8 +230,8 @@ pub mod prelude {
 
     // Networks
     pub use crate::networks::{
-        ActorCritic, AttentionActorCritic, DecisionTransformer, LayerNorm, MLP, RMSNorm,
-        TransformerEncoder,
+        ActorCritic, AttentionActorCritic, DecisionTransformer, LayerNorm, RMSNorm,
+        TransformerEncoder, MLP,
     };
 
     // Distributions
@@ -218,9 +271,10 @@ pub mod prelude {
 
     // Advanced trading environments
     pub use crate::trading::{
-        AdvancedTradingConfig, AdvancedTradingEnv, CommissionModel, MultiAssetConfig, MultiAssetEnv,
-        MultiTimeframeConfig, MultiTimeframeEnv, OrderSide, OrderType, PortfolioMetrics,
-        PositionType, RegimeConfig, RegimeDetector, RegimeObservation, SlippageModel, Timeframe,
+        AdvancedTradingConfig, AdvancedTradingEnv, CommissionModel, MultiAssetConfig,
+        MultiAssetEnv, MultiTimeframeConfig, MultiTimeframeEnv, OrderSide, OrderType,
+        PortfolioMetrics, PositionType, RegimeConfig, RegimeDetector, RegimeObservation,
+        SlippageModel, Timeframe,
     };
 
     // Advanced RL strategies

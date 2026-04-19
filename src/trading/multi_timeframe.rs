@@ -99,9 +99,7 @@ pub struct TimeframeBar {
 impl TimeframeBar {
     /// Convert to feature vector.
     pub fn to_features(&self) -> Vec<f32> {
-        let mut features = vec![
-            self.open, self.high, self.low, self.close, self.volume,
-        ];
+        let mut features = vec![self.open, self.high, self.low, self.close, self.volume];
         features.extend(&self.features);
         features
     }
@@ -162,8 +160,11 @@ impl TimeframeData {
             };
 
             let volatility = if returns.len() > 1 {
-                let var: f32 =
-                    returns.iter().map(|r| (r - avg_return).powi(2)).sum::<f32>() / returns.len() as f32;
+                let var: f32 = returns
+                    .iter()
+                    .map(|r| (r - avg_return).powi(2))
+                    .sum::<f32>()
+                    / returns.len() as f32;
                 var.sqrt()
             } else {
                 0.0
@@ -181,10 +182,8 @@ impl TimeframeData {
             };
 
             // SMA ratio (current close vs average close in window)
-            let avg_close: f32 = (start..end)
-                .map(|j| base_data.prices[j][3])
-                .sum::<f32>()
-                / period as f32;
+            let avg_close: f32 =
+                (start..end).map(|j| base_data.prices[j][3]).sum::<f32>() / period as f32;
             let sma_ratio = close / avg_close;
 
             bars.push(TimeframeBar {
@@ -260,7 +259,7 @@ impl TimeframeSynchronizer {
 
     /// Check if a bar boundary for a timeframe.
     pub fn is_bar_boundary(&self, base_idx: usize, timeframe: Timeframe) -> bool {
-        base_idx % timeframe.periods() == 0
+        base_idx.is_multiple_of(timeframe.periods())
     }
 }
 
@@ -535,17 +534,14 @@ impl MultiTimeframeEnv {
         let quantity = position_delta.abs() * self.config.initial_balance;
 
         // Calculate slippage
-        let slippage = self
-            .config
-            .slippage_model
-            .calculate(quantity, price, side);
+        let slippage = self.config.slippage_model.calculate(quantity, price, side);
         let execution_price = price + slippage;
 
         // Calculate commission
-        let commission = self
-            .config
-            .commission_model
-            .calculate(quantity, execution_price, false, 0.0);
+        let commission =
+            self.config
+                .commission_model
+                .calculate(quantity, execution_price, false, 0.0);
 
         // Update position
         let old_position = self.position_state.position;
@@ -581,7 +577,12 @@ impl MultiTimeframeEnv {
 
         // Observations from each timeframe
         for tf in &self.config.timeframes {
-            let lookback = self.config.lookback_per_timeframe.get(tf).copied().unwrap_or(20);
+            let lookback = self
+                .config
+                .lookback_per_timeframe
+                .get(tf)
+                .copied()
+                .unwrap_or(20);
             let tf_data = self.timeframe_data.get(tf).unwrap();
             let current_tf_idx = self.synchronizer.get_index(base_idx, *tf);
 
@@ -604,11 +605,8 @@ impl MultiTimeframeEnv {
                     }
                 } else {
                     // Pad with zeros
-                    let features_per_bar = 5 + tf_data
-                        .bars
-                        .first()
-                        .map(|b| b.features.len())
-                        .unwrap_or(3);
+                    let features_per_bar =
+                        5 + tf_data.bars.first().map(|b| b.features.len()).unwrap_or(3);
                     for _ in 0..features_per_bar {
                         obs.push(0.0);
                     }
@@ -616,11 +614,7 @@ impl MultiTimeframeEnv {
             }
 
             // Pad if not enough history
-            let features_per_bar = 5 + tf_data
-                .bars
-                .first()
-                .map(|b| b.features.len())
-                .unwrap_or(3);
+            let features_per_bar = 5 + tf_data.bars.first().map(|b| b.features.len()).unwrap_or(3);
             let expected_len_for_tf = lookback * features_per_bar;
             while obs.len() < expected_len_for_tf {
                 obs.insert(0, 0.0);
@@ -674,14 +668,16 @@ impl Environment for MultiTimeframeEnv {
         // Initialize order book
         let price = self.current_price();
         let volatility = self.current_volatility();
-        self.order_book.update(price, 10.0, volatility, &mut self.rng);
+        self.order_book
+            .update(price, 10.0, volatility, &mut self.rng);
 
         self.build_observation(device)
     }
 
     fn step(&mut self, action: &Tensor, device: &Device) -> Result<StepResult> {
         let action_vec: Vec<f32> = action.flatten_all()?.to_vec1()?;
-        let mut target_position = action_vec[0].clamp(-self.config.max_position, self.config.max_position);
+        let mut target_position =
+            action_vec[0].clamp(-self.config.max_position, self.config.max_position);
 
         // Enforce short constraint
         if !self.config.allow_short && target_position < 0.0 {
@@ -693,7 +689,10 @@ impl Environment for MultiTimeframeEnv {
 
         // Only execute on execution timeframe boundaries
         let base_idx = self.start_idx + self.current_step;
-        if self.synchronizer.is_bar_boundary(base_idx, self.config.execution_timeframe) {
+        if self
+            .synchronizer
+            .is_bar_boundary(base_idx, self.config.execution_timeframe)
+        {
             self.execute_trade(target_position);
         }
 
@@ -703,7 +702,8 @@ impl Environment for MultiTimeframeEnv {
         // Update order book
         let new_price = self.current_price();
         let volatility = self.current_volatility();
-        self.order_book.update(new_price, 10.0, volatility, &mut self.rng);
+        self.order_book
+            .update(new_price, 10.0, volatility, &mut self.rng);
 
         // Update unrealized PnL
         if self.position_state.position.abs() > 0.01 {
@@ -712,11 +712,10 @@ impl Environment for MultiTimeframeEnv {
             } else {
                 -1.0
             };
-            self.position_state.unrealized_pnl =
-                (new_price - self.position_state.entry_price)
-                    * self.position_state.position.abs()
-                    * self.config.initial_balance
-                    * pnl_direction;
+            self.position_state.unrealized_pnl = (new_price - self.position_state.entry_price)
+                * self.position_state.position.abs()
+                * self.config.initial_balance
+                * pnl_direction;
         } else {
             self.position_state.unrealized_pnl = 0.0;
         }
@@ -786,7 +785,8 @@ mod tests {
 
     #[test]
     fn test_synchronizer() {
-        let mut sync = TimeframeSynchronizer::new(vec![Timeframe::M1, Timeframe::M5, Timeframe::H1]);
+        let mut sync =
+            TimeframeSynchronizer::new(vec![Timeframe::M1, Timeframe::M5, Timeframe::H1]);
         sync.build_mapping(1000);
 
         assert_eq!(sync.get_index(0, Timeframe::M1), 0);

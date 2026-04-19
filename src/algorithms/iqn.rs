@@ -269,7 +269,11 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
         let tau_samples: Vec<f32> = (0..batch_size * num_quantiles)
             .map(|_| self.rng.gen_range(0.0..1.0))
             .collect();
-        Ok(Tensor::from_slice(&tau_samples, (batch_size, num_quantiles), &candle_device)?)
+        Ok(Tensor::from_slice(
+            &tau_samples,
+            (batch_size, num_quantiles),
+            &candle_device,
+        )?)
     }
 
     /// Forward pass through IQN network (immutable version).
@@ -715,7 +719,7 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
 
             // Training updates
             if self.total_timesteps >= self.config.learning_starts
-                && self.total_timesteps % self.config.train_freq == 0
+                && self.total_timesteps.is_multiple_of(self.config.train_freq)
             {
                 for _ in 0..self.config.gradient_steps {
                     let (loss, mean_q) = self.update()?;

@@ -57,11 +57,12 @@ pub enum DrawdownEvent {
 }
 
 /// Risk scaling method based on drawdown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RiskScaling {
     /// No scaling (constant risk).
     None,
     /// Linear reduction as drawdown increases.
+    #[default]
     Linear,
     /// Exponential reduction.
     Exponential,
@@ -71,27 +72,16 @@ pub enum RiskScaling {
     Sigmoid,
 }
 
-impl Default for RiskScaling {
-    fn default() -> Self {
-        RiskScaling::Linear
-    }
-}
-
 /// Current state of the drawdown controller.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum DrawdownState {
     /// Normal trading.
+    #[default]
     Normal,
     /// In recovery mode (reduced risk).
     Recovery,
     /// Stopped due to max drawdown breach.
     Stopped,
-}
-
-impl Default for DrawdownState {
-    fn default() -> Self {
-        DrawdownState::Normal
-    }
 }
 
 /// Configuration for drawdown controller.
@@ -122,17 +112,17 @@ pub struct DrawdownConfig {
 impl Default for DrawdownConfig {
     fn default() -> Self {
         Self {
-            max_drawdown: 0.20,        // 20% max drawdown
-            warning_threshold: 0.10,   // 10% warning
-            recovery_threshold: 0.15,  // Enter recovery at 15%
+            max_drawdown: 0.20,            // 20% max drawdown
+            warning_threshold: 0.10,       // 10% warning
+            recovery_threshold: 0.15,      // Enter recovery at 15%
             recovery_exit_threshold: 0.05, // Exit recovery when DD < 5%
             scaling_method: RiskScaling::Linear,
             min_risk_scale: 0.25,
             step_levels: vec![
-                (0.05, 0.9),  // 5% DD -> 90% risk
-                (0.10, 0.7),  // 10% DD -> 70% risk
-                (0.15, 0.5),  // 15% DD -> 50% risk
-                (0.20, 0.0),  // 20% DD -> 0% risk (stop)
+                (0.05, 0.9), // 5% DD -> 90% risk
+                (0.10, 0.7), // 10% DD -> 70% risk
+                (0.15, 0.5), // 15% DD -> 50% risk
+                (0.20, 0.0), // 20% DD -> 0% risk (stop)
             ],
             track_underwater: true,
             underwater_history_size: 1000,
@@ -385,9 +375,8 @@ impl DrawdownController {
         }
 
         // Determine state transitions and events
-        let event = self.determine_event(old_drawdown, old_peak, old_state, new_peak);
 
-        event
+        self.determine_event(old_drawdown, old_peak, old_state, new_peak)
     }
 
     /// Determine what event (if any) occurred.
@@ -472,7 +461,8 @@ impl DrawdownController {
                 let steepness = 10.0 / self.config.max_drawdown;
                 let x = self.current_drawdown - midpoint;
                 let sigmoid = 1.0 / (1.0 + (steepness * x).exp());
-                let scale = sigmoid * (1.0 - self.config.min_risk_scale) + self.config.min_risk_scale;
+                let scale =
+                    sigmoid * (1.0 - self.config.min_risk_scale) + self.config.min_risk_scale;
                 scale.clamp(self.config.min_risk_scale, 1.0)
             }
         }
@@ -720,11 +710,7 @@ mod tests {
     fn test_step_risk_scaling() {
         let config = DrawdownConfig::default()
             .scaling_method(RiskScaling::Step)
-            .step_levels(vec![
-                (0.05, 0.8),
-                (0.10, 0.5),
-                (0.15, 0.2),
-            ]);
+            .step_levels(vec![(0.05, 0.8), (0.10, 0.5), (0.15, 0.2)]);
         let mut controller = DrawdownController::new(config);
         controller.init(10000.0);
 

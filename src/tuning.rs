@@ -756,7 +756,7 @@ impl GridSearch {
     pub fn total_configurations(&self) -> usize {
         let mut count = 1;
 
-        for (name, _param) in &self.space.float_params {
+        for name in self.space.float_params.keys() {
             let steps = self
                 .grid_config
                 .float_steps
@@ -1047,10 +1047,10 @@ mod tests {
             let mut trial = sampler.suggest(i);
 
             let lr = trial.get_float("lr").unwrap();
-            assert!(lr >= 0.0001 && lr <= 0.1);
+            assert!((0.0001..=0.1).contains(&lr));
 
             let batch_size = trial.get_int("batch_size").unwrap();
-            assert!(batch_size >= 32 && batch_size <= 256);
+            assert!((32..=256).contains(&batch_size));
 
             let activation = trial.get_categorical("activation").unwrap();
             assert!(activation == "tanh" || activation == "relu");
@@ -1103,8 +1103,8 @@ mod tests {
 
     #[test]
     fn test_param_value() {
-        let float_val = ParamValue::Float(3.14);
-        assert!((float_val.as_float().unwrap() - 3.14).abs() < 1e-9);
+        let float_val = ParamValue::Float(std::f64::consts::PI);
+        assert!((float_val.as_float().unwrap() - std::f64::consts::PI).abs() < 1e-9);
 
         let int_val = ParamValue::Int(42);
         assert_eq!(int_val.as_int().unwrap(), 42);

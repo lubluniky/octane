@@ -6,7 +6,7 @@ use candle_core::{DType, Tensor};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn get_devices() -> Vec<(&'static str, candle_core::Device)> {
-    let mut devices = vec![("CPU", candle_core::Device::Cpu)];
+    let devices = vec![("CPU", candle_core::Device::Cpu)];
 
     #[cfg(feature = "metal")]
     {
@@ -32,16 +32,12 @@ fn benchmark_matmul(c: &mut Criterion) {
             // Warmup
             let _ = a.matmul(&b).unwrap();
 
-            group.bench_with_input(
-                BenchmarkId::new(*name, size),
-                size,
-                |bench, _| {
-                    bench.iter(|| {
-                        let result = a.matmul(&b).unwrap();
-                        black_box(result)
-                    })
-                },
-            );
+            group.bench_with_input(BenchmarkId::new(*name, size), size, |bench, _| {
+                bench.iter(|| {
+                    let result = a.matmul(&b).unwrap();
+                    black_box(result)
+                })
+            });
         }
     }
 
@@ -62,7 +58,7 @@ fn benchmark_softmax(c: &mut Criterion) {
             let _ = candle_nn::ops::softmax(&logits, 1).unwrap();
 
             group.bench_with_input(
-                BenchmarkId::new(*name, format!("{}x{}", batch, features)),
+                BenchmarkId::new(*name, format!("{batch}x{features}")),
                 &(*batch, *features),
                 |bench, _| {
                     bench.iter(|| {
@@ -127,7 +123,6 @@ fn benchmark_gae_tensors(c: &mut Criterion) {
         let values = Tensor::randn(0.0f32, 1.0, &[n_steps, n_envs], device).unwrap();
         let dones = Tensor::zeros(&[n_steps, n_envs], DType::F32, device).unwrap();
         let gamma = 0.99f32;
-        let gae_lambda = 0.95f32;
 
         // Warmup
         let next_values = values.narrow(0, 1, n_steps - 1).unwrap();
@@ -135,22 +130,31 @@ fn benchmark_gae_tensors(c: &mut Criterion) {
         let current_rewards = rewards.narrow(0, 0, n_steps - 1).unwrap();
         let current_dones = dones.narrow(0, 0, n_steps - 1).unwrap();
         let not_dones = (1.0 - &current_dones).unwrap();
-        let _ = ((&current_rewards + &((&next_values * gamma as f64).unwrap() * &not_dones).unwrap()).unwrap() - &current_values).unwrap();
+        let _ = ((&current_rewards
+            + &((&next_values * gamma as f64).unwrap() * &not_dones).unwrap())
+            .unwrap()
+            - &current_values)
+            .unwrap();
 
-        group.bench_function(BenchmarkId::new(*name, format!("{}x{}", n_steps, n_envs)), |bench| {
-            bench.iter(|| {
-                let next_values = values.narrow(0, 1, n_steps - 1).unwrap();
-                let current_values = values.narrow(0, 0, n_steps - 1).unwrap();
-                let current_rewards = rewards.narrow(0, 0, n_steps - 1).unwrap();
-                let current_dones = dones.narrow(0, 0, n_steps - 1).unwrap();
+        group.bench_function(
+            BenchmarkId::new(*name, format!("{n_steps}x{n_envs}")),
+            |bench| {
+                bench.iter(|| {
+                    let next_values = values.narrow(0, 1, n_steps - 1).unwrap();
+                    let current_values = values.narrow(0, 0, n_steps - 1).unwrap();
+                    let current_rewards = rewards.narrow(0, 0, n_steps - 1).unwrap();
+                    let current_dones = dones.narrow(0, 0, n_steps - 1).unwrap();
 
-                let not_dones = (1.0 - &current_dones).unwrap();
-                let td_target = (&current_rewards + &((&next_values * gamma as f64).unwrap() * &not_dones).unwrap()).unwrap();
-                let advantages = (&td_target - &current_values).unwrap();
+                    let not_dones = (1.0 - &current_dones).unwrap();
+                    let td_target = (&current_rewards
+                        + &((&next_values * gamma as f64).unwrap() * &not_dones).unwrap())
+                        .unwrap();
+                    let advantages = (&td_target - &current_values).unwrap();
 
-                black_box(advantages)
-            })
-        });
+                    black_box(advantages)
+                })
+            },
+        );
     }
 
     group.finish();

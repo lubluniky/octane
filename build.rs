@@ -2,6 +2,7 @@
 //!
 //! Compiles native C code with NEON SIMD optimizations for Apple Silicon
 //! and Metal shaders for GPU compute.
+#![allow(clippy::uninlined_format_args)]
 
 use std::env;
 use std::path::PathBuf;
@@ -15,8 +16,7 @@ fn main() {
         compile_simd_code(&target_arch);
     }
 
-    // Compile Metal shaders on macOS
-    #[cfg(target_os = "macos")]
+    // Compile Metal shaders when targeting macOS.
     if target_os == "macos" {
         compile_metal_shaders();
     }
@@ -67,9 +67,9 @@ fn compile_simd_code(target_arch: &str) {
         let path = PathBuf::from(source);
         if path.exists() {
             build.file(source);
-            println!("cargo:rerun-if-changed={}", source);
+            println!("cargo:rerun-if-changed={source}");
         } else {
-            println!("cargo:warning=SIMD source file not found: {}", source);
+            println!("cargo:warning=SIMD source file not found: {source}");
         }
     }
 
@@ -90,15 +90,12 @@ fn compile_metal_shaders() {
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set");
     let shader_source = "src/metal/rl_kernels.metal";
-    let shader_air = format!("{}/shaders.air", out_dir);
-    let shader_lib = format!("{}/shaders.metallib", out_dir);
+    let shader_air = format!("{out_dir}/shaders.air");
+    let shader_lib = format!("{out_dir}/shaders.metallib");
 
     // Check if shader source exists
     if !std::path::Path::new(shader_source).exists() {
-        println!(
-            "cargo:warning=Metal shader source not found: {}",
-            shader_source
-        );
+        println!("cargo:warning=Metal shader source not found: {shader_source}");
         return;
     }
 
@@ -123,14 +120,11 @@ fn compile_metal_shaders() {
             println!("cargo:info=Compiled Metal shader to AIR");
         }
         Ok(s) => {
-            println!(
-                "cargo:warning=Metal shader compilation failed with status: {}",
-                s
-            );
+            println!("cargo:warning=Metal shader compilation failed with status: {s}");
             return;
         }
         Err(e) => {
-            println!("cargo:warning=Failed to run xcrun metal: {}", e);
+            println!("cargo:warning=Failed to run xcrun metal: {e}");
             return;
         }
     }
@@ -142,22 +136,19 @@ fn compile_metal_shaders() {
 
     match status {
         Ok(s) if s.success() => {
-            println!("cargo:info=Created Metal library at {}", shader_lib);
+            println!("cargo:info=Created Metal library at {shader_lib}");
             // Set environment variable for runtime loading
-            println!("cargo:rustc-env=METAL_LIB_PATH={}", shader_lib);
+            println!("cargo:rustc-env=METAL_LIB_PATH={shader_lib}");
         }
         Ok(s) => {
-            println!(
-                "cargo:warning=Metal library creation failed with status: {}",
-                s
-            );
+            println!("cargo:warning=Metal library creation failed with status: {s}");
         }
         Err(e) => {
-            println!("cargo:warning=Failed to run xcrun metallib: {}", e);
+            println!("cargo:warning=Failed to run xcrun metallib: {e}");
         }
     }
 
-    println!("cargo:rerun-if-changed={}", shader_source);
+    println!("cargo:rerun-if-changed={shader_source}");
 }
 
 #[cfg(not(target_os = "macos"))]

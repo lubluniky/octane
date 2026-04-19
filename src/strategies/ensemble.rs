@@ -589,11 +589,8 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
     /// Forward pass through a single agent's policy network.
     fn agent_policy_forward(&self, agent_idx: usize, obs: &Tensor) -> Result<Tensor> {
         let candle_device = self.device.to_candle()?;
-        let vb = VarBuilder::from_varmap(
-            &self.agent_var_maps[agent_idx],
-            DType::F32,
-            &candle_device,
-        );
+        let vb =
+            VarBuilder::from_varmap(&self.agent_var_maps[agent_idx], DType::F32, &candle_device);
 
         let mut x = obs.clone();
         for (j, &hidden_size) in self.hidden_sizes.iter().enumerate() {
@@ -742,10 +739,7 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
             .map(|p| p.windowed_mean())
             .collect();
 
-        let min_perf = performances
-            .iter()
-            .cloned()
-            .fold(f32::INFINITY, f32::min);
+        let min_perf = performances.iter().cloned().fold(f32::INFINITY, f32::min);
         let shifted: Vec<f32> = performances.iter().map(|p| p - min_perf + 1e-6).collect();
         let sum: f32 = shifted.iter().sum();
         let weights: Vec<f32> = shifted.iter().map(|p| p / sum).collect();
@@ -808,7 +802,7 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
                 let mut values: Vec<f32> = action_vecs.iter().map(|v| v[idx]).collect();
                 values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-                let median = if values.len() % 2 == 0 {
+                let median = if values.len().is_multiple_of(2) {
                     (values[values.len() / 2 - 1] + values[values.len() / 2]) / 2.0
                 } else {
                     values[values.len() / 2]
@@ -835,10 +829,7 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
                     .map(|p| p.windowed_mean())
                     .collect();
 
-                let min_perf = performances
-                    .iter()
-                    .cloned()
-                    .fold(f32::INFINITY, f32::min);
+                let min_perf = performances.iter().cloned().fold(f32::INFINITY, f32::min);
                 let shifted: Vec<f32> = performances.iter().map(|p| p - min_perf + 1e-6).collect();
                 let sum: f32 = shifted.iter().sum();
 
@@ -891,7 +882,8 @@ impl<E: Environment + Clone + 'static> EnsembleAgent<E> {
                     .iter()
                     .map(|p| {
                         let mean = p.mean_reward;
-                        let exploration = (2.0 * ln_total / (p.selection_count as f32 + 1.0)).sqrt();
+                        let exploration =
+                            (2.0 * ln_total / (p.selection_count as f32 + 1.0)).sqrt();
                         mean + exploration
                     })
                     .collect();
@@ -983,7 +975,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for EnsembleAgent<E> {
         let mean_reward = rewards_vec.iter().sum::<f32>() / rewards_vec.len() as f32;
 
         // Update agent performance
-        for (_i, perf) in self.agent_performance.iter_mut().enumerate() {
+        for perf in self.agent_performance.iter_mut() {
             // Use mean reward weighted by agreement with ensemble decision
             perf.update(mean_reward, self.config.performance_window);
         }

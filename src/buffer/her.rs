@@ -583,7 +583,7 @@ mod tests {
         }
 
         // Original transitions + HER relabeled (2x with Final strategy)
-        assert!(buffer.len() > 0);
+        assert!(!buffer.is_empty());
 
         Ok(())
     }
@@ -746,7 +746,7 @@ mod tests {
             );
         }
 
-        assert!(buffer.len() > 0);
+        assert!(!buffer.is_empty());
 
         buffer.clear();
         assert!(buffer.is_empty());

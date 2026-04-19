@@ -38,6 +38,8 @@
 //! use octane_rs::simd::{GaussianSampler, compute_gae, is_avx2_available};
 //!
 //! // Check available SIMD features
+#![allow(missing_docs)]
+
 //! if is_avx2_available() {
 //!     println!("AVX2 optimizations available");
 //! }
@@ -80,8 +82,8 @@ pub mod gae;
 // Re-exports from submodules
 #[cfg(target_arch = "x86_64")]
 pub use self::x86::{
-    compute_gae_avx2, gather_batch_f32_avx2, is_avx2_available, is_avx512_available,
-    softmax_avx2, GaussianSamplerAvx2, AVX2_ALIGNMENT, AVX512_ALIGNMENT,
+    compute_gae_avx2, gather_batch_f32_avx2, is_avx2_available, is_avx512_available, softmax_avx2,
+    GaussianSamplerAvx2, AVX2_ALIGNMENT, AVX512_ALIGNMENT,
 };
 
 #[cfg(all(target_arch = "x86_64", feature = "avx512"))]
@@ -98,9 +100,7 @@ pub use self::log_prob::{
     squashed_gaussian_log_prob_simd,
 };
 
-pub use self::gae::{
-    compute_gae_simd, compute_gae_simd_inplace, normalize_advantages_simd,
-};
+pub use self::gae::{compute_gae_simd, compute_gae_simd_inplace, normalize_advantages_simd};
 
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
 use std::ffi::CStr;
@@ -377,7 +377,7 @@ mod ffi {
 #[allow(dead_code)]
 fn check_alignment<T>(ptr: *const T, _name: &str) -> Result<()> {
     let addr = ptr as usize;
-    if addr % NEON_ALIGNMENT != 0 {
+    if !addr.is_multiple_of(NEON_ALIGNMENT) {
         return Err(SimdError::AlignmentError {
             required: NEON_ALIGNMENT,
             actual: addr % NEON_ALIGNMENT,

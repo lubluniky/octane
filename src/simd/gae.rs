@@ -36,11 +36,12 @@
 //! let num_envs = 64;
 //! let rewards = vec![1.0f32; num_steps * num_envs];
 //! let values = vec![0.5f32; num_steps * num_envs];
-//! let dones = vec![0.0f32; num_steps * num_envs];
+//! let terminated = vec![0.0f32; num_steps * num_envs];
+//! let truncated = vec![0.0f32; num_steps * num_envs];
 //! let last_values = vec![0.5f32; num_envs];
 //!
 //! let (advantages, returns) = compute_gae_simd(
-//!     &rewards, &values, &dones,
+//!     &rewards, &values, &terminated, &truncated,
 //!     num_steps, num_envs,
 //!     0.99, 0.95,
 //!     &last_values,
@@ -54,7 +55,11 @@ use super::{Result, SimdError};
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 use std::arch::aarch64::*;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 use std::arch::x86_64::*;
 
 // ============================================================================
@@ -72,7 +77,8 @@ use std::arch::x86_64::*;
 ///
 /// * `rewards` - Rewards array [num_steps, num_envs] in row-major order
 /// * `values` - Value estimates [num_steps, num_envs]
-/// * `dones` - Done flags (1.0 if episode ended, 0.0 otherwise) [num_steps, num_envs]
+/// * `terminated` - Terminal flags (1.0 if episode truly ended, 0.0 otherwise) [num_steps, num_envs]
+/// * `truncated` - Truncation flags (1.0 if time-limit cutoff, 0.0 otherwise) [num_steps, num_envs]
 /// * `num_steps` - Number of time steps in the rollout
 /// * `num_envs` - Number of parallel environments
 /// * `gamma` - Discount factor (typically 0.99)
@@ -91,7 +97,8 @@ use std::arch::x86_64::*;
 pub fn compute_gae_simd(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     num_steps: usize,
     num_envs: usize,
     gamma: f32,
@@ -112,10 +119,16 @@ pub fn compute_gae_simd(
             actual: values.len(),
         });
     }
-    if dones.len() != expected_len {
+    if terminated.len() != expected_len {
         return Err(SimdError::SizeMismatch {
             expected: expected_len,
-            actual: dones.len(),
+            actual: terminated.len(),
+        });
+    }
+    if truncated.len() != expected_len {
+        return Err(SimdError::SizeMismatch {
+            expected: expected_len,
+            actual: truncated.len(),
         });
     }
     if last_values.len() != num_envs {
@@ -132,7 +145,8 @@ pub fn compute_gae_simd(
     compute_gae_impl(
         rewards,
         values,
-        dones,
+        terminated,
+        truncated,
         &mut advantages,
         &mut returns,
         num_steps,
@@ -156,7 +170,8 @@ pub fn compute_gae_simd(
 pub fn compute_gae_simd_inplace(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -170,7 +185,8 @@ pub fn compute_gae_simd_inplace(
     // Validate all buffer sizes
     if rewards.len() != expected_len
         || values.len() != expected_len
-        || dones.len() != expected_len
+        || terminated.len() != expected_len
+        || truncated.len() != expected_len
         || advantages.len() != expected_len
         || returns.len() != expected_len
     {
@@ -179,7 +195,8 @@ pub fn compute_gae_simd_inplace(
             actual: rewards
                 .len()
                 .min(values.len())
-                .min(dones.len())
+                .min(terminated.len())
+                .min(truncated.len())
                 .min(advantages.len())
                 .min(returns.len()),
         });
@@ -195,7 +212,8 @@ pub fn compute_gae_simd_inplace(
     compute_gae_impl(
         rewards,
         values,
-        dones,
+        terminated,
+        truncated,
         advantages,
         returns,
         num_steps,
@@ -221,7 +239,8 @@ pub fn compute_gae_simd_inplace(
 unsafe fn compute_gae_neon(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -253,20 +272,26 @@ unsafe fn compute_gae_neon(
             // Load data for 4 environments (contiguous in memory)
             let reward = vld1q_f32(rewards.as_ptr().add(idx));
             let value = vld1q_f32(values.as_ptr().add(idx));
-            let done = vld1q_f32(dones.as_ptr().add(idx));
+            let terminated_mask = vld1q_f32(terminated.as_ptr().add(idx));
+            let truncated_mask = vld1q_f32(truncated.as_ptr().add(idx));
 
-            // mask = 1 - done
-            let mask = vsubq_f32(one_vec, done);
+            // bootstrap_mask = 1 - terminated
+            let bootstrap_mask = vsubq_f32(one_vec, terminated_mask);
+            // trace_mask = 1 - (terminated OR truncated)
+            let trace_mask = vsubq_f32(
+                one_vec,
+                vminq_f32(vaddq_f32(terminated_mask, truncated_mask), one_vec),
+            );
 
-            // delta = reward + gamma * next_value * mask - value
+            // delta = reward + gamma * next_value * bootstrap_mask - value
             // Using FMA: delta = reward + gamma * (next_value * mask) - value
-            let next_masked = vmulq_f32(next_value, mask);
+            let next_masked = vmulq_f32(next_value, bootstrap_mask);
             let gamma_next = vmulq_f32(gamma_vec, next_masked);
             let delta = vsubq_f32(vaddq_f32(reward, gamma_next), value);
 
-            // last_gae = delta + gamma * lambda * mask * last_gae
+            // last_gae = delta + gamma * lambda * trace_mask * last_gae
             // Using FMA: last_gae = vfmaq_f32(delta, gamma_lambda * mask, last_gae)
-            let gae_decay = vmulq_f32(gamma_lambda, mask);
+            let gae_decay = vmulq_f32(gamma_lambda, trace_mask);
             last_gae = vfmaq_f32(delta, gae_decay, last_gae);
 
             // Store advantages
@@ -287,7 +312,8 @@ unsafe fn compute_gae_neon(
         compute_gae_scalar_range(
             rewards,
             values,
-            dones,
+            terminated,
+            truncated,
             advantages,
             returns,
             num_steps,
@@ -309,12 +335,17 @@ unsafe fn compute_gae_neon(
 ///
 /// Processes 8 environments at a time using 256-bit AVX2 registers.
 /// Uses FMA (_mm256_fmadd_ps) for optimal performance.
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn compute_gae_avx2(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -345,19 +376,25 @@ unsafe fn compute_gae_avx2(
             // Load data for 8 environments (contiguous in memory)
             let reward = _mm256_loadu_ps(rewards.as_ptr().add(idx));
             let value = _mm256_loadu_ps(values.as_ptr().add(idx));
-            let done = _mm256_loadu_ps(dones.as_ptr().add(idx));
+            let terminated_mask = _mm256_loadu_ps(terminated.as_ptr().add(idx));
+            let truncated_mask = _mm256_loadu_ps(truncated.as_ptr().add(idx));
 
-            // mask = 1 - done
-            let mask = _mm256_sub_ps(one_vec, done);
+            // bootstrap_mask = 1 - terminated
+            let bootstrap_mask = _mm256_sub_ps(one_vec, terminated_mask);
+            // trace_mask = 1 - (terminated OR truncated)
+            let trace_mask = _mm256_sub_ps(
+                one_vec,
+                _mm256_min_ps(_mm256_add_ps(terminated_mask, truncated_mask), one_vec),
+            );
 
-            // delta = reward + gamma * next_value * mask - value
-            let next_masked = _mm256_mul_ps(next_value, mask);
+            // delta = reward + gamma * next_value * bootstrap_mask - value
+            let next_masked = _mm256_mul_ps(next_value, bootstrap_mask);
             let gamma_next = _mm256_mul_ps(gamma_vec, next_masked);
             let delta = _mm256_sub_ps(_mm256_add_ps(reward, gamma_next), value);
 
-            // last_gae = delta + gamma * lambda * mask * last_gae
+            // last_gae = delta + gamma * lambda * trace_mask * last_gae
             // Using FMA: last_gae = fmadd(gae_decay, last_gae, delta)
-            let gae_decay = _mm256_mul_ps(gamma_lambda, mask);
+            let gae_decay = _mm256_mul_ps(gamma_lambda, trace_mask);
             last_gae = _mm256_fmadd_ps(gae_decay, last_gae, delta);
 
             // Store advantages
@@ -378,7 +415,8 @@ unsafe fn compute_gae_avx2(
         compute_gae_scalar_range(
             rewards,
             values,
-            dones,
+            terminated,
+            truncated,
             advantages,
             returns,
             num_steps,
@@ -402,7 +440,8 @@ unsafe fn compute_gae_avx2(
 fn compute_gae_impl(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -418,7 +457,8 @@ fn compute_gae_impl(
             compute_gae_neon(
                 rewards,
                 values,
-                dones,
+                terminated,
+                truncated,
                 advantages,
                 returns,
                 num_steps,
@@ -428,18 +468,22 @@ fn compute_gae_impl(
                 last_values,
             );
         }
-        return;
     }
 
     // AVX2 implementation for x86_64
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
             unsafe {
                 compute_gae_avx2(
                     rewards,
                     values,
-                    dones,
+                    terminated,
+                    truncated,
                     advantages,
                     returns,
                     num_steps,
@@ -456,13 +500,18 @@ fn compute_gae_impl(
     // Scalar fallback for all other cases
     #[cfg(not(any(
         all(target_arch = "aarch64", target_feature = "neon"),
-        all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma")
+        all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )
     )))]
     {
         compute_gae_scalar(
             rewards,
             values,
-            dones,
+            terminated,
+            truncated,
             advantages,
             returns,
             num_steps,
@@ -487,7 +536,8 @@ fn compute_gae_impl(
 fn compute_gae_scalar(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -499,7 +549,8 @@ fn compute_gae_scalar(
     compute_gae_scalar_range(
         rewards,
         values,
-        dones,
+        terminated,
+        truncated,
         advantages,
         returns,
         num_steps,
@@ -521,7 +572,8 @@ fn compute_gae_scalar(
 fn compute_gae_scalar_range(
     rewards: &[f32],
     values: &[f32],
-    dones: &[f32],
+    terminated: &[f32],
+    truncated: &[f32],
     advantages: &mut [f32],
     returns: &mut [f32],
     num_steps: usize,
@@ -545,14 +597,16 @@ fn compute_gae_scalar_range(
 
             let reward = rewards[idx];
             let value = values[idx];
-            let done = dones[idx];
-            let mask = 1.0 - done;
+            let terminated_mask = terminated[idx];
+            let truncated_mask = truncated[idx];
+            let bootstrap_mask = 1.0 - terminated_mask;
+            let trace_mask = 1.0 - (terminated_mask + truncated_mask).min(1.0);
 
-            // delta = reward + gamma * next_value * mask - value
-            let delta = reward + gamma * next_value * mask - value;
+            // delta = reward + gamma * next_value * bootstrap_mask - value
+            let delta = reward + gamma * next_value * bootstrap_mask - value;
 
-            // last_gae = delta + gamma * lambda * mask * last_gae
-            last_gae = delta + gamma_lambda * mask * last_gae;
+            // last_gae = delta + gamma * lambda * trace_mask * last_gae
+            last_gae = delta + gamma_lambda * trace_mask * last_gae;
 
             advantages[idx] = last_gae;
             returns[idx] = last_gae + value;
@@ -599,7 +653,6 @@ fn normalize_advantages_impl(advantages: &mut [f32], mean: f32, std: f32) {
         unsafe {
             normalize_advantages_neon(advantages, mean, std);
         }
-        return;
     }
 
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
@@ -612,10 +665,16 @@ fn normalize_advantages_impl(advantages: &mut [f32], mean: f32, std: f32) {
         }
     }
 
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "neon"),
+        all(target_arch = "x86_64", target_feature = "avx2")
+    )))]
     // Scalar fallback
-    let inv_std = 1.0 / std;
-    for x in advantages.iter_mut() {
-        *x = (*x - mean) * inv_std;
+    {
+        let inv_std = 1.0 / std;
+        for x in advantages.iter_mut() {
+            *x = (*x - mean) * inv_std;
+        }
     }
 }
 
@@ -677,7 +736,8 @@ mod tests {
     fn compute_gae_reference(
         rewards: &[f32],
         values: &[f32],
-        dones: &[f32],
+        terminated: &[f32],
+        truncated: &[f32],
         num_steps: usize,
         num_envs: usize,
         gamma: f32,
@@ -693,9 +753,10 @@ mod tests {
 
             for step in (0..num_steps).rev() {
                 let idx = step * num_envs + env;
-                let mask = 1.0 - dones[idx];
-                let delta = rewards[idx] + gamma * next_value * mask - values[idx];
-                last_gae = delta + gamma * gae_lambda * mask * last_gae;
+                let bootstrap_mask = 1.0 - terminated[idx];
+                let trace_mask = 1.0 - (terminated[idx] + truncated[idx]).min(1.0);
+                let delta = rewards[idx] + gamma * next_value * bootstrap_mask - values[idx];
+                last_gae = delta + gamma * gae_lambda * trace_mask * last_gae;
 
                 advantages[idx] = last_gae;
                 returns[idx] = last_gae + values[idx];
@@ -712,7 +773,8 @@ mod tests {
         let num_envs = 4;
         let rewards = vec![1.0f32; num_steps * num_envs];
         let values = vec![0.5f32; num_steps * num_envs];
-        let dones = vec![0.0f32; num_steps * num_envs];
+        let terminated = vec![0.0f32; num_steps * num_envs];
+        let truncated = vec![0.0f32; num_steps * num_envs];
         let last_values = vec![0.5f32; num_envs];
         let gamma = 0.99;
         let gae_lambda = 0.95;
@@ -720,7 +782,8 @@ mod tests {
         let (adv_simd, ret_simd) = compute_gae_simd(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -732,7 +795,8 @@ mod tests {
         let (adv_ref, ret_ref) = compute_gae_reference(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -765,11 +829,12 @@ mod tests {
         let num_envs = 8;
         let rewards = vec![1.0f32; num_steps * num_envs];
         let values = vec![0.5f32; num_steps * num_envs];
-        let mut dones = vec![0.0f32; num_steps * num_envs];
+        let terminated = vec![0.0f32; num_steps * num_envs];
+        let mut truncated = vec![0.0f32; num_steps * num_envs];
 
-        // Set some episodes as done
-        dones[5 * num_envs + 0] = 1.0; // Env 0 done at step 5
-        dones[10 * num_envs + 3] = 1.0; // Env 3 done at step 10
+        // Set some episodes as truncated
+        truncated[5 * num_envs] = 1.0; // Env 0 time-limit cutoff at step 5
+        truncated[10 * num_envs + 3] = 1.0; // Env 3 time-limit cutoff at step 10
 
         let last_values = vec![0.5f32; num_envs];
         let gamma = 0.99;
@@ -778,7 +843,8 @@ mod tests {
         let (adv_simd, ret_simd) = compute_gae_simd(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -790,7 +856,8 @@ mod tests {
         let (adv_ref, ret_ref) = compute_gae_reference(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -806,6 +873,13 @@ mod tests {
                 adv_simd[i],
                 adv_ref[i]
             );
+            assert!(
+                (ret_simd[i] - ret_ref[i]).abs() < 1e-5,
+                "Return mismatch at {}: {} vs {}",
+                i,
+                ret_simd[i],
+                ret_ref[i]
+            );
         }
     }
 
@@ -816,7 +890,8 @@ mod tests {
         let num_envs = 13; // Not divisible by 4 or 8
         let rewards = vec![1.0f32; num_steps * num_envs];
         let values = vec![0.5f32; num_steps * num_envs];
-        let dones = vec![0.0f32; num_steps * num_envs];
+        let terminated = vec![0.0f32; num_steps * num_envs];
+        let truncated = vec![0.0f32; num_steps * num_envs];
         let last_values = vec![0.5f32; num_envs];
         let gamma = 0.99;
         let gae_lambda = 0.95;
@@ -824,7 +899,8 @@ mod tests {
         let (adv_simd, ret_simd) = compute_gae_simd(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -836,7 +912,8 @@ mod tests {
         let (adv_ref, ret_ref) = compute_gae_reference(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -851,6 +928,13 @@ mod tests {
                 i,
                 adv_simd[i],
                 adv_ref[i]
+            );
+            assert!(
+                (ret_simd[i] - ret_ref[i]).abs() < 1e-5,
+                "Return mismatch at {}: {} vs {}",
+                i,
+                ret_simd[i],
+                ret_ref[i]
             );
         }
     }
@@ -867,15 +951,17 @@ mod tests {
         let values: Vec<f32> = (0..num_steps * num_envs)
             .map(|i| (i as f32 * 0.05).cos() * 0.5)
             .collect();
-        let dones = vec![0.0f32; num_steps * num_envs];
+        let terminated = vec![0.0f32; num_steps * num_envs];
+        let truncated = vec![0.0f32; num_steps * num_envs];
         let last_values: Vec<f32> = (0..num_envs).map(|i| i as f32 * 0.1).collect();
         let gamma = 0.99;
         let gae_lambda = 0.95;
 
-        let (adv_simd, _) = compute_gae_simd(
+        let (adv_simd, ret_simd) = compute_gae_simd(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -884,10 +970,11 @@ mod tests {
         )
         .unwrap();
 
-        let (adv_ref, _) = compute_gae_reference(
+        let (adv_ref, ret_ref) = compute_gae_reference(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             gamma,
@@ -902,6 +989,13 @@ mod tests {
                 i,
                 adv_simd[i],
                 adv_ref[i]
+            );
+            assert!(
+                (ret_simd[i] - ret_ref[i]).abs() < 1e-4,
+                "Return mismatch at {}: {} vs {}",
+                i,
+                ret_simd[i],
+                ret_ref[i]
             );
         }
     }
@@ -924,14 +1018,8 @@ mod tests {
     #[test]
     fn test_size_validation() {
         let result = compute_gae_simd(
-            &[1.0; 10],
-            &[0.5; 10],
-            &[0.0; 10],
-            5,
-            2, // 5 * 2 = 10
-            0.99,
-            0.95,
-            &[0.5; 3], // Wrong size!
+            &[1.0; 10], &[0.5; 10], &[0.0; 10], &[0.0; 10], 5, 2, // 5 * 2 = 10
+            0.99, 0.95, &[0.5; 3], // Wrong size!
         );
         assert!(result.is_err());
     }
@@ -943,13 +1031,15 @@ mod tests {
         let num_envs = 64;
         let rewards = vec![1.0f32; num_steps * num_envs];
         let values = vec![0.5f32; num_steps * num_envs];
-        let dones = vec![0.0f32; num_steps * num_envs];
+        let terminated = vec![0.0f32; num_steps * num_envs];
+        let truncated = vec![0.0f32; num_steps * num_envs];
         let last_values = vec![0.5f32; num_envs];
 
         let (advantages, returns) = compute_gae_simd(
             &rewards,
             &values,
-            &dones,
+            &terminated,
+            &truncated,
             num_steps,
             num_envs,
             0.99,
@@ -965,5 +1055,36 @@ mod tests {
         for &adv in &advantages {
             assert!(adv > 0.0);
         }
+    }
+
+    #[test]
+    fn test_gae_bootstraps_truncated_steps() {
+        let rewards = vec![1.0f32];
+        let values = vec![0.5f32];
+        let terminated = vec![0.0f32];
+        let truncated = vec![1.0f32];
+        let last_values = vec![0.75f32];
+
+        let (advantages, returns) = compute_gae_simd(
+            &rewards,
+            &values,
+            &terminated,
+            &truncated,
+            1,
+            1,
+            0.99,
+            0.95,
+            &last_values,
+        )
+        .unwrap();
+
+        assert!(
+            (advantages[0] - 1.2425).abs() < 1e-4,
+            "unexpected advantage: {advantages:?}"
+        );
+        assert!(
+            (returns[0] - 1.7425).abs() < 1e-4,
+            "unexpected return: {returns:?}"
+        );
     }
 }

@@ -1,4 +1,4 @@
-# Rocket-RS Quick Start Guide
+# Octane-RS Quick Start Guide
 
 ## Installation
 
@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-rocket-rs = "0.1"
+octane-rs = "0.1"
 ```
 
 ### From source
@@ -20,12 +20,12 @@ cargo build --release
 ## Your First RL Agent (5 minutes)
 
 ```rust
-use rocket_rs::prelude::*;
-use rocket_rs::envs::{TradingEnv, MarketData};
-use rocket_rs::algorithms::{PPOConfig, PPOAgent, RLAlgorithm};
-use rocket_rs::core::Device;
+use octane_rs::prelude::*;
+use octane_rs::envs::{TradingEnv, MarketData};
+use octane_rs::algorithms::{PPOConfig, PPOAgent, RLAlgorithm};
+use octane_rs::core::Device;
 
-fn main() -> rocket_rs::Result<()> {
+fn main() -> octane_rs::Result<()> {
     // 1. Create your environment
     let data = MarketData::random(1000);
     let env = TradingEnv::new(data)?;
@@ -74,10 +74,10 @@ cargo run --example trading_ppo --release --features cuda
 
 ```bash
 # Launch the terminal UI
-cargo run --bin rocket-tui --release
+cargo run --bin octane-tui --release
 
 # Or in benchmark mode
-cargo run --bin rocket-tui --release -- --benchmark
+cargo run --bin octane-tui --release -- --benchmark
 ```
 
 ## Next Steps

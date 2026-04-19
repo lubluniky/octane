@@ -151,10 +151,7 @@ impl RollingStats {
 
     /// Get minimum value.
     pub fn min(&self) -> f64 {
-        self.values
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min)
+        self.values.iter().copied().fold(f64::INFINITY, f64::min)
     }
 
     /// Get maximum value.
@@ -306,8 +303,7 @@ impl RewardShaper for SharpeRewardShaper {
         };
 
         // Apply blend and scale
-        let blended = reward * (1.0 - self.config.blend_factor)
-            + shaped * self.config.blend_factor;
+        let blended = reward * (1.0 - self.config.blend_factor) + shaped * self.config.blend_factor;
 
         blended * self.config.scale
     }
@@ -388,8 +384,7 @@ impl RewardShaper for SortinoRewardShaper {
         };
 
         // Apply blend and scale
-        let blended = reward * (1.0 - self.config.blend_factor)
-            + shaped * self.config.blend_factor;
+        let blended = reward * (1.0 - self.config.blend_factor) + shaped * self.config.blend_factor;
 
         blended * self.config.scale
     }
@@ -493,8 +488,7 @@ impl RewardShaper for CalmarRewardShaper {
         };
 
         // Apply blend and scale
-        let blended = reward * (1.0 - self.config.blend_factor)
-            + shaped * self.config.blend_factor;
+        let blended = reward * (1.0 - self.config.blend_factor) + shaped * self.config.blend_factor;
 
         blended * self.config.scale
     }
@@ -567,8 +561,7 @@ impl RewardShaper for RiskParityShaper {
         let shaped = reward * vol_scale;
 
         // Apply blend and scale
-        let blended = reward * (1.0 - self.config.blend_factor)
-            + shaped * self.config.blend_factor;
+        let blended = reward * (1.0 - self.config.blend_factor) + shaped * self.config.blend_factor;
 
         blended * self.config.scale
     }
@@ -761,14 +754,8 @@ mod tests {
         let config = RewardShaperConfig::default().window_size(5);
         let mut composite = CompositeRewardShaper::new();
 
-        composite.add_shaper(
-            Box::new(SharpeRewardShaper::new(config.clone())),
-            1.0,
-        );
-        composite.add_shaper(
-            Box::new(SortinoRewardShaper::new(config)),
-            1.0,
-        );
+        composite.add_shaper(Box::new(SharpeRewardShaper::new(config.clone())), 1.0);
+        composite.add_shaper(Box::new(SortinoRewardShaper::new(config)), 1.0);
 
         // Should work with composite
         for _ in 0..10 {

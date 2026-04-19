@@ -10,6 +10,11 @@ pub trait Space: Clone + Send + Sync {
     /// Shape of a single sample from this space.
     fn shape(&self) -> &[usize];
 
+    /// Whether this space represents continuous values.
+    fn is_continuous(&self) -> bool {
+        false
+    }
+
     /// Total number of elements in a single sample.
     fn flat_dim(&self) -> usize {
         self.shape().iter().product()
@@ -78,6 +83,10 @@ impl Space for BoxSpace {
         &self.shape
     }
 
+    fn is_continuous(&self) -> bool {
+        true
+    }
+
     fn sample(&self, rng: &mut impl Rng, device: &Device) -> Result<Tensor> {
         let data: Vec<f32> = self
             .low
@@ -131,6 +140,10 @@ impl Space for DiscreteSpace {
         &[1]
     }
 
+    fn is_continuous(&self) -> bool {
+        false
+    }
+
     fn flat_dim(&self) -> usize {
         self.n
     }
@@ -148,5 +161,19 @@ impl Space for DiscreteSpace {
         }
         let val = data[0] as usize;
         Ok(val < self.n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_space_continuity_flags() {
+        let box_space = BoxSpace::symmetric(1.0, vec![2]);
+        let discrete_space = DiscreteSpace::new(3);
+
+        assert!(box_space.is_continuous());
+        assert!(!discrete_space.is_continuous());
     }
 }

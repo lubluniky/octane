@@ -520,9 +520,10 @@ mod tests {
         let samples = dist.sample()?;
         let samples_vec: Vec<f32> = samples.flatten_all()?.to_vec1()?;
 
-        // All samples should be in (-1, 1)
+        // Tanh-squashed samples are bounded in [-1, 1] with possible
+        // float saturation at the exact boundary.
         for &s in &samples_vec {
-            assert!(s > -1.0 && s < 1.0, "Sample {} out of bounds", s);
+            assert!((-1.0..=1.0).contains(&s), "Sample {} out of bounds", s);
         }
 
         Ok(())
@@ -539,7 +540,7 @@ mod tests {
         let mode_vec: Vec<f32> = mode.flatten_all()?.to_vec1()?;
 
         // Mode should be tanh(mean)
-        let expected = vec![
+        let expected = [
             0.0f32.tanh(),
             1.0f32.tanh(),
             (-1.0f32).tanh(),

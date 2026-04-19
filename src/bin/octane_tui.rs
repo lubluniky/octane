@@ -3,6 +3,7 @@
 //! A beautiful TUI for visualizing training, benchmarks, and performance.
 //!
 //! Run with: cargo run --bin octane-tui
+#![allow(clippy::uninlined_format_args)]
 
 use octane_rs::tui::run_tui;
 use std::process;

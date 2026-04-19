@@ -26,7 +26,11 @@
 
 use super::{Result, SimdError};
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 use std::arch::x86_64::*;
 
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
@@ -83,7 +87,11 @@ pub fn compute_td_errors_batch(
 
     let mut td_errors = vec![0.0f32; batch_size];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -204,7 +212,11 @@ pub fn compute_sac_td_errors(
 
     let mut td_errors = vec![0.0f32; batch_size];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -297,7 +309,11 @@ pub fn compute_td3_td_errors(
 
     let mut td_errors = vec![0.0f32; batch_size];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -382,7 +398,11 @@ pub fn compute_priorities(td_errors: &[f32], epsilon: f32) -> Vec<f32> {
 // AVX2 Implementations
 // ============================================================================
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn compute_td_errors_avx2(
     rewards: &[f32],
@@ -427,7 +447,11 @@ unsafe fn compute_td_errors_avx2(
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn compute_sac_td_errors_avx2(
     rewards: &[f32],
@@ -481,7 +505,11 @@ unsafe fn compute_sac_td_errors_avx2(
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn compute_td3_td_errors_avx2(
     rewards: &[f32],
@@ -757,7 +785,12 @@ mod tests {
         // Expected: 1.0 + 0.99 * 1.0 * 0.5 - 0.3 = 1.0 + 0.495 - 0.3 = 1.195
         let expected = 1.0 + gamma * 0.5 - 0.3;
         for &td in &td_errors {
-            assert!((td - expected).abs() < 1e-5, "Expected {}, got {}", expected, td);
+            assert!(
+                (td - expected).abs() < 1e-5,
+                "Expected {}, got {}",
+                expected,
+                td
+            );
         }
     }
 
@@ -807,9 +840,14 @@ mod tests {
 
         // Expected: 1.0 + 0.99 * 1.0 * (0.5 - 0.2 * (-1.0)) - 0.3
         //         = 1.0 + 0.99 * (0.5 + 0.2) - 0.3 = 1.0 + 0.6930 - 0.3 = 1.393
-        let expected = 1.0 + gamma * (0.5 - alpha * (-1.0)) - 0.3;
+        let expected = 1.0 + gamma * (0.5 - -alpha) - 0.3;
         for &td in &td_errors {
-            assert!((td - expected).abs() < 1e-5, "Expected {}, got {}", expected, td);
+            assert!(
+                (td - expected).abs() < 1e-5,
+                "Expected {}, got {}",
+                expected,
+                td
+            );
         }
     }
 
@@ -822,22 +860,21 @@ mod tests {
         let current_values = vec![0.3f32; 16];
         let gamma = 0.99;
 
-        let td_errors = compute_td3_td_errors(
-            &rewards,
-            &q1_next,
-            &q2_next,
-            &dones,
-            &current_values,
-            gamma,
-        )
-        .unwrap();
+        let td_errors =
+            compute_td3_td_errors(&rewards, &q1_next, &q2_next, &dones, &current_values, gamma)
+                .unwrap();
 
         assert_eq!(td_errors.len(), 16);
 
         // Expected: 1.0 + 0.99 * 1.0 * min(0.6, 0.4) - 0.3 = 1.0 + 0.396 - 0.3 = 1.096
         let expected = 1.0 + gamma * 0.4 - 0.3;
         for &td in &td_errors {
-            assert!((td - expected).abs() < 1e-5, "Expected {}, got {}", expected, td);
+            assert!(
+                (td - expected).abs() < 1e-5,
+                "Expected {}, got {}",
+                expected,
+                td
+            );
         }
     }
 
@@ -863,8 +900,7 @@ mod tests {
         let dones = vec![0.0f32; 16];
         let current_values = vec![0.3f32; 16];
 
-        let result =
-            compute_td_errors_batch(&rewards, &next_values, &dones, &current_values, 0.99);
+        let result = compute_td_errors_batch(&rewards, &next_values, &dones, &current_values, 0.99);
         assert!(result.is_err());
     }
 }

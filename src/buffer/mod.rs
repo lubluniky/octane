@@ -795,7 +795,15 @@ mod tests {
             let value = Tensor::from_slice(&[0.5f32, 0.6], (2,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-0.5f32, -0.6], (2,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
+            buffer.add(
+                &obs,
+                &action,
+                &reward,
+                &terminated,
+                &truncated,
+                &value,
+                &log_prob,
+            )?;
             assert_eq!(buffer.position(), i + 1);
         }
 
@@ -820,7 +828,15 @@ mod tests {
             let value = Tensor::from_slice(&[0.5f32, 0.5], (2,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-1.0f32, -1.0], (2,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
+            buffer.add(
+                &obs,
+                &action,
+                &reward,
+                &terminated,
+                &truncated,
+                &value,
+                &log_prob,
+            )?;
         }
 
         let last_values = Tensor::from_slice(&[0.5f32, 0.5], (2,), &candle_device)?;
@@ -855,7 +871,15 @@ mod tests {
             let value = Tensor::from_slice(&[0.5f32, 0.5, 0.5, 0.5], (4,), &candle_device)?;
             let log_prob = Tensor::from_slice(&[-1.0f32, -1.0, -1.0, -1.0], (4,), &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
+            buffer.add(
+                &obs,
+                &action,
+                &reward,
+                &terminated,
+                &truncated,
+                &value,
+                &log_prob,
+            )?;
         }
 
         let last_values = Tensor::from_slice(&[0.5f32, 0.5, 0.5, 0.5], (4,), &candle_device)?;
@@ -894,7 +918,15 @@ mod tests {
             let value = Tensor::ones((2,), DType::F32, &candle_device)?;
             let log_prob = Tensor::ones((2,), DType::F32, &candle_device)?;
 
-            buffer.add(&obs, &action, &reward, &terminated, &truncated, &value, &log_prob)?;
+            buffer.add(
+                &obs,
+                &action,
+                &reward,
+                &terminated,
+                &truncated,
+                &value,
+                &log_prob,
+            )?;
         }
 
         assert!(buffer.is_full());

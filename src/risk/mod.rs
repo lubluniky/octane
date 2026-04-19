@@ -46,8 +46,7 @@ pub use constraints::{
     ProjectionResult,
 };
 pub use drawdown::{
-    DrawdownConfig, DrawdownController, DrawdownEvent, DrawdownState, RiskScaling,
-    UnderwaterCurve,
+    DrawdownConfig, DrawdownController, DrawdownEvent, DrawdownState, RiskScaling, UnderwaterCurve,
 };
 pub use position_sizing::{
     KellyCalculator, KellyResult, PositionSizer, PositionSizingConfig, SizingMethod,

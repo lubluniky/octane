@@ -592,7 +592,10 @@ mod tests {
         let scaler = GradScaler::new(Precision::F16);
         let device = candle_core::Device::Cpu;
 
-        let loss = Tensor::new(&[1.0f32], &device).unwrap();
+        let loss = Tensor::new(&[1.0f32], &device)
+            .unwrap()
+            .reshape(&[])
+            .unwrap();
         let scaled = scaler.scale(&loss).unwrap();
 
         let scaled_val: f32 = scaled.to_scalar().unwrap();

@@ -48,7 +48,7 @@ impl SelfAttentionConfig {
     /// * `num_heads` - Number of attention heads (d_model must be divisible by num_heads)
     pub fn new(d_model: usize, num_heads: usize) -> Self {
         assert!(
-            d_model % num_heads == 0,
+            d_model.is_multiple_of(num_heads),
             "d_model ({}) must be divisible by num_heads ({})",
             d_model,
             num_heads
@@ -167,16 +167,20 @@ impl SelfAttention {
         // Reshape for multi-head attention: [batch, seq, heads, head_dim]
         let q = q
             .reshape(&[batch_size, seq_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?; // [batch, heads, seq, head_dim]
+            .transpose(1, 2)?
+            .contiguous()?; // [batch, heads, seq, head_dim]
         let k = k
             .reshape(&[batch_size, seq_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let v = v
             .reshape(&[batch_size, seq_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
 
         // Compute attention scores: Q @ K^T / sqrt(d_k)
-        let attn_scores = (q.matmul(&k.transpose(D::Minus2, D::Minus1)?)? * self.scale)?;
+        let k_t = k.transpose(D::Minus2, D::Minus1)?.contiguous()?;
+        let attn_scores = (q.matmul(&k_t)? * self.scale)?;
 
         // Apply causal mask if needed
         let attn_scores = if self.config.causal {
@@ -203,10 +207,11 @@ impl SelfAttention {
         let attn_output = attn_weights.matmul(&v)?;
 
         // Reshape back: [batch, heads, seq, head_dim] -> [batch, seq, d_model]
-        let attn_output =
-            attn_output
-                .transpose(1, 2)?
-                .reshape(&[batch_size, seq_len, self.config.d_model])?;
+        let attn_output = attn_output.transpose(1, 2)?.contiguous()?.reshape(&[
+            batch_size,
+            seq_len,
+            self.config.d_model,
+        ])?;
 
         // Output projection
         let output = self.wo.forward(&attn_output)?;
@@ -268,7 +273,7 @@ impl CrossAttentionConfig {
     /// * `num_heads` - Number of attention heads
     pub fn new(d_query: usize, d_kv: usize, d_model: usize, num_heads: usize) -> Self {
         assert!(
-            d_model % num_heads == 0,
+            d_model.is_multiple_of(num_heads),
             "d_model must be divisible by num_heads"
         );
 
@@ -375,16 +380,20 @@ impl CrossAttention {
         // Reshape for multi-head attention
         let q = q
             .reshape(&[batch_size, query_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let k = k
             .reshape(&[batch_size, kv_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
         let v = v
             .reshape(&[batch_size, kv_len, self.config.num_heads, self.head_dim])?
-            .transpose(1, 2)?;
+            .transpose(1, 2)?
+            .contiguous()?;
 
         // Compute attention: Q @ K^T / sqrt(d_k)
-        let attn_scores = (q.matmul(&k.transpose(D::Minus2, D::Minus1)?)? * self.scale)?;
+        let k_t = k.transpose(D::Minus2, D::Minus1)?.contiguous()?;
+        let attn_scores = (q.matmul(&k_t)? * self.scale)?;
 
         // Apply mask if provided
         let attn_scores = match mask {
@@ -402,10 +411,11 @@ impl CrossAttention {
         let attn_output = attn_weights.matmul(&v)?;
 
         // Reshape back
-        let attn_output =
-            attn_output
-                .transpose(1, 2)?
-                .reshape(&[batch_size, query_len, self.config.d_model])?;
+        let attn_output = attn_output.transpose(1, 2)?.contiguous()?.reshape(&[
+            batch_size,
+            query_len,
+            self.config.d_model,
+        ])?;
 
         // Output projection
         let output = self.wo.forward(&attn_output)?;

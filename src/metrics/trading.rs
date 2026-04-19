@@ -339,7 +339,8 @@ impl MetricsCalculator {
     fn return_variance(&self) -> f64 {
         if self.n_returns > 1 {
             let mean = self.mean_return();
-            (self.returns_sq_sum - self.n_returns as f64 * mean * mean) / (self.n_returns - 1) as f64
+            (self.returns_sq_sum - self.n_returns as f64 * mean * mean)
+                / (self.n_returns - 1) as f64
         } else {
             0.0
         }
@@ -404,7 +405,8 @@ impl MetricsCalculator {
         }
 
         let total_return = self.total_return();
-        let annualized_return = (1.0 + total_return).powf(self.config.periods_per_year / self.n_returns as f64) - 1.0;
+        let annualized_return =
+            (1.0 + total_return).powf(self.config.periods_per_year / self.n_returns as f64) - 1.0;
 
         let max_dd_pct = if self.peak_equity > 0.0 {
             self.max_drawdown / self.peak_equity
@@ -534,7 +536,8 @@ impl MetricsCalculator {
         let mut sorted_returns: Vec<f64> = self.returns.iter().copied().collect();
         sorted_returns.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        let idx = ((1.0 - self.config.var_confidence) * sorted_returns.len() as f64).floor() as usize;
+        let idx =
+            ((1.0 - self.config.var_confidence) * sorted_returns.len() as f64).floor() as usize;
         -sorted_returns.get(idx).copied().unwrap_or(0.0)
     }
 
@@ -567,7 +570,8 @@ impl MetricsCalculator {
         let mut sorted_returns: Vec<f64> = self.returns.iter().copied().collect();
         sorted_returns.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        let cutoff_idx = ((1.0 - self.config.var_confidence) * sorted_returns.len() as f64).ceil() as usize;
+        let cutoff_idx =
+            ((1.0 - self.config.var_confidence) * sorted_returns.len() as f64).ceil() as usize;
 
         if cutoff_idx == 0 {
             return 0.0;
@@ -591,15 +595,19 @@ impl MetricsCalculator {
         let excess_return = mean_ret - mean_bench;
 
         // Calculate tracking error
-        let tracking_errors: Vec<f64> = self.returns.iter()
+        let tracking_errors: Vec<f64> = self
+            .returns
+            .iter()
             .zip(benchmark.iter())
             .map(|(r, b)| r - b)
             .collect();
 
         let te_mean: f64 = tracking_errors.iter().sum::<f64>() / tracking_errors.len() as f64;
-        let te_var: f64 = tracking_errors.iter()
+        let te_var: f64 = tracking_errors
+            .iter()
             .map(|te| (te - te_mean).powi(2))
-            .sum::<f64>() / (tracking_errors.len() - 1) as f64;
+            .sum::<f64>()
+            / (tracking_errors.len() - 1) as f64;
 
         let tracking_error = te_var.sqrt();
 
@@ -622,14 +630,19 @@ impl MetricsCalculator {
         let mean_ret = self.mean_return();
         let mean_bench: f64 = benchmark.iter().sum::<f64>() / benchmark.len() as f64;
 
-        let covariance: f64 = self.returns.iter()
+        let covariance: f64 = self
+            .returns
+            .iter()
             .zip(benchmark.iter())
             .map(|(r, b)| (r - mean_ret) * (b - mean_bench))
-            .sum::<f64>() / (self.returns.len() - 1) as f64;
+            .sum::<f64>()
+            / (self.returns.len() - 1) as f64;
 
-        let bench_var: f64 = benchmark.iter()
+        let bench_var: f64 = benchmark
+            .iter()
             .map(|b| (b - mean_bench).powi(2))
-            .sum::<f64>() / (benchmark.len() - 1) as f64;
+            .sum::<f64>()
+            / (benchmark.len() - 1) as f64;
 
         if bench_var == 0.0 {
             return None;
@@ -790,6 +803,11 @@ mod tests {
 
         assert!(var > 0.0, "VaR should be positive, got {}", var);
         // Use epsilon for floating point comparison
-        assert!(cvar >= var - 1e-10, "CVaR ({}) should be >= VaR ({})", cvar, var);
+        assert!(
+            cvar >= var - 1e-10,
+            "CVaR ({}) should be >= VaR ({})",
+            cvar,
+            var
+        );
     }
 }

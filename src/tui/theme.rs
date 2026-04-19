@@ -57,6 +57,7 @@ impl Theme {
     // ===== Styles =====
 
     /// Default style.
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Style {
         Style::default().fg(Self::TEXT_PRIMARY).bg(Self::BG_PRIMARY)
     }

@@ -41,7 +41,7 @@ fn demo_trading_metrics() {
 
     // Simulate a trading strategy with returns
     println!("\nSimulating trading returns...");
-    let returns = vec![
+    let returns = [
         0.02, 0.01, -0.01, 0.03, 0.02, // Week 1
         -0.02, 0.01, 0.02, 0.01, -0.01, // Week 2
         0.04, 0.02, -0.03, 0.01, 0.02, // Week 3
@@ -51,7 +51,11 @@ fn demo_trading_metrics() {
     for (i, &ret) in returns.iter().enumerate() {
         calc.add_return(ret);
         if (i + 1) % 5 == 0 {
-            println!("  Week {}: Cumulative return = {:.2}%", (i + 1) / 5, calc.total_return() * 100.0);
+            println!(
+                "  Week {}: Cumulative return = {:.2}%",
+                (i + 1) / 5,
+                calc.total_return() * 100.0
+            );
         }
     }
 
@@ -67,15 +71,27 @@ fn demo_trading_metrics() {
 
     println!("\n=== Performance Metrics ===");
     println!("Total Return:        {:.2}%", metrics.total_return * 100.0);
-    println!("Annualized Return:   {:.2}%", metrics.annualized_return * 100.0);
-    println!("Annualized Vol:      {:.2}%", metrics.annualized_volatility * 100.0);
+    println!(
+        "Annualized Return:   {:.2}%",
+        metrics.annualized_return * 100.0
+    );
+    println!(
+        "Annualized Vol:      {:.2}%",
+        metrics.annualized_volatility * 100.0
+    );
     println!("Sharpe Ratio:        {:.2}", metrics.sharpe_ratio);
     println!("Sortino Ratio:       {:.2}", metrics.sortino_ratio);
     println!("Calmar Ratio:        {:.2}", metrics.calmar_ratio);
 
     println!("\n=== Risk Metrics ===");
-    println!("Max Drawdown:        {:.2}%", metrics.max_drawdown_pct * 100.0);
-    println!("VaR (95%):           {:.2}%", metrics.var_historical * 100.0);
+    println!(
+        "Max Drawdown:        {:.2}%",
+        metrics.max_drawdown_pct * 100.0
+    );
+    println!(
+        "VaR (95%):           {:.2}%",
+        metrics.var_historical * 100.0
+    );
     println!("CVaR (95%):          {:.2}%", metrics.cvar * 100.0);
     println!("Ulcer Index:         {:.2}", metrics.ulcer_index);
 
@@ -109,7 +125,7 @@ fn demo_trade_journal() {
         150.0,
         10.0,
     );
-    println!("  Opened trade {} - AAPL Long @ $150.00", trade1);
+    println!("  Opened trade {trade1} - AAPL Long @ $150.00");
 
     // Trade 2: Losing short trade
     let trade2 = journal.open_trade(
@@ -119,7 +135,7 @@ fn demo_trade_journal() {
         2800.0,
         5.0,
     );
-    println!("  Opened trade {} - GOOGL Short @ $2800.00", trade2);
+    println!("  Opened trade {trade2} - GOOGL Short @ $2800.00");
 
     // Trade 3: Another winning long
     let trade3 = journal.open_trade(
@@ -129,23 +145,23 @@ fn demo_trade_journal() {
         152.0,
         10.0,
     );
-    println!("  Opened trade {} - AAPL Long @ $152.00", trade3);
+    println!("  Opened trade {trade3} - AAPL Long @ $152.00");
 
     println!("\nClosing trades...");
 
     // Close trade 1 - win
     if let Some(pnl) = journal.close_trade(trade1, 1640010800, 155.0) {
-        println!("  Closed trade {} - P&L: ${:.2}", trade1, pnl);
+        println!("  Closed trade {trade1} - P&L: ${pnl:.2}");
     }
 
     // Close trade 2 - loss
     if let Some(pnl) = journal.close_trade(trade2, 1640014400, 2820.0) {
-        println!("  Closed trade {} - P&L: ${:.2}", trade2, pnl);
+        println!("  Closed trade {trade2} - P&L: ${pnl:.2}");
     }
 
     // Close trade 3 - win
     if let Some(pnl) = journal.close_trade(trade3, 1640018000, 158.0) {
-        println!("  Closed trade {} - P&L: ${:.2}", trade3, pnl);
+        println!("  Closed trade {trade3} - P&L: ${pnl:.2}");
     }
 
     // Get statistics
@@ -165,11 +181,12 @@ fn demo_trade_journal() {
     let wins = journal.filter_by_tags(&["win".to_string()]);
     println!("Winning trades:      {}", wins.len());
 
-    let aapl_trades = journal.get_all_trades()
+    let aapl_trades = journal
+        .get_all_trades()
         .iter()
         .filter(|t| t.symbol == "AAPL")
         .count();
-    println!("AAPL trades:         {}", aapl_trades);
+    println!("AAPL trades:         {aapl_trades}");
 
     // Try exporting (commented out since we're in example)
     // journal.export_json("trades.json").unwrap();
@@ -185,8 +202,7 @@ fn demo_attribution() {
 
     let config = AttributionConfig::default()
         .enable_asset_attribution(true)
-        .enable_regime_attribution(true)
-        .enable_direction_attribution(true);
+        .enable_regime_attribution(true);
 
     let mut analyzer = AttributionAnalyzer::new(config);
 
@@ -265,10 +281,7 @@ fn demo_attribution() {
     for (asset, entry) in assets {
         println!(
             "  {:<8} ${:>8.2} ({:>5.1}%) - {} trades",
-            asset,
-            entry.pnl,
-            entry.contribution_pct,
-            entry.num_trades
+            asset, entry.pnl, entry.contribution_pct, entry.num_trades
         );
     }
 
@@ -290,15 +303,12 @@ fn demo_attribution() {
     for (regime, entry) in regimes {
         println!(
             "  {:<12} ${:>8.2} ({:>5.1}%) - {} trades",
-            regime,
-            entry.pnl,
-            entry.contribution_pct,
-            entry.num_trades
+            regime, entry.pnl, entry.contribution_pct, entry.num_trades
         );
     }
 
     println!("\n--- Top Contributors ---");
     for (dim, pnl) in report.top_contributors(3) {
-        println!("  {} - ${:.2}", dim, pnl);
+        println!("  {dim} - ${pnl:.2}");
     }
 }

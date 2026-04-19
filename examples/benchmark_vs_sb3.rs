@@ -3,7 +3,7 @@
 //! Run with: cargo run --release --features simd --example benchmark_vs_sb3
 
 use octane_rs::core::Device;
-use octane_rs::envs::{Environment, MarketData, TradingEnv};
+use octane_rs::envs::{Environment, MarketData, Space, TradingEnv};
 use std::time::Instant;
 
 #[cfg(feature = "simd")]
@@ -23,7 +23,7 @@ fn benchmark_env_steps(total_steps: usize, num_envs: usize) -> (f64, f64) {
     let mut vec_env = base_env.make_vectorized(num_envs);
 
     // Reset
-    let _ = vec_env.reset(&candle_device).unwrap();
+    let _ = vec_env.reset(&device).unwrap();
 
     // Get action dimension
     let action_shape = vec_env.action_space().shape();
@@ -38,7 +38,7 @@ fn benchmark_env_steps(total_steps: usize, num_envs: usize) -> (f64, f64) {
             candle_core::Tensor::rand(-1.0f32, 1.0f32, &[num_envs, action_dim], &candle_device)
                 .unwrap();
 
-        let _ = vec_env.step(&actions, &candle_device).unwrap();
+        let _ = vec_env.step(&actions, &device).unwrap();
         steps_done += num_envs;
     }
 
@@ -141,10 +141,7 @@ fn main() {
     // Benchmark 1: 500K steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!(
-        "  BENCHMARK: 500,000 environment steps ({} parallel envs)",
-        num_envs
-    );
+    println!("  BENCHMARK: 500,000 environment steps ({num_envs} parallel envs)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -160,10 +157,7 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 500K steps                                         │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!(
-        "  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │",
-        time_500k, fps_500k
-    );
+    println!("  │ Octane:    {time_500k:>8.2}s    {fps_500k:>12.0} FPS                  │");
     println!("  │ SB3 (ref):   ~600.00s    ~833 FPS (Python)               │");
     println!(
         "  │ Speedup:     {:>8.1}x faster                              │",
@@ -176,10 +170,7 @@ fn main() {
     // Benchmark 2: 5M steps
     // =========================================================================
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!(
-        "  BENCHMARK: 5,000,000 environment steps ({} parallel envs)",
-        num_envs
-    );
+    println!("  BENCHMARK: 5,000,000 environment steps ({num_envs} parallel envs)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!();
 
@@ -195,10 +186,7 @@ fn main() {
     println!("  ┌─────────────────────────────────────────────────────────────┐");
     println!("  │ Results: 5M steps                                           │");
     println!("  ├─────────────────────────────────────────────────────────────┤");
-    println!(
-        "  │ Octane:    {:>8.2}s    {:>12,.0} FPS                  │",
-        time_5m, fps_5m
-    );
+    println!("  │ Octane:    {time_5m:>8.2}s    {fps_5m:>12.0} FPS                  │");
     println!("  │ SB3 (ref):   ~6000.0s    ~833 FPS (Python)               │");
     println!(
         "  │ Speedup:     {:>8.1}x faster                              │",
@@ -220,21 +208,21 @@ fn main() {
         // GAE benchmark
         let (gae_ops, gae_ms) = benchmark_gae_simd(2048, 64, 1000);
         println!("  GAE Computation (2048 steps x 64 envs):");
-        println!("    {:>12,.0} ops/sec", gae_ops);
+        println!("    {:>12.0} ops/sec", gae_ops);
         println!("    {:>12.3} ms/rollout", gae_ms);
         println!();
 
         // Gaussian sampling benchmark
         let (gaussian_ops, gaussian_ms) = benchmark_gaussian_sampling_simd(2048 * 6, 10000);
         println!("  Gaussian Sampling (12,288 samples/batch):");
-        println!("    {:>12,.0} samples/sec", gaussian_ops);
+        println!("    {:>12.0} samples/sec", gaussian_ops);
         println!("    {:>12.3} ms/batch", gaussian_ms);
         println!();
 
         // Softmax benchmark
         let (softmax_ops, softmax_ms) = benchmark_softmax_simd(2048, 10, 10000);
         println!("  Softmax (2048 batch x 10 classes):");
-        println!("    {:>12,.0} rows/sec", softmax_ops);
+        println!("    {:>12.0} rows/sec", softmax_ops);
         println!("    {:>12.3} ms/batch", softmax_ms);
         println!();
     }
@@ -258,7 +246,7 @@ fn main() {
     );
     println!("║                                                                  ║");
     println!(
-        "║  Average Throughput: {:>10,.0} FPS                            ║",
+        "║  Average Throughput: {:>10.0} FPS                            ║",
         (fps_500k + fps_5m) / 2.0
     );
     println!("║  SB3 Reference:      ~833 FPS                                    ║");

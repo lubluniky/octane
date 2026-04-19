@@ -12,11 +12,83 @@ use crate::algorithms::rollout::RolloutBuffer;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
-use candle_core::{DType, Module, Tensor};
+use candle_core::{backprop::GradStore, DType, Module, Tensor, Var};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
 use rand::prelude::*;
 use std::path::Path;
 use tracing::{debug, info};
+
+fn normalize_advantages(advantages: Tensor) -> Result<Tensor> {
+    let mean = advantages.mean_all()?;
+    let centered = advantages.broadcast_sub(&mean)?;
+    let var = centered.sqr()?.mean_all()?;
+    let std = (var + 1e-8)?.sqrt()?;
+    Ok(centered.broadcast_div(&std)?)
+}
+
+fn clip_gradients(vars: &[Var], grads: &mut GradStore, max_grad_norm: f32) -> Result<f32> {
+    let mut total_norm_sq = 0.0f32;
+    for var in vars {
+        if let Some(grad) = grads.get(var) {
+            let grad_norm_sq: f32 = grad.sqr()?.sum_all()?.to_scalar()?;
+            total_norm_sq += grad_norm_sq;
+        }
+    }
+
+    let total_norm = total_norm_sq.sqrt();
+    if total_norm > max_grad_norm && total_norm > 0.0 {
+        let scale = max_grad_norm / (total_norm + 1e-6);
+        for var in vars {
+            if let Some(grad) = grads.remove(var) {
+                let scaled_grad = (&grad * scale as f64)?;
+                let _ = grads.insert(var, scaled_grad);
+            }
+        }
+    }
+
+    Ok(total_norm)
+}
+
+fn init_networks(
+    var_map: &VarMap,
+    device: Device,
+    obs_dim: usize,
+    act_dim: usize,
+    hidden_sizes: &[usize],
+    policy_prefix: &str,
+    value_prefix: &str,
+    is_discrete: bool,
+) -> Result<Option<Tensor>> {
+    let candle_device = device.to_candle()?;
+
+    // Build policy network layers.
+    let vb_policy = VarBuilder::from_varmap(var_map, DType::F32, &candle_device).pp(policy_prefix);
+    let mut in_dim = obs_dim;
+    for (i, &hidden_size) in hidden_sizes.iter().enumerate() {
+        let _ = candle_nn::linear(in_dim, hidden_size, vb_policy.pp(format!("layer_{}", i)))?;
+        in_dim = hidden_size;
+    }
+    let _ = candle_nn::linear(in_dim, act_dim, vb_policy.pp("output"))?;
+
+    // Build value network layers.
+    let vb_value = VarBuilder::from_varmap(var_map, DType::F32, &candle_device).pp(value_prefix);
+    in_dim = obs_dim;
+    for (i, &hidden_size) in hidden_sizes.iter().enumerate() {
+        let _ = candle_nn::linear(in_dim, hidden_size, vb_value.pp(format!("layer_{}", i)))?;
+        in_dim = hidden_size;
+    }
+    let _ = candle_nn::linear(in_dim, 1, vb_value.pp("output"))?;
+
+    if is_discrete {
+        Ok(None)
+    } else {
+        Ok(Some(vb_policy.get_with_hints(
+            &[act_dim],
+            "log_std",
+            candle_nn::Init::Const(0.0),
+        )?))
+    }
+}
 
 /// PPO Agent for training and inference.
 pub struct PPOAgent<E: Environment + Clone + 'static> {
@@ -31,6 +103,9 @@ pub struct PPOAgent<E: Environment + Clone + 'static> {
 
     /// Variable map for network parameters.
     var_map: VarMap,
+
+    /// Optimizer for policy and value networks.
+    optimizer: AdamW,
 
     /// Policy network weights path in var_map.
     policy_prefix: String,
@@ -73,7 +148,8 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         let obs_dim = obs_space.flat_dim();
         let act_dim = act_space.flat_dim();
-        let is_discrete = act_space.shape() == [1];
+        let is_discrete = !act_space.is_continuous();
+        let hidden_sizes = config.hidden_sizes.clone();
 
         let rng = match config.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
@@ -81,26 +157,43 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         };
 
         let var_map = VarMap::new();
-        let hidden_sizes = vec![64, 64]; // Default MLP architecture
+        let policy_prefix = "policy".to_string();
+        let value_prefix = "value".to_string();
+        let current_lr = config.learning_rate;
+        let log_std = init_networks(
+            &var_map,
+            device,
+            obs_dim,
+            act_dim,
+            &hidden_sizes,
+            &policy_prefix,
+            &value_prefix,
+            is_discrete,
+        )?;
+        let params = ParamsAdamW {
+            lr: current_lr as f64,
+            weight_decay: 0.0,
+            ..Default::default()
+        };
+        let optimizer = AdamW::new(var_map.all_vars(), params)?;
 
-        let mut agent = Self {
-            config: config.clone(),
+        let agent = Self {
+            config,
             env,
             device,
             var_map,
-            policy_prefix: "policy".to_string(),
-            value_prefix: "value".to_string(),
+            optimizer,
+            policy_prefix,
+            value_prefix,
             obs_dim,
             act_dim,
             is_discrete,
             hidden_sizes,
-            log_std: None,
-            current_lr: config.learning_rate,
+            log_std,
+            current_lr,
             total_timesteps: 0,
             rng,
         };
-
-        agent.init_networks()?;
 
         info!(
             "PPO Agent initialized: obs_dim={}, act_dim={}, discrete={}",
@@ -108,58 +201,6 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         );
 
         Ok(agent)
-    }
-
-    /// Initialize neural network weights.
-    fn init_networks(&mut self) -> Result<()> {
-        let candle_device = self.device.to_candle()?;
-
-        // Build policy network layers
-        let vb_policy = VarBuilder::from_varmap(&self.var_map, DType::F32, &candle_device);
-        let mut in_dim = self.obs_dim;
-
-        for (i, &hidden_size) in self.hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(
-                in_dim,
-                hidden_size,
-                vb_policy.pp(format!("{}.layer_{}", self.policy_prefix, i)),
-            )?;
-            in_dim = hidden_size;
-        }
-
-        // Output layer for policy (action logits or mean)
-        let _ = candle_nn::linear(
-            in_dim,
-            self.act_dim,
-            vb_policy.pp(format!("{}.output", self.policy_prefix)),
-        )?;
-
-        // Build value network layers
-        let vb_value = VarBuilder::from_varmap(&self.var_map, DType::F32, &candle_device);
-        in_dim = self.obs_dim;
-
-        for (i, &hidden_size) in self.hidden_sizes.iter().enumerate() {
-            let _ = candle_nn::linear(
-                in_dim,
-                hidden_size,
-                vb_value.pp(format!("{}.layer_{}", self.value_prefix, i)),
-            )?;
-            in_dim = hidden_size;
-        }
-
-        // Output layer for value (single scalar)
-        let _ = candle_nn::linear(
-            in_dim,
-            1,
-            vb_value.pp(format!("{}.output", self.value_prefix)),
-        )?;
-
-        // Initialize log_std for continuous actions
-        if !self.is_discrete {
-            self.log_std = Some(Tensor::zeros(&[self.act_dim], DType::F32, &candle_device)?);
-        }
-
-        Ok(())
     }
 
     /// Forward pass through policy network.
@@ -379,6 +420,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
     /// Perform a single PPO update step.
     fn update(&mut self, buffer: &RolloutBuffer) -> Result<TrainMetrics> {
+        self.optimizer.set_learning_rate(self.current_lr as f64);
         let samples = buffer.get_all()?;
         let n_samples = samples.observations.dim(0)?;
 
@@ -395,21 +437,10 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
         // Normalize advantages
         let advantages = if self.config.normalize_advantage {
-            let mean = advantages.mean_all()?;
-            let var = advantages.var(0)?;
-            let std = (var + 1e-8)?.sqrt()?;
-            ((advantages - mean)? / std)?
+            normalize_advantages(advantages)?
         } else {
             advantages
         };
-
-        // Setup optimizer
-        let params = ParamsAdamW {
-            lr: self.current_lr as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.var_map.all_vars(), params)?;
 
         let mut total_policy_loss = 0.0f32;
         let mut total_value_loss = 0.0f32;
@@ -473,7 +504,10 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
                     + (&entropy_loss * self.config.ent_coef as f64)?)?;
 
                 // Backward pass
-                optimizer.backward_step(&total_loss)?;
+                let mut grads = total_loss.backward()?;
+                let vars = self.var_map.all_vars();
+                clip_gradients(&vars, &mut grads, self.config.max_grad_norm)?;
+                self.optimizer.step(&grads)?;
 
                 // Collect metrics
                 let policy_loss_val: f32 = policy_loss.to_scalar()?;
@@ -532,6 +566,7 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             self.current_lr = self.config.learning_rate * (1.0 - progress);
             self.current_lr = self.current_lr.max(1e-7); // Minimum LR
         }
+        self.optimizer.set_learning_rate(self.current_lr as f64);
     }
 
     /// Collect rollout data from environment.
@@ -760,27 +795,175 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for PPOAgent<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envs::{BoxSpace, DiscreteSpace, StepResult};
+
+    #[derive(Clone)]
+    struct TestEnv<OS: Space + Clone, AS: Space + Clone> {
+        obs_space: OS,
+        act_space: AS,
+    }
+
+    impl<OS: Space + Clone, AS: Space + Clone> TestEnv<OS, AS> {
+        fn new(obs_space: OS, act_space: AS) -> Self {
+            Self {
+                obs_space,
+                act_space,
+            }
+        }
+    }
+
+    impl<OS: Space + Clone + 'static, AS: Space + Clone + 'static> Environment for TestEnv<OS, AS> {
+        type ObsSpace = OS;
+        type ActSpace = AS;
+
+        fn observation_space(&self) -> &Self::ObsSpace {
+            &self.obs_space
+        }
+
+        fn action_space(&self) -> &Self::ActSpace {
+            &self.act_space
+        }
+
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            let candle_device = device.to_candle()?;
+            Ok(Tensor::zeros(
+                self.obs_space.shape(),
+                DType::F32,
+                &candle_device,
+            )?)
+        }
+
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let candle_device = device.to_candle()?;
+            let observation = Tensor::zeros(self.obs_space.shape(), DType::F32, &candle_device)?;
+            Ok(StepResult {
+                observation,
+                reward: 0.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
 
     #[test]
     fn test_gae_computation() {
         // Simple test for GAE computation
         let config = PPOConfig::default();
-        let rewards = vec![1.0, 1.0, 1.0, 1.0];
-        let values = vec![0.5, 0.5, 0.5, 0.5];
-        let dones = vec![0.0, 0.0, 0.0, 1.0];
-        let last_value = 0.0;
 
         // Manual GAE computation for verification
         // This is a simplified test - actual PPO agent test would require env
         let gamma = config.gamma;
         let gae_lambda = config.gae_lambda;
 
-        // With done at last step, last_gae starts fresh
-        // t=3: delta = 1.0 + 0 - 0.5 = 0.5, gae = 0.5
-        // t=2: delta = 1.0 + 0.99*0.5 - 0.5 = 0.995, gae = 0.995 + 0.99*0.95*0.5 = 1.46525
-        // etc.
-
         assert!(gamma > 0.0 && gamma <= 1.0);
         assert!(gae_lambda > 0.0 && gae_lambda <= 1.0);
+    }
+
+    #[test]
+    fn test_agent_uses_space_continuity_and_hidden_sizes() {
+        let device = Device::Cpu;
+        let obs_space = BoxSpace::symmetric(1.0, vec![4]);
+        let continuous_action_space = BoxSpace::symmetric(1.0, vec![2]);
+        let discrete_action_space = DiscreteSpace::new(3);
+
+        let config = PPOConfig::default()
+            .hidden_sizes(vec![8])
+            .n_steps(4)
+            .batch_size(2)
+            .n_epochs(1);
+
+        let continuous_agent = PPOAgent::new(
+            config.clone(),
+            VecEnv::new(
+                vec![TestEnv::new(obs_space.clone(), continuous_action_space)],
+                1,
+            ),
+            device,
+        )
+        .unwrap();
+        assert!(!continuous_agent.is_discrete);
+        assert_eq!(continuous_agent.hidden_sizes, vec![8]);
+        assert!(continuous_agent.log_std.is_some());
+        assert!(continuous_agent
+            .var_map
+            .data()
+            .lock()
+            .unwrap()
+            .contains_key("policy.log_std"));
+
+        let discrete_agent = PPOAgent::new(
+            config,
+            VecEnv::new(vec![TestEnv::new(obs_space, discrete_action_space)], 1),
+            device,
+        )
+        .unwrap();
+        assert!(discrete_agent.is_discrete);
+        assert!(discrete_agent.log_std.is_none());
+        assert!(!discrete_agent
+            .var_map
+            .data()
+            .lock()
+            .unwrap()
+            .contains_key("policy.log_std"));
+    }
+
+    #[test]
+    fn test_normalize_advantages_preserves_shape() {
+        let device = Device::Cpu;
+        let candle_device = device.to_candle().unwrap();
+        let advantages =
+            Tensor::from_slice(&[1.0f32, 2.0, 3.0, 4.0], &[2, 2], &candle_device).unwrap();
+
+        let normalized = normalize_advantages(advantages.clone()).unwrap();
+
+        assert_eq!(normalized.dims(), advantages.dims());
+        let mean: f32 = normalized.mean_all().unwrap().to_scalar().unwrap();
+        assert!(mean.abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_clip_gradients_scales_global_norm() {
+        let device = Device::Cpu;
+        let candle_device = device.to_candle().unwrap();
+        let mut var_map = VarMap::new();
+        var_map
+            .get(
+                &[2],
+                "weight",
+                candle_nn::Init::Const(0.0),
+                DType::F32,
+                &candle_device,
+            )
+            .unwrap();
+        var_map
+            .set_one(
+                "weight",
+                Tensor::from_slice(&[3.0f32, 4.0], &[2], &candle_device).unwrap(),
+            )
+            .unwrap();
+        let weights = var_map
+            .get(
+                &[2],
+                "weight",
+                candle_nn::Init::Const(0.0),
+                DType::F32,
+                &candle_device,
+            )
+            .unwrap();
+
+        let vars = var_map.all_vars();
+        let loss = weights.sqr().unwrap().sum_all().unwrap();
+        let mut grads = loss.backward().unwrap();
+
+        let pre_clip: Vec<f32> = grads.get(&vars[0]).unwrap().to_vec1().unwrap();
+        assert_eq!(pre_clip, vec![6.0, 8.0]);
+
+        let total_norm = clip_gradients(&vars, &mut grads, 5.0).unwrap();
+        assert!((total_norm - 10.0).abs() < 1e-5);
+
+        let post_clip: Vec<f32> = grads.get(&vars[0]).unwrap().to_vec1().unwrap();
+        assert!((post_clip[0] - 3.0).abs() < 1e-5);
+        assert!((post_clip[1] - 4.0).abs() < 1e-5);
     }
 }

@@ -126,6 +126,12 @@ pub struct NStepReplayBuffer {
     gamma_powers: Vec<f32>,
     /// The most recent observation (for next_obs in n-step).
     last_obs: Option<Vec<f32>>,
+    #[cfg(test)]
+    /// Debug capture of stored n-step returns for deterministic testing.
+    debug_returns: Vec<f32>,
+    #[cfg(test)]
+    /// Debug capture of stored done flags for deterministic testing.
+    debug_dones: Vec<bool>,
 }
 
 impl NStepReplayBuffer {
@@ -167,6 +173,10 @@ impl NStepReplayBuffer {
             n_step_buffer: VecDeque::with_capacity(n_step_capacity),
             gamma_powers,
             last_obs: None,
+            #[cfg(test)]
+            debug_returns: Vec::new(),
+            #[cfg(test)]
+            debug_dones: Vec::new(),
         })
     }
 
@@ -236,9 +246,7 @@ impl NStepReplayBuffer {
             // The done flag should be true
             (
                 self.n_step_buffer
-                    .iter()
-                    .skip(actual_n.saturating_sub(1))
-                    .next()
+                    .get(actual_n.saturating_sub(1))
                     .map(|t| t.obs.clone())
                     .unwrap_or_else(|| final_next_obs.to_vec()),
                 true,
@@ -256,6 +264,12 @@ impl NStepReplayBuffer {
             &n_step_next_obs,
             n_step_done,
         );
+
+        #[cfg(test)]
+        {
+            self.debug_returns.push(n_step_return);
+            self.debug_dones.push(n_step_done);
+        }
 
         // Remove the oldest transition
         self.n_step_buffer.pop_front();
@@ -281,6 +295,12 @@ impl NStepReplayBuffer {
             // Store with terminal observation
             self.inner
                 .add(&first.obs, &first.action, n_step_return, terminal_obs, true);
+
+            #[cfg(test)]
+            {
+                self.debug_returns.push(n_step_return);
+                self.debug_dones.push(true);
+            }
 
             self.n_step_buffer.pop_front();
         }
@@ -371,6 +391,11 @@ impl NStepReplayBuffer {
         self.inner.clear();
         self.n_step_buffer.clear();
         self.last_obs = None;
+        #[cfg(test)]
+        {
+            self.debug_returns.clear();
+            self.debug_dones.clear();
+        }
     }
 
     /// Set random seed for reproducibility.
@@ -413,24 +438,19 @@ mod tests {
             .capacity(100);
         let mut buffer = NStepReplayBuffer::new(config, Device::Cpu)?;
 
-        // Add 5 transitions with reward=1.0 each, no terminal states
+        // Add 5 transitions with unique rewards so the sliding window is
+        // observable without relying on random sampling.
         for i in 0..5 {
             let obs = vec![i as f32, 0.0];
             let action = vec![0.0];
             let next_obs = vec![(i + 1) as f32, 0.0];
-            buffer.add(&obs, &action, 1.0, &next_obs, false);
+            buffer.add(&obs, &action, (i + 1) as f32, &next_obs, false);
         }
 
-        // With gamma=1 and n=3, first transition should have:
-        // n-step return = 1 + 1 + 1 = 3
-        assert_eq!(buffer.len(), 2); // First 2 completed n-step transitions
+        assert_eq!(buffer.len(), 3);
 
-        // Sample and verify returns
-        let batch = buffer.sample(2)?;
-        let rewards: Vec<f32> = batch.rewards.to_vec1()?;
-        for r in rewards {
-            assert!((r - 3.0).abs() < 1e-6, "Expected 3.0, got {}", r);
-        }
+        #[cfg(test)]
+        assert_eq!(buffer.debug_returns, vec![6.0, 9.0, 12.0]);
 
         Ok(())
     }
@@ -451,6 +471,9 @@ mod tests {
         // Third: 1
         assert_eq!(buffer.len(), 3);
 
+        #[cfg(test)]
+        assert_eq!(buffer.debug_returns, vec![3.0, 2.0, 1.0]);
+
         Ok(())
     }
 
@@ -469,10 +492,14 @@ mod tests {
             buffer.add(&obs, &[0.0], 1.0, &next_obs, i == 2);
         }
 
-        // Expected: 1 + 0.9 + 0.81 = 2.71
-        let batch = buffer.sample(1)?;
-        let reward: Vec<f32> = batch.rewards.to_vec1()?;
-        assert!((reward[0] - 2.71).abs() < 0.01);
+        #[cfg(test)]
+        assert_eq!(buffer.debug_returns.len(), 3);
+        #[cfg(test)]
+        assert!((buffer.debug_returns[0] - 2.71).abs() < 0.01);
+        #[cfg(test)]
+        assert!((buffer.debug_returns[1] - 1.9).abs() < 0.01);
+        #[cfg(test)]
+        assert!((buffer.debug_returns[2] - 1.0).abs() < 0.01);
 
         Ok(())
     }
@@ -505,7 +532,7 @@ mod tests {
             buffer.add(&obs, &action, 1.0, &next_obs, i == 19);
         }
 
-        assert!(buffer.len() > 0);
+        assert!(!buffer.is_empty());
 
         // Sample with priorities
         let batch = buffer.sample(8)?;
@@ -527,7 +554,7 @@ mod tests {
             buffer.add(&[i as f32, 0.0], &[0.0], 1.0, &[0.0, 0.0], false);
         }
 
-        assert!(buffer.len() > 0);
+        assert!(!buffer.is_empty());
 
         buffer.clear();
         assert!(buffer.is_empty());

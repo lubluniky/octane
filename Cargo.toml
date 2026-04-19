@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Octane Team"]
 description = "High-performance Reinforcement Learning library for Rust, optimized for Apple Silicon and NVIDIA GPUs"
 license = "GPL-2.0"
-repository = "https://github.com/lubluniky/octane-rs"
+repository = "https://github.com/lubluniky/rocket-rs"
 keywords = ["reinforcement-learning", "machine-learning", "gpu", "trading", "hpc"]
 categories = ["science", "algorithms"]
 
@@ -64,7 +64,7 @@ ordered-float = "4.0"
 memmap2 = "0.9"
 
 # Python interop (optional, for Gym compatibility)
-pyo3 = { version = "0.23", optional = true }
+pyo3 = { version = "0.24.1", optional = true }
 
 # Distributed training (optional)
 tonic = { version = "0.12", optional = true }
@@ -86,7 +86,7 @@ libc = "0.2"
 
 # Metal GPU support (macOS only)
 [target.'cfg(target_os = "macos")'.dependencies]
-metal = { version = "0.29", optional = true }
+metal = { version = "0.33", optional = true }
 
 [build-dependencies]
 cc = "1.0"

@@ -28,9 +28,7 @@ pub use binance::{BinanceConfig, BinanceConnector, BinanceMarketType};
 pub use bybit::{BybitAccountType, BybitCategory, BybitConfig, BybitConnector};
 
 use crate::live::error::Result;
-use crate::live::types::{
-    Balance, Candle, Interval, Order, OrderBook, Position, Ticker, Trade,
-};
+use crate::live::types::{Balance, Candle, Interval, Order, OrderBook, Position, Ticker, Trade};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -388,7 +386,11 @@ pub fn hmac_sha256(secret: &str, message: &str) -> String {
     // Simple HMAC-SHA256 implementation placeholder
     // In production, use a proper crypto library like `hmac` + `sha2`
     let mut result = String::new();
-    for byte in secret.as_bytes().iter().zip(message.as_bytes().iter().cycle()) {
+    for byte in secret
+        .as_bytes()
+        .iter()
+        .zip(message.as_bytes().iter().cycle())
+    {
         write!(&mut result, "{:02x}", byte.0 ^ byte.1).unwrap();
     }
 

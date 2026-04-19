@@ -28,7 +28,11 @@
 
 use super::{Result, SimdError};
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 use std::arch::x86_64::*;
 
 #[cfg(all(target_arch = "aarch64", feature = "simd"))]
@@ -39,7 +43,7 @@ use std::arch::aarch64::*;
 // ============================================================================
 
 /// Log(2 * PI) constant.
-const LOG_2PI: f32 = 1.8378770664093453;
+const LOG_2PI: f32 = 1.837_877;
 
 /// Small epsilon for numerical stability.
 const EPSILON: f32 = 1e-6;
@@ -87,7 +91,11 @@ pub fn gaussian_log_prob_simd(
 
     let mut log_probs = vec![0.0f32; n];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -152,7 +160,12 @@ pub fn gaussian_log_prob_batch(
     {
         if super::x86::is_avx2_available() && action_dim >= 8 {
             unsafe {
-                reduce_sum_avx2(&element_log_probs, &mut batch_log_probs, batch_size, action_dim);
+                reduce_sum_avx2(
+                    &element_log_probs,
+                    &mut batch_log_probs,
+                    batch_size,
+                    action_dim,
+                );
             }
             return Ok(batch_log_probs);
         }
@@ -208,7 +221,11 @@ pub fn squashed_gaussian_log_prob_simd(
 
     let mut log_probs = vec![0.0f32; n];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -279,7 +296,11 @@ pub fn squashed_gaussian_log_prob_from_squashed(
 
     let mut log_probs = vec![0.0f32; n];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -346,8 +367,7 @@ pub fn squashed_gaussian_log_prob_batch(
     }
 
     // First compute element-wise log probs
-    let element_log_probs =
-        squashed_gaussian_log_prob_simd(pre_squash_actions, means, log_stds)?;
+    let element_log_probs = squashed_gaussian_log_prob_simd(pre_squash_actions, means, log_stds)?;
 
     // Then reduce over action dimension
     let mut batch_log_probs = vec![0.0f32; batch_size];
@@ -379,7 +399,11 @@ pub fn gaussian_entropy_simd(log_stds: &[f32]) -> Result<Vec<f32>> {
     let n = log_stds.len();
     let mut entropy = vec![0.0f32; n];
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+    ))]
     {
         if super::x86::is_avx2_available() {
             unsafe {
@@ -414,7 +438,11 @@ pub fn gaussian_entropy_simd(log_stds: &[f32]) -> Result<Vec<f32>> {
 // AVX2 Implementations
 // ============================================================================
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn gaussian_log_prob_avx2(
     actions: &[f32],
@@ -466,7 +494,11 @@ unsafe fn gaussian_log_prob_avx2(
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn squashed_gaussian_log_prob_avx2(
     pre_squash: &[f32],
@@ -528,7 +560,11 @@ unsafe fn squashed_gaussian_log_prob_avx2(
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn squashed_gaussian_log_prob_from_squashed_avx2(
     squashed: &[f32],
@@ -598,7 +634,11 @@ unsafe fn squashed_gaussian_log_prob_from_squashed_avx2(
     }
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn gaussian_entropy_avx2(log_stds: &[f32], entropy: &mut [f32]) {
     let n = log_stds.len();
@@ -627,12 +667,7 @@ unsafe fn gaussian_entropy_avx2(log_stds: &[f32], entropy: &mut [f32]) {
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
 #[target_feature(enable = "avx2")]
-unsafe fn reduce_sum_avx2(
-    input: &[f32],
-    output: &mut [f32],
-    batch_size: usize,
-    action_dim: usize,
-) {
+unsafe fn reduce_sum_avx2(input: &[f32], output: &mut [f32], batch_size: usize, action_dim: usize) {
     let chunks = action_dim / 8;
 
     for b in 0..batch_size {
@@ -663,7 +698,11 @@ unsafe fn reduce_sum_avx2(
 // Fast Math Helpers (AVX2)
 // ============================================================================
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[inline]
 unsafe fn fast_exp_avx2(x: __m256) -> __m256 {
@@ -699,7 +738,11 @@ unsafe fn fast_exp_avx2(x: __m256) -> __m256 {
     _mm256_mul_ps(p, scale)
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[inline]
 unsafe fn fast_log_avx2(x: __m256) -> __m256 {
@@ -735,7 +778,11 @@ unsafe fn fast_log_avx2(x: __m256) -> __m256 {
     _mm256_fmadd_ps(exp_f, ln2, result)
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+#[cfg(all(
+    target_arch = "x86_64",
+    target_feature = "avx2",
+    target_feature = "fma"
+))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[inline]
 unsafe fn fast_tanh_avx2(x: __m256) -> __m256 {
@@ -961,14 +1008,12 @@ mod tests {
         let means = vec![0.0f32; 4];
         let log_stds = vec![0.0f32; 4];
 
-        let log_probs =
-            squashed_gaussian_log_prob_simd(&pre_squash, &means, &log_stds).unwrap();
+        let log_probs = squashed_gaussian_log_prob_simd(&pre_squash, &means, &log_stds).unwrap();
 
         assert_eq!(log_probs.len(), 4);
 
         // Jacobian correction should make log probs different from standard Gaussian
-        let gaussian_log_probs =
-            gaussian_log_prob_simd(&pre_squash, &means, &log_stds).unwrap();
+        let gaussian_log_probs = gaussian_log_prob_simd(&pre_squash, &means, &log_stds).unwrap();
 
         // At u=0, tanh(0)=0, so jacobian = -log(1 - 0 + eps) ~= 0
         // So squashed log prob should be close to gaussian log prob at u=0

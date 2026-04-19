@@ -300,7 +300,9 @@ impl TradeJournal {
 
             // Auto-flush if needed
             if self.config.auto_flush_interval > 0
-                && self.total_closed_trades % self.config.auto_flush_interval == 0
+                && self
+                    .total_closed_trades
+                    .is_multiple_of(self.config.auto_flush_interval)
             {
                 let _ = self.flush_to_disk();
             }
@@ -356,19 +358,16 @@ impl TradeJournal {
     pub fn aggregate_stats(&self) -> JournalStats {
         let closed_trades = self.get_closed_trades();
 
-        let total_pnl: f64 = closed_trades
-            .iter()
-            .filter_map(|t| t.pnl)
-            .sum();
+        let total_pnl: f64 = closed_trades.iter().filter_map(|t| t.pnl).sum();
 
         let num_wins = closed_trades
             .iter()
-            .filter(|t| t.pnl.map_or(false, |p| p > 0.0))
+            .filter(|t| t.pnl.is_some_and(|p| p > 0.0))
             .count();
 
         let num_losses = closed_trades
             .iter()
-            .filter(|t| t.pnl.map_or(false, |p| p < 0.0))
+            .filter(|t| t.pnl.is_some_and(|p| p < 0.0))
             .count();
 
         let avg_win = if num_wins > 0 {
@@ -454,7 +453,9 @@ impl TradeJournal {
                 trade.pnl.map_or("".to_string(), |p| p.to_string()),
                 trade.pnl_pct.map_or("".to_string(), |p| p.to_string()),
                 trade.commission,
-                trade.duration_secs.map_or("".to_string(), |d| d.to_string()),
+                trade
+                    .duration_secs
+                    .map_or("".to_string(), |d| d.to_string()),
                 trade.tags.join(";")
             )?;
         }
@@ -542,13 +543,8 @@ mod tests {
         let config = JournalConfig::default();
         let mut journal = TradeJournal::new(config);
 
-        let trade_id = journal.open_trade(
-            "AAPL".to_string(),
-            TradeDirection::Long,
-            1000,
-            150.0,
-            10.0,
-        );
+        let trade_id =
+            journal.open_trade("AAPL".to_string(), TradeDirection::Long, 1000, 150.0, 10.0);
 
         assert_eq!(journal.get_open_trades().len(), 1);
         assert_eq!(journal.get_closed_trades().len(), 0);
@@ -567,26 +563,16 @@ mod tests {
         let mut journal = TradeJournal::new(config);
 
         // Long trade
-        let long_id = journal.open_trade(
-            "AAPL".to_string(),
-            TradeDirection::Long,
-            1000,
-            100.0,
-            10.0,
-        );
+        let long_id =
+            journal.open_trade("AAPL".to_string(), TradeDirection::Long, 1000, 100.0, 10.0);
         journal.close_trade(long_id, 2000, 110.0);
 
         let long_trade = journal.get_trade(long_id).unwrap();
         assert_eq!(long_trade.pnl.unwrap(), 100.0); // (110-100)*10
 
         // Short trade
-        let short_id = journal.open_trade(
-            "AAPL".to_string(),
-            TradeDirection::Short,
-            3000,
-            110.0,
-            10.0,
-        );
+        let short_id =
+            journal.open_trade("AAPL".to_string(), TradeDirection::Short, 3000, 110.0, 10.0);
         journal.close_trade(short_id, 4000, 105.0);
 
         let short_trade = journal.get_trade(short_id).unwrap();
@@ -598,13 +584,8 @@ mod tests {
         let config = JournalConfig::default().auto_tag_trades(true);
         let mut journal = TradeJournal::new(config);
 
-        let trade_id = journal.open_trade(
-            "AAPL".to_string(),
-            TradeDirection::Long,
-            1000,
-            100.0,
-            10.0,
-        );
+        let trade_id =
+            journal.open_trade("AAPL".to_string(), TradeDirection::Long, 1000, 100.0, 10.0);
 
         let trade = journal.get_trade(trade_id).unwrap();
         assert!(trade.tags.contains(&"long".to_string()));
