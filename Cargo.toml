@@ -58,7 +58,7 @@ anyhow = "1.0"
 
 # Numerical utilities
 num-traits = "0.2"
-ordered-float = "4.0"
+ordered-float = "5.3"
 
 # Memory-mapped files for large buffers
 memmap2 = "0.9"
