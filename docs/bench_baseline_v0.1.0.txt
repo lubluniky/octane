@@ -1,0 +1,60 @@
+Benchmarking ppo_loss/1024: Warming up for 1.0000 s
+Benchmarking ppo_loss/1024: Collecting 100 samples in estimated 3.0116 s (742k iterations)
+Benchmarking ppo_loss/1024: Analyzing
+ppo_loss/1024           time:   [4.2267 µs 4.3023 µs 4.4068 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking forward_pass/mlp/32x64
+Benchmarking forward_pass/mlp/32x64: Warming up for 1.0000 s
+Benchmarking forward_pass/mlp/32x64: Collecting 100 samples in estimated 3.0199 s (152k iterations)
+Benchmarking forward_pass/mlp/32x64: Analyzing
+forward_pass/mlp/32x64  time:   [19.997 µs 20.267 µs 20.677 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  5 (5.00%) high mild
+  3 (3.00%) high severe
+Benchmarking forward_pass/mlp/128x256
+Benchmarking forward_pass/mlp/128x256: Warming up for 1.0000 s
+
+Warning: Unable to complete 100 samples in 3.0s. You may wish to increase target time to 3.2s, enable flat sampling, or reduce sample count to 60.
+Benchmarking forward_pass/mlp/128x256: Collecting 100 samples in estimated 3.1653 s (5050 iterations)
+Benchmarking forward_pass/mlp/128x256: Analyzing
+forward_pass/mlp/128x256
+                        time:   [594.77 µs 606.11 µs 619.53 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  2 (2.00%) low mild
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+Benchmarking forward_pass/mlp/512x512
+Benchmarking forward_pass/mlp/512x512: Warming up for 1.0000 s
+Benchmarking forward_pass/mlp/512x512: Collecting 100 samples in estimated 3.1258 s (800 iterations)
+Benchmarking forward_pass/mlp/512x512: Analyzing
+forward_pass/mlp/512x512
+                        time:   [3.7875 ms 3.8278 ms 3.8727 ms]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking advantage_norm/1024
+Benchmarking advantage_norm/1024: Warming up for 1.0000 s
+Benchmarking advantage_norm/1024: Collecting 100 samples in estimated 3.0096 s (1.4M iterations)
+Benchmarking advantage_norm/1024: Analyzing
+advantage_norm/1024     time:   [2.0265 µs 2.0457 µs 2.0683 µs]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+Benchmarking advantage_norm/4096
+Benchmarking advantage_norm/4096: Warming up for 1.0000 s
+Benchmarking advantage_norm/4096: Collecting 100 samples in estimated 3.0043 s (485k iterations)
+Benchmarking advantage_norm/4096: Analyzing
+advantage_norm/4096     time:   [6.1973 µs 6.7277 µs 7.6280 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  3 (3.00%) high mild
+  9 (9.00%) high severe
+Benchmarking advantage_norm/16384
+Benchmarking advantage_norm/16384: Warming up for 1.0000 s
+Benchmarking advantage_norm/16384: Collecting 100 samples in estimated 3.1425 s (96k iterations)
+Benchmarking advantage_norm/16384: Analyzing
+advantage_norm/16384    time:   [32.158 µs 34.836 µs 37.914 µs]
+
