@@ -30,6 +30,7 @@ python = ["dep:pyo3", "dep:numpy"]  # Build the Python extension module (maturin
 distributed = ["dep:tokio", "dep:tonic", "dep:prost", "dep:parking_lot"]  # Distributed training support
 grpc = ["distributed"]  # gRPC backend for distributed training
 half = ["dep:half"]  # Half-precision floating point support
+mlx = ["dep:mlx-rs"]  # Experimental MLX side-path micro-benchmark (Apple Silicon; see docs/MLX.md)
 full = ["metal", "cuda", "simd", "avx2", "half"]
 
 [dependencies]
@@ -97,6 +98,8 @@ libc = "0.2"
 # Metal GPU support (macOS only)
 [target.'cfg(target_os = "macos")'.dependencies]
 metal = { version = "0.33", optional = true }
+# Experimental MLX side-path (Apple Silicon only; requires the MLX toolchain).
+mlx-rs = { version = "0.25", optional = true }
 
 [build-dependencies]
 cc = "1.0"
@@ -116,6 +119,12 @@ harness = false
 
 [[bench]]
 name = "gpu_benchmark"
+harness = false
+
+# Experimental MLX side-path micro-benchmark (requires --features mlx). Plain
+# main (no criterion harness) so it can be feature-gated cleanly.
+[[bench]]
+name = "mlx_benchmark"
 harness = false
 
 [profile.release]
@@ -139,3 +148,11 @@ panic = "unwind"
 [[bin]]
 name = "octane-tui"
 path = "src/bin/octane_tui.rs"
+
+[[bin]]
+name = "octane-web"
+path = "src/bin/octane_web.rs"
+
+[[example]]
+name = "web_dashboard"
+path = "examples/web_dashboard.rs"

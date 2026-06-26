@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Octane · Live Dashboard</title>
+<style>
+  :root {
+    --bg: #07090e;
+    --panel: #0e1119;
+    --panel-2: #131826;
+    --line: #1e2536;
+    --txt: #e6ebf5;
+    --muted: #7d889c;
+    --accent: #ff5c2a;
+    --accent-2: #ffb02e;
+    --cyan: #29d3c2;
+    --blue: #4d8dff;
+    --green: #34d399;
+    --red: #f0506e;
+    --violet: #a779ff;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+    --radius: 14px;
+  }
+  /* Register --val so the gauge ring can actually animate its transition. */
+  @property --val { syntax: "<number>"; initial-value: 0; inherits: false; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(255,92,42,.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(77,141,255,.08), transparent 60%),
+      var(--bg);
+    color: var(--txt);
+    font: 14px/1.45 ui-sans-serif, -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .wrap { max-width: 1480px; margin: 0 auto; padding: 22px 26px 48px; }
+
+  header.top {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 22px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 6px 18px rgba(255,92,42,.4);
+    display: grid; place-items: center; font-weight: 800; font-size: 20px; color: #1a0c04;
+  }
+  .brand h1 { font-size: 19px; margin: 0; letter-spacing: .3px; font-weight: 750; }
+  .brand .sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+  .spacer { flex: 1; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .chip {
+    font-size: 11.5px; padding: 5px 11px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  }
+  .chip b { color: var(--txt); font-weight: 650; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--green); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.6s infinite; }
+  .dot.stale { background: var(--accent-2); }
+  .dot.down { background: var(--red); }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)} 70%{box-shadow:0 0 0 7px rgba(52,211,153,0)} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0)} }
+
+  .grid { display: grid; gap: 16px; }
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 16px; }
+  .cols { grid-template-columns: 1.55fr 1fr; align-items: start; }
+  @media (max-width: 1080px){ .cols { grid-template-columns: 1fr; } }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 17px; box-shadow: var(--shadow);
+  }
+  .card h3 {
+    margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .9px;
+    color: var(--muted); font-weight: 650; display: flex; align-items: center; gap: 8px;
+  }
+  .card h3 .tag { margin-left: auto; font-size: 10.5px; color: var(--muted); letter-spacing: .5px; }
+
+  .kpi .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .7px; }
+  .kpi .value { font-size: 27px; font-weight: 750; margin-top: 6px; letter-spacing: .4px; }
+  .kpi .value small { font-size: 14px; color: var(--muted); font-weight: 600; }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .accent { color: var(--accent-2); }
+
+  .bar { height: 9px; background: #0a0d14; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); margin-top: 10px; }
+  .bar > span { display: block; height: 100%; width: 0; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .4s ease; }
+
+  /* gauges */
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 560px){ .gauges { grid-template-columns: repeat(2,1fr);} }
+  .gauge { text-align: center; }
+  .ring {
+    --val: 0; --col: var(--cyan);
+    width: 116px; height: 116px; border-radius: 50%; margin: 0 auto;
+    background: conic-gradient(var(--col) calc(var(--val) * 1%), #0c1019 0);
+    display: grid; place-items: center; position: relative;
+    transition: --val .5s ease;
+  }
+  .ring::before { content:""; position: absolute; inset: 11px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); }
+  .ring .inner { position: relative; z-index: 1; }
+  .ring .pct { font-size: 22px; font-weight: 750; }
+  .ring .pct small { font-size: 12px; color: var(--muted); }
+  .ring .pct.na { font-size: 16px; font-weight: 650; color: var(--muted); }
+  .gauge .glabel { margin-top: 9px; font-size: 12px; color: var(--muted); }
+  .gauge .gsub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .na { color: var(--muted); font-size: 13px; }
+
+  /* per-core bars */
+  .cores { display: flex; gap: 3px; align-items: flex-end; height: 34px; margin-top: 12px; }
+  .cores .c { flex: 1; background: #0a0d14; border-radius: 3px 3px 1px 1px; position: relative; overflow: hidden; }
+  .cores .c > i { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg, var(--blue), var(--cyan)); }
+
+  canvas { width: 100%; display: block; }
+  .chart-wrap { position: relative; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 11px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1080px){ .charts { grid-template-columns: 1fr; } }
+
+  /* profiler */
+  .prof-row { display: grid; grid-template-columns: 120px 1fr 64px; gap: 10px; align-items: center; margin: 8px 0; font-size: 12.5px; }
+  .prof-row .nm { color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prof-bar { height: 16px; background: #0a0d14; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+  .prof-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--blue)); }
+  .prof-row .pc { text-align: right; color: var(--muted); }
+
+  /* logs */
+  .logs { height: 230px; overflow: auto; background: #05070b; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .logs div { font-size: 12px; line-height: 1.65; color: #b9c2d4; white-space: pre-wrap; word-break: break-word; }
+  .logs .t-train { color: var(--green); }
+  .logs .t-info { color: var(--blue); }
+  .logs .t-warn { color: var(--accent-2); }
+  .empty { color: var(--muted); font-size: 13px; padding: 10px 2px; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #232b3d; border-radius: 6px; }
+  .footer { margin-top: 20px; color: var(--muted); font-size: 11.5px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">O</div>
+      <div>
+        <h1>OCTANE <span class="accent">·</span> Live Dashboard</h1>
+        <div class="sub" id="run-sub">connecting…</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="chips">
+      <span class="chip"><span class="dot" id="conn-dot"></span><b id="conn-text">offline</b></span>
+      <span class="chip">mode <b id="m-mode">—</b></span>
+      <span class="chip">algo <b id="m-algo">—</b></span>
+      <span class="chip">device <b id="m-device">—</b></span>
+      <span class="chip">envs <b id="m-envs">—</b></span>
+      <span class="chip" id="neon-chip" style="display:none">⚡ <b>NEON</b></span>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <div class="grid kpis">
+    <div class="card kpi">
+      <div class="label">Progress</div>
+      <div class="value"><span id="k-prog">0</span><small>%</small></div>
+      <div class="bar"><span id="k-prog-bar"></span></div>
+      <div class="sub"><span id="k-steps">0</span> / <span id="k-total">0</span> steps · ETA <span id="k-eta">—</span></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Throughput</div>
+      <div class="value"><span id="k-sps">0</span> <small>steps/s</small></div>
+      <div class="sub">elapsed <span id="k-elapsed">0s</span></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Mean Reward</div>
+      <div class="value"><span id="k-rew">—</span></div>
+      <div class="sub">± <span id="k-rewstd">0</span> · best <span class="accent" id="k-best">—</span></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Episodes</div>
+      <div class="value" id="k-eps">0</div>
+      <div class="sub">entropy <span id="k-ent">—</span> · KL <span id="k-kl">—</span></div>
+    </div>
+  </div>
+
+  <div class="grid cols">
+    <!-- LEFT: charts -->
+    <div class="grid" style="gap:16px">
+      <div class="card">
+        <h3>Reward <span class="tag">mean ± std over timesteps</span></h3>
+        <div class="chart-wrap"><canvas id="c-reward" height="190"></canvas></div>
+      </div>
+      <div class="charts">
+        <div class="card">
+          <h3>Losses</h3>
+          <div class="legend">
+            <span><i style="background:var(--red)"></i>policy</span>
+            <span><i style="background:var(--blue)"></i>value</span>
+          </div>
+          <div class="chart-wrap"><canvas id="c-loss" height="150"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Entropy &amp; KL</h3>
+          <div class="legend">
+            <span><i style="background:var(--green)"></i>entropy</span>
+            <span><i style="background:var(--violet)"></i>approx KL ×100</span>
+          </div>
+          <div class="chart-wrap"><canvas id="c-ent" height="150"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Explained Variance</h3>
+          <div class="chart-wrap"><canvas id="c-ev" height="150"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Steps / second</h3>
+          <div class="chart-wrap"><canvas id="c-sps" height="150"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>System Load <span class="tag">last samples</span></h3>
+        <div class="legend">
+          <span><i style="background:var(--cyan)"></i>CPU</span>
+          <span><i style="background:var(--accent)"></i>GPU</span>
+          <span><i style="background:var(--accent-2)"></i>RAM</span>
+        </div>
+        <div class="chart-wrap"><canvas id="c-sys" height="160"></canvas></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: system + profiler + logs -->
+    <div class="grid" style="gap:16px">
+      <div class="card">
+        <h3>Resource Load</h3>
+        <div class="gauges">
+          <div class="gauge">
+            <div class="ring" id="g-cpu" style="--col:var(--cyan)"><div class="inner"><div class="pct"><span id="g-cpu-v">0</span><small>%</small></div></div></div>
+            <div class="glabel">CPU</div>
+            <div class="gsub" id="g-cpu-sub">—</div>
+          </div>
+          <div class="gauge">
+            <div class="ring" id="g-gpu" style="--col:var(--accent)"><div class="inner"><div class="pct"><span id="g-gpu-v">0</span><small>%</small></div></div></div>
+            <div class="glabel">GPU</div>
+            <div class="gsub" id="g-gpu-sub">—</div>
+          </div>
+          <div class="gauge">
+            <div class="ring" id="g-ram" style="--col:var(--accent-2)"><div class="inner"><div class="pct"><span id="g-ram-v">0</span><small>%</small></div></div></div>
+            <div class="glabel">RAM</div>
+            <div class="gsub" id="g-ram-sub">—</div>
+          </div>
+        </div>
+        <div class="cores" id="cores"></div>
+        <div class="sub mono" style="margin-top:12px;color:var(--muted);font-size:11.5px" id="sys-line">—</div>
+      </div>
+
+      <div class="card">
+        <h3>Engine Profiler <span class="tag">hierarchical timing</span></h3>
+        <div id="prof"><div class="empty">No profiling data yet.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Live Log</h3>
+        <div class="logs" id="logs"><div class="empty">Waiting for events…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer mono">Octane RL · std-only dashboard · auto-refresh 1s · <span id="f-ver">v—</span></div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const fmtInt = (n) => (n == null || !Number.isFinite(n)) ? "—" : Math.round(n).toLocaleString("en-US");
+function fmtNum(n, d = 2) { return (n == null || !Number.isFinite(n)) ? "—" : Number(n).toFixed(d); }
+function fmtCompact(n) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(2)+"B";
+  if (a >= 1e6) return (n/1e6).toFixed(2)+"M";
+  if (a >= 1e3) return (n/1e3).toFixed(1)+"k";
+  return Math.round(n).toString();
+}
+function fmtDur(s) {
+  if (s == null || !Number.isFinite(s) || s < 0) return "—";
+  s = Math.round(s);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${ss}s`;
+  return `${ss}s`;
+}
+function fmtMB(mb) {
+  if (mb == null || !Number.isFinite(mb)) return "—";
+  return mb >= 1024 ? (mb/1024).toFixed(1)+" GB" : Math.round(mb)+" MB";
+}
+
+// ---- canvas line chart (no deps) ----
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  // Capture the intended CSS height ONCE. `cv.height` is the IDL backing-store
+  // value that reflects prior JS writes, so reading it after the first mutation
+  // would compound by dpr every frame (190->380->760… on retina). Cache the
+  // pristine value before we ever touch it.
+  if (cv._cssH === undefined) cv._cssH = cv.height || 150;
+  const w = cv.clientWidth || cv.parentElement.clientWidth;
+  const h = cv._cssH;
+  cv.width = Math.max(1, Math.floor(w * dpr));
+  cv.height = Math.max(1, Math.floor(h * dpr));
+  cv.style.height = h + "px"; // pin layout height so the element can't balloon
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false; // keep the 1-bit dither crisp on HiDPI
+  return { ctx, w, h };
+}
+
+// ---- dithered (ordered-dither / halftone) area fills ----
+function parseHex(hex) {
+  hex = (hex || "").trim();
+  if (hex[0] === "#") hex = hex.slice(1);
+  if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+  const n = parseInt(hex, 16);
+  if (!Number.isFinite(n)) return [180, 180, 180];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// 4x4 Bayer ordered-dither matrix (values 0..15).
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const _ditherCache = new Map();
+// Build a plot-sized tile whose dot density ramps from sparse (top) to dense
+// (bottom) — a 1-bit "halftone gradient". Cached per (size,color,alpha).
+function ditherTileFor(w, h, color, alpha) {
+  w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+  const [r, g, b] = parseHex(color);
+  const key = `${w}x${h}:${r},${g},${b}:${alpha}`;
+  let tile = _ditherCache.get(key);
+  if (tile) return tile;
+  tile = document.createElement("canvas");
+  tile.width = w; tile.height = h;
+  const tctx = tile.getContext("2d");
+  const img = tctx.createImageData(w, h);
+  const data = img.data;
+  for (let y = 0; y < h; y++) {
+    const depth = h > 1 ? y / (h - 1) : 1;
+    const dens = Math.pow(depth, 0.8); // sparse at top, dense near baseline
+    for (let x = 0; x < w; x++) {
+      const thr = (BAYER4[((y & 3) << 2) | (x & 3)] + 0.5) / 16;
+      if (dens > thr) {
+        const idx = (y * w + x) * 4;
+        data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = alpha;
+      }
+    }
+  }
+  tctx.putImageData(img, 0, 0);
+  if (_ditherCache.size > 48) _ditherCache.clear();
+  _ditherCache.set(key, tile);
+  return tile;
+}
+// Clip to the area under a series polyline and paint it with a dither tile.
+function fillAreaDither(ctx, s, X, Y, padL, padT, plotW, plotH) {
+  const baseY = padT + plotH;
+  const tile = ditherTileFor(plotW, plotH, s.color, s.fillAlpha || 210);
+  const n = s.x.length;
+  let i = 0;
+  while (i < n) {
+    while (i < n && (!Number.isFinite(s.x[i]) || !Number.isFinite(s.y[i]))) i++;
+    let j = i;
+    const pts = [];
+    while (j < n && Number.isFinite(s.x[j]) && Number.isFinite(s.y[j])) { pts.push([X(s.x[j]), Y(s.y[j])]); j++; }
+    if (pts.length >= 2) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+      ctx.lineTo(pts[pts.length - 1][0], baseY);
+      ctx.lineTo(pts[0][0], baseY);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(tile, padL, padT);
+      ctx.restore();
+    }
+    i = j + 1;
+  }
+}
+
+// series: [{x:[], y:[], color, width, fill}], optional band {x, lo, hi, color}
+function drawChart(cv, series, opts = {}) {
+  const { ctx, w, h } = setupCanvas(cv);
+  ctx.clearRect(0, 0, w, h);
+  const padL = 46, padR = 12, padT = 12, padB = 20;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+
+  // collect finite values for scaling
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  const consider = (xa, ya) => {
+    for (let i = 0; i < xa.length; i++) {
+      const x = xa[i], y = ya[i];
+      if (x == null || !Number.isFinite(x)) continue;
+      if (x < xmin) xmin = x; if (x > xmax) xmax = x;
+      if (y == null || !Number.isFinite(y)) continue;
+      if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+    }
+  };
+  for (const s of series) consider(s.x, s.y);
+  if (opts.band) { consider(opts.band.x, opts.band.lo); consider(opts.band.x, opts.band.hi); }
+  if (opts.yMinForce != null) ymin = Math.min(ymin, opts.yMinForce);
+
+  if (!Number.isFinite(xmin) || !Number.isFinite(ymin) || xmax === xmin) {
+    ctx.fillStyle = css("--muted"); ctx.font = "12px ui-monospace, monospace";
+    ctx.fillText("collecting…", padL, padT + plotH/2);
+    return;
+  }
+  if (ymax === ymin) { ymax += 1; ymin -= 1; }
+  const yPad = (ymax - ymin) * 0.08; ymin -= yPad; ymax += yPad;
+
+  const X = (v) => padL + (v - xmin) / (xmax - xmin) * plotW;
+  const Y = (v) => padT + (1 - (v - ymin) / (ymax - ymin)) * plotH;
+
+  // gridlines + y labels
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1;
+  ctx.fillStyle = css("--muted"); ctx.font = "10px ui-monospace, monospace";
+  ctx.textBaseline = "middle";
+  const rows = 4;
+  for (let i = 0; i <= rows; i++) {
+    const yy = padT + plotH * i / rows;
+    const val = ymax - (ymax - ymin) * i / rows;
+    ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillText(fmtCompact(val), 4, yy);
+  }
+
+  // band
+  if (opts.band) {
+    const b = opts.band;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < b.x.length; i++) {
+      if (!Number.isFinite(b.hi[i])) continue;
+      const px = X(b.x[i]), py = Y(b.hi[i]);
+      if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+    }
+    for (let i = b.x.length - 1; i >= 0; i--) {
+      if (!Number.isFinite(b.lo[i])) continue;
+      ctx.lineTo(X(b.x[i]), Y(b.lo[i]));
+    }
+    ctx.closePath();
+    ctx.fillStyle = b.color || "rgba(255,176,46,.13)";
+    ctx.fill();
+  }
+
+  // dithered area fills (retro halftone gradient), under the lines
+  for (const s of series) {
+    if (s.fill) fillAreaDither(ctx, s, X, Y, padL, padT, plotW, plotH);
+  }
+
+  // lines
+  for (const s of series) {
+    ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < s.x.length; i++) {
+      const x = s.x[i], y = s.y[i];
+      if (x == null || !Number.isFinite(x) || y == null || !Number.isFinite(y)) { pen = false; continue; }
+      const px = X(x), py = Y(y);
+      if (!pen) { ctx.moveTo(px, py); pen = true; } else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 2;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.stroke();
+
+    // last point dot + value
+    let li = s.y.length - 1;
+    while (li >= 0 && (!Number.isFinite(s.y[li]) || !Number.isFinite(s.x[li]))) li--;
+    if (li >= 0) {
+      const px = X(s.x[li]), py = Y(s.y[li]);
+      ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ---- state / polling ----
+let lastTs = 0;
+let pollTimer = null;
+const LOG_CLASS = (l) => l.includes("[TRAIN")||l.includes("Episode") ? "t-train"
+  : l.includes("[WARN")||l.includes("warn") ? "t-warn"
+  : l.includes("[INFO")||l.includes("info") ? "t-info" : "";
+
+function setConn(status) {
+  const dot = $("conn-dot"), txt = $("conn-text");
+  dot.className = "dot " + status;
+  txt.textContent = status === "live" ? "connected" : status === "stale" ? "idle" : "offline";
+}
+
+function setRing(id, vid, sub, val, available = true) {
+  const ring = $(id);
+  const ok = available && Number.isFinite(val);
+  const v = ok ? Math.max(0, Math.min(100, val)) : 0;
+  ring.style.setProperty("--val", v.toFixed(1));
+  const span = $(vid);
+  const pct = span.parentElement;             // the .pct container
+  const unit = pct.querySelector("small");    // the "%" suffix
+  if (ok) {
+    span.textContent = Math.round(val);
+    if (unit) unit.style.display = "";
+    pct.classList.remove("na");
+  } else {
+    span.textContent = "N/A";
+    if (unit) unit.style.display = "none";    // avoid rendering "N/A%"
+    pct.classList.add("na");
+  }
+  if (sub != null) $(sub.id).textContent = sub.text;
+}
+
+function render(d) {
+  const tr = d.training || {}, sys = d.system || {};
+  // header
+  $("run-sub").textContent = `${tr.algorithm||"—"} on ${tr.env_name||"—"} · run ${tr.run_id||"—"}`;
+  $("m-mode").textContent = (d.server&&d.server.mode)||"—";
+  $("m-algo").textContent = tr.algorithm||"—";
+  $("m-device").textContent = tr.device||"—";
+  $("m-envs").textContent = tr.num_envs ? fmtInt(tr.num_envs) : "—";
+  $("f-ver").textContent = "v"+((d.server&&d.server.version)||"—");
+  $("neon-chip").style.display = sys.neon ? "inline-flex" : "none";
+
+  // KPIs
+  const prog = Math.max(0, Math.min(100, (tr.progress||0)*100));
+  $("k-prog").textContent = prog.toFixed(prog < 10 ? 1 : 0);
+  $("k-prog-bar").style.width = prog.toFixed(1)+"%";
+  $("k-steps").textContent = fmtCompact(tr.timesteps);
+  $("k-total").textContent = fmtCompact(tr.total_timesteps);
+  $("k-eta").textContent = tr.active ? fmtDur(tr.eta_secs) : "—";
+  $("k-sps").textContent = fmtCompact(tr.sps);
+  $("k-elapsed").textContent = fmtDur(tr.elapsed_secs);
+  $("k-eps").textContent = fmtInt(tr.episodes);
+  const lt = tr.latest || {};
+  $("k-rew").textContent = tr.has_data ? fmtNum(lt.mean_reward) : "—";
+  $("k-rewstd").textContent = fmtNum(lt.std_reward);
+  $("k-best").textContent = tr.has_data ? fmtNum(tr.best_reward) : "—";
+  $("k-ent").textContent = fmtNum(lt.entropy, 3);
+  $("k-kl").textContent = fmtNum(lt.approx_kl, 4);
+
+  // gauges
+  setRing("g-cpu","g-cpu-v",{id:"g-cpu-sub",text:`${sys.cpu_cores||0} cores · ${sys.cpu_name||""}`}, sys.cpu_usage, true);
+  setRing("g-gpu","g-gpu-v",{id:"g-gpu-sub",text: sys.gpu_usage_available
+      ? `${fmtMB(sys.gpu_mem_used_mb)} / ${fmtMB(sys.gpu_mem_total_mb)}`
+      : `mem ${fmtMB(sys.gpu_mem_used_mb)} · util N/A`}, sys.gpu_usage, sys.gpu_usage_available);
+  setRing("g-ram","g-ram-v",{id:"g-ram-sub",text:`${fmtMB(sys.mem_used_mb)} / ${fmtMB(sys.mem_total_mb)}`}, sys.mem_used_pct, true);
+
+  // per-core bars
+  const cores = sys.cpu_per_core || [];
+  const cwrap = $("cores");
+  if (cwrap.children.length !== cores.length) {
+    cwrap.innerHTML = cores.map(()=>'<div class="c"><i></i></div>').join("");
+  }
+  for (let i=0;i<cores.length;i++){
+    const bar = cwrap.children[i].firstChild;
+    bar.style.height = Math.max(2, Math.min(100, cores[i])).toFixed(0)+"%";
+  }
+  const la = sys.load_avg || [0,0,0];
+  $("sys-line").textContent =
+    `proc ${fmtMB(sys.process_rss_mb)} · swap ${fmtMB(sys.swap_used_mb)}/${fmtMB(sys.swap_total_mb)} · load ${fmtNum(la[0],2)} ${fmtNum(la[1],2)} ${fmtNum(la[2],2)} · ${sys.gpu_name||""}`;
+
+  // charts
+  const H = d.history || {};
+  const xs = H.timesteps || [];
+  const mr = H.mean_reward||[], sr = H.std_reward||[];
+  const bandHi = mr.map((m,i)=> Number.isFinite(m) ? m + (Number.isFinite(sr[i])?sr[i]:0) : NaN);
+  const bandLo = mr.map((m,i)=> Number.isFinite(m) ? m - (Number.isFinite(sr[i])?sr[i]:0) : NaN);
+  drawChart($("c-reward"),
+    [{x:xs, y:H.mean_reward||[], color:css("--accent-2"), width:2.4, fill:true, fillAlpha:200}],
+    {band:{x:xs, lo:bandLo, hi:bandHi, color:"rgba(255,176,46,.10)"}});
+  drawChart($("c-loss"),
+    [{x:xs, y:H.policy_loss||[], color:css("--red"), width:2, fill:true, fillAlpha:175},
+     {x:xs, y:H.value_loss||[], color:css("--blue"), width:2}]);
+  drawChart($("c-ent"),
+    [{x:xs, y:H.entropy||[], color:css("--green"), width:2, fill:true, fillAlpha:175},
+     {x:xs, y:(H.approx_kl||[]).map(v=>v*100), color:css("--violet"), width:2}]);
+  drawChart($("c-ev"),
+    [{x:xs, y:H.explained_variance||[], color:css("--cyan"), width:2, fill:true, fillAlpha:200}], {yMinForce:0});
+  drawChart($("c-sps"),
+    [{x:xs, y:H.sps||[], color:css("--accent"), width:2, fill:true, fillAlpha:200}], {yMinForce:0});
+
+  const SH = d.system_history || {};
+  drawChart($("c-sys"),
+    [{x:SH.t||[], y:SH.cpu||[], color:css("--cyan"), width:2, fill:true, fillAlpha:165},
+     {x:SH.t||[], y:SH.gpu||[], color:css("--accent"), width:2},
+     {x:SH.t||[], y:SH.mem_pct||[], color:css("--accent-2"), width:2}],
+    {yMinForce:0});
+
+  // profiler
+  const prof = d.profiling || [];
+  const pe = $("prof");
+  if (!prof.length) {
+    pe.innerHTML = '<div class="empty">No profiling data yet — start training with profiling scopes.</div>';
+  } else {
+    const pctOf = (p) => Number.isFinite(p.pct) ? p.pct : 0;
+    const maxPct = Math.max(...prof.map(pctOf), 1);
+    pe.innerHTML = prof.slice(0, 10).map(p => `
+      <div class="prof-row">
+        <div class="nm mono">${escapeHtml(p.name)}</div>
+        <div class="prof-bar"><span style="width:${(pctOf(p)/maxPct*100).toFixed(1)}%"></span></div>
+        <div class="pc mono">${fmtNum(p.pct,1)}%</div>
+      </div>
+      <div class="prof-row" style="margin-top:-4px"><div></div>
+        <div class="mono" style="font-size:11px;color:var(--muted)">${fmtNum(p.total_ms,1)} ms · ${fmtInt(p.count)}× · avg ${fmtNum(p.avg_ms,3)} ms</div><div></div></div>
+    `).join("");
+  }
+
+  // logs
+  const logs = d.logs || [];
+  const le = $("logs");
+  if (!logs.length) {
+    le.innerHTML = '<div class="empty">Waiting for events…</div>';
+  } else {
+    const nearBottom = le.scrollTop + le.clientHeight >= le.scrollHeight - 30;
+    le.innerHTML = logs.slice(-200).map(l => `<div class="${LOG_CLASS(l)}">${escapeHtml(l)}</div>`).join("");
+    if (nearBottom) le.scrollTop = le.scrollHeight;
+  }
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function poll() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    if (!r.ok) throw new Error("http "+r.status);
+    const d = await r.json();
+    render(d);
+    // An empty/`{}` payload (e.g. a poisoned server mutex) must NOT read as healthy.
+    const healthy = !!(d && d.server && d.system);
+    const active = healthy && d.training && d.training.active;
+    setConn(!healthy ? "down" : (active ? "live" : "stale"));
+    lastTs = Date.now();
+  } catch (e) {
+    setConn("down");
+  }
+}
+
+window.addEventListener("resize", () => { /* charts redraw on next poll */ });
+poll();
+pollTimer = setInterval(poll, 1000);
+</script>
+</body>
+</html>

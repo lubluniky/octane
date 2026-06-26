@@ -665,11 +665,17 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
             let progress = self.total_timesteps as f32 / total_timesteps as f32;
             self.update_learning_rate(progress);
 
-            // Collect rollout
-            let (buffer, episode_rewards, _episode_lengths) = self.collect_rollout()?;
+            // Collect rollout (timed for the dashboard profiler panel)
+            let (buffer, episode_rewards, _episode_lengths) = {
+                let _scope = crate::profiling::ProfileScope::new("rollout");
+                self.collect_rollout()?
+            };
 
             // Update policy
-            let mut metrics = self.update(&buffer)?;
+            let mut metrics = {
+                let _scope = crate::profiling::ProfileScope::new("update");
+                self.update(&buffer)?
+            };
 
             // Update metrics with episode info
             if !episode_rewards.is_empty() {

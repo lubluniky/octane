@@ -310,20 +310,30 @@ impl TrainingLogReader {
 
         let start_idx = self.entries.len();
 
-        for line in reader.lines() {
-            let line = line?;
-            if line.is_empty() {
+        // Advance `position` only by the bytes of complete (newline-terminated)
+        // lines we actually consume. Re-stat'ing the file length instead would
+        // race with the writer and silently skip lines appended mid-read.
+        let mut pos = self.position;
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let n = reader.read_line(&mut line)?;
+            if n == 0 {
+                break; // EOF
+            }
+            if !line.ends_with('\n') {
+                break; // partial trailing line — re-read it next poll
+            }
+            pos += n as u64;
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
                 continue;
             }
-            match serde_json::from_str::<TrainingLogEntry>(&line) {
-                Ok(entry) => self.entries.push(entry),
-                Err(_) => continue, // Skip malformed lines
+            if let Ok(entry) = serde_json::from_str::<TrainingLogEntry>(trimmed) {
+                self.entries.push(entry);
             }
         }
-
-        // Update position
-        let file = File::open(&self.log_path)?;
-        self.position = file.metadata()?.len();
+        self.position = pos;
 
         Ok(&self.entries[start_idx..])
     }

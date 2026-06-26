@@ -39,6 +39,8 @@ pub mod envs;
 pub mod live;
 pub mod logging;
 pub mod metrics;
+#[cfg(feature = "mlx")]
+pub mod mlx_experiment;
 pub mod networks;
 pub mod profiling;
 #[cfg(feature = "python")]
@@ -49,6 +51,7 @@ pub mod strategies;
 pub mod trading;
 pub mod tui;
 pub mod tuning;
+pub mod web;
 
 // Re-exports for ergonomic API
 pub use crate::algorithms::{
@@ -126,6 +129,12 @@ pub use crate::trading::{
 pub use crate::tuning::{
     CategoricalParam, FloatParam, GridConfig, GridSearch, HyperparameterSpace, IntParam,
     OptimizationDirection, ParamValue, RandomSearch, Sampler, Study, Trial, TrialState,
+};
+
+// Web dashboard (localhost training visualization)
+pub use crate::web::{
+    spawn_system_monitor, DashboardConfig, DashboardMode, DashboardServer, DashboardState,
+    SystemMonitor, SystemSnapshot,
 };
 
 // SIMD-optimized operations
