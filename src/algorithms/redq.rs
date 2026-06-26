@@ -277,6 +277,11 @@ pub struct REDQAgent<E: Environment + Clone + 'static> {
     /// Ensemble of target Q-network var_maps.
     target_q_var_maps: Vec<VarMap>,
 
+    /// Persistent optimizers (Adam moment state must survive across updates;
+    /// with UTD>1 update() runs many times per step so this matters most here).
+    policy_optimizer: AdamW,
+    q_optimizers: Vec<AdamW>,
+
     /// Observation dimension.
     obs_dim: usize,
 
@@ -350,6 +355,11 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
         let target_q_var_maps: Vec<VarMap> =
             (0..config.ensemble_size).map(|_| VarMap::new()).collect();
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -357,6 +367,8 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
             policy_var_map,
             q_var_maps,
             target_q_var_maps,
+            policy_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            q_optimizers: Vec::new(),
             obs_dim,
             action_dim,
             replay_buffer,
@@ -369,6 +381,14 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the populated network variables.
+        agent.policy_optimizer = AdamW::new(agent.policy_var_map.all_vars(), opt_params.clone())?;
+        let mut q_optimizers = Vec::with_capacity(agent.q_var_maps.len());
+        for vm in &agent.q_var_maps {
+            q_optimizers.push(AdamW::new(vm.all_vars(), opt_params.clone())?);
+        }
+        agent.q_optimizers = q_optimizers;
 
         info!(
             "REDQ Agent initialized: obs_dim={}, action_dim={}, ensemble_size={}, utd_ratio={}",
@@ -686,12 +706,8 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
 
         // ========== Update Q-networks ==========
         let mut total_q_loss = 0.0f32;
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            ..Default::default()
-        };
 
-        // Update each Q-network in the ensemble
+        // Update each Q-network in the ensemble (persistent per-network optimizers).
         for i in 0..self.config.ensemble_size {
             let current_q = self.q_forward(
                 &batch.observations,
@@ -701,8 +717,7 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
             )?;
             let q_loss = (&current_q - &td_target)?.sqr()?.mean_all()?;
 
-            let mut q_optimizer = AdamW::new(self.q_var_maps[i].all_vars(), params.clone())?;
-            q_optimizer.backward_step(&q_loss)?;
+            self.q_optimizers[i].backward_step(&q_loss)?;
 
             total_q_loss += q_loss.to_scalar::<f32>()?;
         }
@@ -726,8 +741,7 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
         let entropy_term = (&new_log_probs * self.alpha as f64)?;
         let policy_loss = (&entropy_term - &mean_q)?.mean_all()?;
 
-        let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
-        policy_optimizer.backward_step(&policy_loss)?;
+        self.policy_optimizer.backward_step(&policy_loss)?;
 
         // ========== Update Alpha (if auto-tuning) ==========
         let alpha_loss_val = if self.config.auto_entropy_tuning {
@@ -741,9 +755,11 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
 
             // Manual gradient step for alpha.
             let alpha_grad = diff * self.alpha;
-            let new_log_alpha =
-                (self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad)
-                    .clamp(-10.0, 10.0);
+            // log_alpha is a rank-1 [1] tensor; read element 0 (to_scalar needs
+            // rank 0 and would error at runtime on the default auto-entropy path).
+            let new_log_alpha = (self.log_alpha.to_vec1::<f32>()?[0]
+                - self.config.learning_rate * alpha_grad)
+                .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
 

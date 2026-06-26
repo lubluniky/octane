@@ -37,6 +37,9 @@ pub struct DQNAgent<E: Environment + Clone + 'static> {
     /// Target Q-network variable map.
     target_var_map: VarMap,
 
+    /// Persistent optimizer (Adam moment state must survive across updates).
+    q_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Number of actions (discrete).
@@ -94,12 +97,19 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
         let target_var_map = VarMap::new();
         let hidden_sizes = vec![256, 256];
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            weight_decay: 0.0,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
             device,
             q_var_map,
             target_var_map,
+            q_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             obs_dim,
             num_actions,
             hidden_sizes,
@@ -112,6 +122,9 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind the optimizer to the populated Q-network variables.
+        agent.q_optimizer = AdamW::new(agent.q_var_map.all_vars(), opt_params)?;
 
         info!(
             "DQN Agent initialized: obs_dim={}, num_actions={}, double_dqn={}",
@@ -321,14 +334,10 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
             td_error.sqr()?.mean_all()?
         };
 
-        // Backward pass
-        let params = ParamsAdamW {
-            lr: self.current_lr as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.q_var_map.all_vars(), params)?;
-        optimizer.backward_step(&loss)?;
+        // Backward pass (reuse persistent optimizer; keep lr in sync in case a
+        // learning-rate schedule mutates current_lr in the future).
+        self.q_optimizer.set_learning_rate(self.current_lr as f64);
+        self.q_optimizer.backward_step(&loss)?;
 
         // Update priorities if using PER
         if self.config.prioritized_replay {

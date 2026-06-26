@@ -77,6 +77,10 @@ pub struct DDPGAgent<E: Environment + Clone + 'static> {
     /// Target critic network var_map.
     target_critic_var_map: VarMap,
 
+    /// Persistent optimizers (Adam moment state must survive across updates).
+    actor_optimizer: AdamW,
+    critic_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -136,6 +140,15 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         let critic_var_map = VarMap::new();
         let target_critic_var_map = VarMap::new();
 
+        let actor_opt_params = ParamsAdamW {
+            lr: config.actor_lr as f64,
+            ..Default::default()
+        };
+        let critic_opt_params = ParamsAdamW {
+            lr: config.critic_lr as f64,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -144,6 +157,8 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
             target_actor_var_map,
             critic_var_map,
             target_critic_var_map,
+            actor_optimizer: AdamW::new(Vec::new(), actor_opt_params.clone())?,
+            critic_optimizer: AdamW::new(Vec::new(), critic_opt_params.clone())?,
             obs_dim,
             action_dim,
             action_scale,
@@ -154,6 +169,10 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the populated network variables.
+        agent.actor_optimizer = AdamW::new(agent.actor_var_map.all_vars(), actor_opt_params)?;
+        agent.critic_optimizer = AdamW::new(agent.critic_var_map.all_vars(), critic_opt_params)?;
 
         info!(
             "DDPG Agent initialized: obs_dim={}, action_dim={}, noise={:?}",
@@ -426,12 +445,7 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         )?;
         let critic_loss = (&current_q - &td_target)?.sqr()?.mean_all()?;
 
-        let critic_params = ParamsAdamW {
-            lr: self.config.critic_lr as f64,
-            ..Default::default()
-        };
-        let mut critic_optimizer = AdamW::new(self.critic_var_map.all_vars(), critic_params)?;
-        critic_optimizer.backward_step(&critic_loss)?;
+        self.critic_optimizer.backward_step(&critic_loss)?;
 
         // ========== Update Actor ==========
         let actor_actions =
@@ -444,12 +458,7 @@ impl<E: Environment + Clone + 'static> DDPGAgent<E> {
         )?;
         let actor_loss = actor_q.neg()?.mean_all()?;
 
-        let actor_params = ParamsAdamW {
-            lr: self.config.actor_lr as f64,
-            ..Default::default()
-        };
-        let mut actor_optimizer = AdamW::new(self.actor_var_map.all_vars(), actor_params)?;
-        actor_optimizer.backward_step(&actor_loss)?;
+        self.actor_optimizer.backward_step(&actor_loss)?;
 
         // Soft update targets
         self.soft_update_targets()?;

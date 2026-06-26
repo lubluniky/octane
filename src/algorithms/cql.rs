@@ -79,6 +79,11 @@ pub struct CQLAgent {
     /// Target Q2 network var_map.
     target_q2_var_map: VarMap,
 
+    /// Persistent optimizers (Adam moment state must survive across updates).
+    policy_optimizer: AdamW,
+    q1_optimizer: AdamW,
+    q2_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -159,6 +164,11 @@ impl CQLAgent {
         let target_q1_var_map = VarMap::new();
         let target_q2_var_map = VarMap::new();
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             device,
@@ -167,6 +177,9 @@ impl CQLAgent {
             q2_var_map,
             target_q1_var_map,
             target_q2_var_map,
+            policy_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            q1_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            q2_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             obs_dim,
             action_dim,
             replay_buffer,
@@ -180,6 +193,11 @@ impl CQLAgent {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the populated network variables.
+        agent.policy_optimizer = AdamW::new(agent.policy_var_map.all_vars(), opt_params.clone())?;
+        agent.q1_optimizer = AdamW::new(agent.q1_var_map.all_vars(), opt_params.clone())?;
+        agent.q2_optimizer = AdamW::new(agent.q2_var_map.all_vars(), opt_params)?;
 
         info!(
             "CQL Agent initialized: obs_dim={}, action_dim={}, cql_alpha={}, with_lagrange={}",
@@ -611,7 +629,8 @@ impl CQLAgent {
 
             // Update log_alpha
             if let Some(ref log_alpha) = self.cql_log_alpha {
-                let current_log_alpha: f32 = log_alpha.to_scalar()?;
+                // [1] tensor -> read element 0 (to_scalar needs rank 0).
+                let current_log_alpha: f32 = log_alpha.to_vec1::<f32>()?[0];
                 let new_log_alpha = current_log_alpha + self.config.learning_rate * alpha_grad;
                 let new_log_alpha = new_log_alpha.clamp(-10.0, 10.0); // Clamp for stability
                 self.cql_log_alpha = Some(Tensor::new(&[new_log_alpha], &candle_device)?);
@@ -629,16 +648,8 @@ impl CQLAgent {
         let q2_loss = (&td_loss_q2 + &cql_penalty_q2 * cql_weight as f64)?;
 
         // ========== Update Q-networks ==========
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            ..Default::default()
-        };
-
-        let mut q1_optimizer = AdamW::new(self.q1_var_map.all_vars(), params.clone())?;
-        q1_optimizer.backward_step(&q1_loss)?;
-
-        let mut q2_optimizer = AdamW::new(self.q2_var_map.all_vars(), params.clone())?;
-        q2_optimizer.backward_step(&q2_loss)?;
+        self.q1_optimizer.backward_step(&q1_loss)?;
+        self.q2_optimizer.backward_step(&q2_loss)?;
 
         // ========== Update Policy ==========
         let (new_actions, new_log_probs) = self.sample_action(&batch.observations, false)?;
@@ -650,8 +661,7 @@ impl CQLAgent {
         let entropy_term = (&new_log_probs * self.alpha as f64)?;
         let policy_loss = (&entropy_term - &min_q_new)?.mean_all()?;
 
-        let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
-        policy_optimizer.backward_step(&policy_loss)?;
+        self.policy_optimizer.backward_step(&policy_loss)?;
 
         // ========== Update SAC Alpha ==========
         if self.config.auto_entropy_tuning {
@@ -662,7 +672,9 @@ impl CQLAgent {
             // log_alpha -= lr * (mean(-log_pi) - target_entropy) * alpha, so that
             // alpha rises when entropy is below target (diff < 0).
             let alpha_grad = diff * self.alpha;
-            let new_log_alpha = (self.log_alpha.to_scalar::<f32>()?
+            // log_alpha is a rank-1 [1] tensor; read element 0 (to_scalar needs
+            // rank 0 and would error at runtime on the default auto-entropy path).
+            let new_log_alpha = (self.log_alpha.to_vec1::<f32>()?[0]
                 - self.config.learning_rate * alpha_grad)
                 .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;

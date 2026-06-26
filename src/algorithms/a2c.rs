@@ -14,11 +14,35 @@ use crate::algorithms::rollout::RolloutBuffer;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::core::{Device, OctaneError, Result};
 use crate::envs::{Environment, Space, VecEnv};
-use candle_core::{DType, Module, Tensor};
+use candle_core::{backprop::GradStore, DType, Module, Tensor, Var};
 use candle_nn::{AdamW, Optimizer, ParamsAdamW, VarBuilder, VarMap};
 use rand::prelude::*;
 use std::path::Path;
 use tracing::info;
+
+/// Global-norm gradient clipping over the given variables' gradients.
+fn clip_gradients(vars: &[Var], grads: &mut GradStore, max_grad_norm: f32) -> Result<f32> {
+    let mut total_norm_sq = 0.0f32;
+    for var in vars {
+        if let Some(grad) = grads.get(var) {
+            let grad_norm_sq: f32 = grad.sqr()?.sum_all()?.to_scalar()?;
+            total_norm_sq += grad_norm_sq;
+        }
+    }
+
+    let total_norm = total_norm_sq.sqrt();
+    if total_norm > max_grad_norm && total_norm > 0.0 {
+        let scale = max_grad_norm / (total_norm + 1e-6);
+        for var in vars {
+            if let Some(grad) = grads.remove(var) {
+                let scaled_grad = (&grad * scale as f64)?;
+                let _ = grads.insert(var, scaled_grad);
+            }
+        }
+    }
+
+    Ok(total_norm)
+}
 
 /// A2C Agent for training and inference.
 pub struct A2CAgent<E: Environment + Clone + 'static> {
@@ -52,8 +76,8 @@ pub struct A2CAgent<E: Environment + Clone + 'static> {
     /// Hidden layer sizes.
     hidden_sizes: Vec<usize>,
 
-    /// Log standard deviation for continuous actions (learnable).
-    log_std: Option<Tensor>,
+    /// Persistent optimizer (Adam moment state must survive across updates).
+    optimizer: AdamW,
 
     /// Total timesteps trained so far.
     total_timesteps: usize,
@@ -82,6 +106,12 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         let var_map = VarMap::new();
         let hidden_sizes = vec![64, 64]; // Default MLP architecture
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            weight_decay: 0.0,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -93,12 +123,16 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             act_dim,
             is_discrete,
             hidden_sizes,
-            log_std: None,
+            optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             total_timesteps: 0,
             rng,
         };
 
         agent.init_networks()?;
+
+        // Bind the optimizer to all network variables (incl. the now-registered
+        // trainable continuous log_std) after init_networks populated the var map.
+        agent.optimizer = AdamW::new(agent.var_map.all_vars(), opt_params)?;
 
         info!(
             "A2C Agent initialized: obs_dim={}, act_dim={}, discrete={}",
@@ -152,12 +186,31 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             vb_value.pp(format!("{}.output", self.value_prefix)),
         )?;
 
-        // Initialize log_std for continuous actions
+        // Register the trainable log_std parameter for continuous actions so the
+        // optimizer (built from var_map.all_vars()) updates it and checkpoints
+        // persist it. Previously this was a fixed zeros tensor (std=1 forever).
         if !self.is_discrete {
-            self.log_std = Some(Tensor::zeros(&[self.act_dim], DType::F32, &candle_device)?);
+            let _ = self.log_std_tensor()?;
         }
 
         Ok(())
+    }
+
+    /// Fetch the trainable continuous-action log_std parameter from the var map.
+    ///
+    /// Re-fetched on each use (like the linear layers) so it always reflects the
+    /// latest optimizer step.
+    fn log_std_tensor(&self) -> Result<Tensor> {
+        let candle_device = self.device.to_candle()?;
+        let vb = VarBuilder::from_varmap(&self.var_map, DType::F32, &candle_device);
+        // Init at 0.0 (std = 1) to preserve the previous starting behaviour,
+        // but now as a trainable parameter rather than a frozen constant.
+        let log_std = vb.get_with_hints(
+            self.act_dim,
+            &format!("{}.log_std", self.policy_prefix),
+            candle_nn::Init::Const(0.0),
+        )?;
+        Ok(log_std)
     }
 
     /// Forward pass through policy network.
@@ -272,10 +325,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         } else {
             // Gaussian distribution for continuous actions
             let mean = logits_or_mean;
-            let log_std = self
-                .log_std
-                .as_ref()
-                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
+            let log_std = self.log_std_tensor()?;
             let std = log_std.exp()?;
 
             // Sample from Gaussian: action = mean + std * noise
@@ -289,7 +339,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             let diff = (&actions - &mean)?;
             let normalized = diff.broadcast_div(&std)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(log_std)?
+                .broadcast_sub(&log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
 
             // Sum over action dimensions
@@ -320,10 +370,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             Ok((action_log_probs, values, entropy))
         } else {
             let mean = logits_or_mean;
-            let log_std = self
-                .log_std
-                .as_ref()
-                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
+            let log_std = self.log_std_tensor()?;
             let std = log_std.exp()?;
 
             // Log probability for Gaussian
@@ -333,7 +380,7 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             let diff = (actions - &mean)?;
             let normalized = diff.broadcast_div(&std)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(log_std)?
+                .broadcast_sub(&log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
             let log_probs = log_prob_per_dim.sum(1)?;
 
@@ -381,14 +428,6 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
             advantages
         };
 
-        // Setup optimizer (RMSprop is traditionally used for A2C, but AdamW works well too)
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.var_map.all_vars(), params)?;
-
         // Evaluate actions under current policy
         let (log_probs, values, entropy) = self.evaluate_actions(&obs_flat, &actions_flat)?;
 
@@ -407,8 +446,13 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         let total_loss = ((&policy_loss + (&value_loss * self.config.vf_coef as f64)?)?
             + (&entropy_loss * self.config.ent_coef as f64)?)?;
 
-        // Backward pass with gradient clipping
-        optimizer.backward_step(&total_loss)?;
+        // Backward pass WITH gradient clipping (previously skipped despite
+        // max_grad_norm being configured). Manual backward -> clip -> step,
+        // reusing the persistent optimizer so Adam state survives.
+        let mut grads = total_loss.backward()?;
+        let vars = self.var_map.all_vars();
+        clip_gradients(&vars, &mut grads, self.config.max_grad_norm)?;
+        self.optimizer.step(&grads)?;
 
         // Collect metrics
         let policy_loss_val: f32 = policy_loss.to_scalar()?;
@@ -653,6 +697,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for A2CAgent<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envs::{BoxSpace, StepResult};
 
     #[test]
     fn test_a2c_config_validation() {
@@ -661,5 +706,60 @@ mod tests {
 
         let invalid = A2CConfig::default().learning_rate(-0.1);
         assert!(invalid.validate().is_err());
+    }
+
+    #[derive(Clone)]
+    struct ContinuousTestEnv {
+        obs: BoxSpace,
+        act: BoxSpace,
+    }
+
+    impl Environment for ContinuousTestEnv {
+        type ObsSpace = BoxSpace;
+        type ActSpace = BoxSpace;
+        fn observation_space(&self) -> &BoxSpace {
+            &self.obs
+        }
+        fn action_space(&self) -> &BoxSpace {
+            &self.act
+        }
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+        }
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let cd = device.to_candle()?;
+            Ok(StepResult {
+                observation: Tensor::zeros(self.obs.shape(), DType::F32, &cd)?,
+                reward: 1.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
+
+    // Regression: continuous A2C must register a TRAINABLE log_std parameter in
+    // the var map (previously a frozen zeros tensor => std=1 forever). The
+    // optimizer is built from var_map.all_vars(), so presence here means it is
+    // trained and persisted in checkpoints.
+    #[test]
+    fn test_a2c_continuous_log_std_is_trainable_parameter() {
+        let device = Device::Cpu;
+        let env = ContinuousTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![4]),
+            act: BoxSpace::symmetric(1.0, vec![2]),
+        };
+        let config = A2CConfig::default();
+        let agent = A2CAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+
+        assert!(
+            agent
+                .var_map
+                .data()
+                .lock()
+                .unwrap()
+                .contains_key("policy.log_std"),
+            "continuous A2C must register a trainable policy.log_std variable"
+        );
     }
 }

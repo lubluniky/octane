@@ -76,6 +76,9 @@ pub struct IQNAgent<E: Environment + Clone + 'static> {
     /// Target network var_map.
     target_var_map: VarMap,
 
+    /// Persistent optimizer (Adam moment state must survive across updates).
+    optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Number of discrete actions.
@@ -142,12 +145,19 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
         let target_var_map = VarMap::new();
         let hidden_sizes = vec![256, 256];
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            weight_decay: 0.0,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
             device,
             online_var_map,
             target_var_map,
+            optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             obs_dim,
             num_actions,
             hidden_sizes,
@@ -161,6 +171,9 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind the optimizer to the populated online-network variables.
+        agent.optimizer = AdamW::new(agent.online_var_map.all_vars(), opt_params)?;
 
         info!(
             "IQN Agent initialized: obs_dim={}, num_actions={}, num_quantiles={}, risk={:?}",
@@ -634,13 +647,9 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
             self.quantile_huber_loss(&td_errors, &taus_expanded.broadcast_as(td_errors.dims())?)?;
 
         // ========== Backward Pass ==========
-        let params = ParamsAdamW {
-            lr: self.current_lr as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.online_var_map.all_vars(), params)?;
-        optimizer.backward_step(&loss)?;
+        // Reuse persistent optimizer; keep lr in sync for future lr schedules.
+        self.optimizer.set_learning_rate(self.current_lr as f64);
+        self.optimizer.backward_step(&loss)?;
 
         // Update priorities if using PER
         if self.config.prioritized_replay {

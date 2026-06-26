@@ -41,6 +41,13 @@ pub struct SACAgent<E: Environment + Clone + 'static> {
     /// Target Q2 network var_map.
     target_q2_var_map: VarMap,
 
+    /// Persistent optimizers. Adam's moment estimates (m, v) and step counter
+    /// must persist across update() calls; recreating them every step reset the
+    /// state and degraded updates to ~lr*sign(grad).
+    policy_optimizer: AdamW,
+    q1_optimizer: AdamW,
+    q2_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -106,6 +113,13 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         let target_q1_var_map = VarMap::new();
         let target_q2_var_map = VarMap::new();
 
+        // Optimizers are seeded with empty var sets and rebound to the real
+        // network variables once init_networks() has populated the var maps.
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -115,6 +129,9 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
             q2_var_map,
             target_q1_var_map,
             target_q2_var_map,
+            policy_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            q1_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            q2_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             obs_dim,
             action_dim,
             action_scale,
@@ -128,6 +145,11 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the now-populated network variables.
+        agent.policy_optimizer = AdamW::new(agent.policy_var_map.all_vars(), opt_params.clone())?;
+        agent.q1_optimizer = AdamW::new(agent.q1_var_map.all_vars(), opt_params.clone())?;
+        agent.q2_optimizer = AdamW::new(agent.q2_var_map.all_vars(), opt_params)?;
 
         info!(
             "SAC Agent initialized: obs_dim={}, action_dim={}, auto_entropy={}",
@@ -427,17 +449,11 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
             self.q_forward(&batch.observations, &batch.actions, &self.q2_var_map, "q2")?;
         let q2_loss = (&current_q2 - &td_target)?.sqr()?.mean_all()?;
 
-        // Update Q1
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            ..Default::default()
-        };
-        let mut q1_optimizer = AdamW::new(self.q1_var_map.all_vars(), params.clone())?;
-        q1_optimizer.backward_step(&q1_loss)?;
+        // Update Q1 (reuse the persistent optimizer so Adam state survives).
+        self.q1_optimizer.backward_step(&q1_loss)?;
 
         // Update Q2
-        let mut q2_optimizer = AdamW::new(self.q2_var_map.all_vars(), params.clone())?;
-        q2_optimizer.backward_step(&q2_loss)?;
+        self.q2_optimizer.backward_step(&q2_loss)?;
 
         // ========== Update Policy ==========
         let (new_actions, new_log_probs) = self.sample_action(&batch.observations, false)?;
@@ -449,8 +465,7 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
         let entropy_term = (&new_log_probs * self.alpha as f64)?;
         let policy_loss = (&entropy_term - &min_q_new)?.mean_all()?;
 
-        let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
-        policy_optimizer.backward_step(&policy_loss)?;
+        self.policy_optimizer.backward_step(&policy_loss)?;
 
         // ========== Update Alpha (if auto-tuning) ==========
         let alpha_loss_val = if self.config.auto_entropy_tuning {
@@ -468,9 +483,12 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
 
             // Manual gradient step for alpha (log_alpha is not in a VarMap).
             let alpha_grad = diff * self.alpha;
-            let new_log_alpha =
-                (self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad)
-                    .clamp(-10.0, 10.0);
+            // log_alpha is a rank-1 [1] tensor, so read element 0 (to_scalar
+            // requires rank 0 and would error, which previously broke the
+            // default-on auto-entropy path at runtime).
+            let new_log_alpha = (self.log_alpha.to_vec1::<f32>()?[0]
+                - self.config.learning_rate * alpha_grad)
+                .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
 
@@ -706,6 +724,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for SACAgent<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envs::{BoxSpace, StepResult};
 
     #[test]
     fn test_sac_config_defaults() {
@@ -713,5 +732,63 @@ mod tests {
         assert!(config.auto_entropy_tuning);
         assert!((config.gamma - 0.99).abs() < 1e-6);
         assert!((config.tau - 0.005).abs() < 1e-6);
+    }
+
+    #[derive(Clone)]
+    struct ContinuousTestEnv {
+        obs: BoxSpace,
+        act: BoxSpace,
+    }
+
+    impl Environment for ContinuousTestEnv {
+        type ObsSpace = BoxSpace;
+        type ActSpace = BoxSpace;
+        fn observation_space(&self) -> &BoxSpace {
+            &self.obs
+        }
+        fn action_space(&self) -> &BoxSpace {
+            &self.act
+        }
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+        }
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let cd = device.to_candle()?;
+            Ok(StepResult {
+                observation: Tensor::zeros(self.obs.shape(), DType::F32, &cd)?,
+                reward: 1.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
+
+    // Regression: the SAC update path must run end-to-end with PERSISTENT
+    // optimizers (Adam state surviving across updates) and the corrected
+    // entropy-temperature sign. Previously each update recreated AdamW
+    // (degrading to sign-SGD); this exercises the real training loop and
+    // asserts alpha stays finite/positive (the inverted sign used to diverge).
+    #[test]
+    fn test_sac_training_runs_with_persistent_optimizers() {
+        let device = Device::Cpu;
+        let env = ContinuousTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![3]),
+            act: BoxSpace::symmetric(1.0, vec![2]),
+        };
+        let mut config = SACConfig::default().batch_size(8).buffer_size(256);
+        config.learning_starts = 8;
+        config.policy_hidden_sizes = vec![16, 16];
+        config.q_hidden_sizes = vec![16, 16];
+
+        let mut agent = SACAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+        // Enough timesteps to trigger many gradient updates past learning_starts.
+        agent.train(60, |_| {}).unwrap();
+
+        assert!(
+            agent.alpha.is_finite() && agent.alpha > 0.0,
+            "alpha diverged or went non-positive: {}",
+            agent.alpha
+        );
     }
 }

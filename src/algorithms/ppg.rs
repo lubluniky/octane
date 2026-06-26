@@ -314,8 +314,10 @@ pub struct PPGAgent<E: Environment + Clone + 'static> {
     /// Whether the action space is discrete.
     is_discrete: bool,
 
-    /// Log standard deviation for continuous actions (learnable).
-    log_std: Option<Tensor>,
+    /// Persistent optimizers (Adam moment state must survive across updates
+    /// and across the policy/value and auxiliary phases).
+    policy_optimizer: AdamW,
+    value_optimizer: AdamW,
 
     /// Stored rollouts for auxiliary training.
     aux_rollouts: Vec<AuxRollout>,
@@ -360,6 +362,12 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
         let policy_var_map = VarMap::new();
         let value_var_map = VarMap::new();
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            weight_decay: 0.0,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -369,7 +377,8 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             obs_dim,
             act_dim,
             is_discrete,
-            log_std: None,
+            policy_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            value_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             aux_rollouts: Vec::with_capacity(config.num_aux_rollouts),
             rollouts_since_aux: 0,
             total_timesteps: 0,
@@ -377,6 +386,11 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the populated variables (incl. the now-trainable
+        // continuous log_std registered in the policy var map).
+        agent.policy_optimizer = AdamW::new(agent.policy_var_map.all_vars(), opt_params.clone())?;
+        agent.value_optimizer = AdamW::new(agent.value_var_map.all_vars(), opt_params)?;
 
         info!(
             "PPG Agent initialized: obs_dim={}, act_dim={}, discrete={}, aux_rollouts={}",
@@ -422,12 +436,24 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
         // Output layer for value (single scalar)
         let _ = candle_nn::linear(in_dim, 1, vb_value.pp("value.output"))?;
 
-        // Initialize log_std for continuous actions
+        // Register the trainable log_std parameter for continuous actions in the
+        // policy var map so the optimizer updates it and checkpoints persist it
+        // (previously a fixed zeros tensor => std=1 forever, no gradient).
         if !self.is_discrete {
-            self.log_std = Some(Tensor::zeros(&[self.act_dim], DType::F32, &candle_device)?);
+            let _ = self.log_std_tensor()?;
         }
 
         Ok(())
+    }
+
+    /// Fetch the trainable continuous-action log_std parameter from the policy
+    /// var map. Re-fetched on each use so it reflects the latest optimizer step.
+    fn log_std_tensor(&self) -> Result<Tensor> {
+        let candle_device = self.device.to_candle()?;
+        let vb = VarBuilder::from_varmap(&self.policy_var_map, DType::F32, &candle_device);
+        let log_std =
+            vb.get_with_hints(self.act_dim, "policy.log_std", candle_nn::Init::Const(0.0))?;
+        Ok(log_std)
     }
 
     /// Forward pass through policy network.
@@ -544,10 +570,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
         } else {
             // Gaussian distribution for continuous actions
             let mean = logits_or_mean;
-            let log_std = self
-                .log_std
-                .as_ref()
-                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
+            let log_std = self.log_std_tensor()?;
             let std = log_std.exp()?;
 
             // Sample from Gaussian: action = mean + std * noise
@@ -561,7 +584,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             let log_2pi = 0.5 * (2.0 * std::f32::consts::PI).ln();
             let log_2pi_tensor = Tensor::new(&[log_2pi], &candle_device)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(log_std)?
+                .broadcast_sub(&log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
 
             // Sum over action dimensions
@@ -592,10 +615,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             Ok((action_log_probs, values, entropy))
         } else {
             let mean = logits_or_mean;
-            let log_std = self
-                .log_std
-                .as_ref()
-                .ok_or_else(|| OctaneError::InvalidConfig("log_std not initialized".to_string()))?;
+            let log_std = self.log_std_tensor()?;
             let std = log_std.exp()?;
 
             // Log probability for Gaussian
@@ -605,7 +625,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             let diff = (actions - &mean)?;
             let normalized = diff.broadcast_div(&std)?;
             let log_prob_per_dim = (normalized.sqr()? * (-0.5))?
-                .broadcast_sub(log_std)?
+                .broadcast_sub(&log_std)?
                 .broadcast_sub(&log_2pi_tensor)?;
             let log_probs = log_prob_per_dim.sum(1)?;
 
@@ -715,14 +735,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             advantages
         };
 
-        // Setup optimizers (separate for policy and value)
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
-        let mut value_optimizer = AdamW::new(self.value_var_map.all_vars(), params)?;
+        // Persistent optimizers are reused across phases (Adam state survives).
 
         let mut total_policy_loss = 0.0f32;
         let mut total_value_loss = 0.0f32;
@@ -784,7 +797,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
                 let total_policy = (&policy_loss + (&entropy_loss * self.config.ent_coef as f64)?)?;
 
                 // Backward pass for policy
-                policy_optimizer.backward_step(&total_policy)?;
+                self.policy_optimizer.backward_step(&total_policy)?;
 
                 // Collect metrics
                 let policy_loss_val: f32 = policy_loss.to_scalar()?;
@@ -848,7 +861,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
                 let value_loss = value_diff.sqr()?.mean_all()?;
 
                 // Backward pass for value
-                value_optimizer.backward_step(&value_loss)?;
+                self.value_optimizer.backward_step(&value_loss)?;
 
                 let value_loss_val: f32 = value_loss.to_scalar()?;
                 total_value_loss += value_loss_val;
@@ -909,14 +922,7 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             self.aux_rollouts.len()
         );
 
-        // Setup optimizers
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            weight_decay: 0.0,
-            ..Default::default()
-        };
-        let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
-        let mut value_optimizer = AdamW::new(self.value_var_map.all_vars(), params)?;
+        // Persistent optimizers reused from the policy/value phase.
 
         for epoch in 0..self.config.aux_epochs {
             let mut total_aux_value_loss = 0.0f32;
@@ -961,11 +967,11 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
                     let aux_total_loss = (&aux_value_loss * self.config.vf_coef as f64)?;
 
                     // Update value network
-                    value_optimizer.backward_step(&aux_total_loss)?;
+                    self.value_optimizer.backward_step(&aux_total_loss)?;
 
                     // Update policy network with BC loss
                     if self.config.beta_clone > 0.0 {
-                        policy_optimizer.backward_step(&aux_policy_loss)?;
+                        self.policy_optimizer.backward_step(&aux_policy_loss)?;
                     }
 
                     total_aux_value_loss += aux_value_loss.to_scalar::<f32>()?;

@@ -41,6 +41,11 @@ pub struct TD3Agent<E: Environment + Clone + 'static> {
     /// Target critic2 network var_map.
     target_critic2_var_map: VarMap,
 
+    /// Persistent optimizers (Adam moment state must survive across updates).
+    actor_optimizer: AdamW,
+    critic1_optimizer: AdamW,
+    critic2_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -89,6 +94,11 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         let target_critic1_var_map = VarMap::new();
         let target_critic2_var_map = VarMap::new();
 
+        let opt_params = ParamsAdamW {
+            lr: config.learning_rate as f64,
+            ..Default::default()
+        };
+
         let mut agent = Self {
             config: config.clone(),
             env,
@@ -99,6 +109,9 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
             critic2_var_map,
             target_critic1_var_map,
             target_critic2_var_map,
+            actor_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            critic1_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
+            critic2_optimizer: AdamW::new(Vec::new(), opt_params.clone())?,
             obs_dim,
             action_dim,
             action_scale,
@@ -109,6 +122,11 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         };
 
         agent.init_networks()?;
+
+        // Bind optimizers to the populated network variables.
+        agent.actor_optimizer = AdamW::new(agent.actor_var_map.all_vars(), opt_params.clone())?;
+        agent.critic1_optimizer = AdamW::new(agent.critic1_var_map.all_vars(), opt_params.clone())?;
+        agent.critic2_optimizer = AdamW::new(agent.critic2_var_map.all_vars(), opt_params)?;
 
         info!(
             "TD3 Agent initialized: obs_dim={}, action_dim={}, policy_delay={}",
@@ -433,16 +451,8 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
         )?;
         let critic2_loss = (&current_q2 - &td_target)?.sqr()?.mean_all()?;
 
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            ..Default::default()
-        };
-
-        let mut critic1_optimizer = AdamW::new(self.critic1_var_map.all_vars(), params.clone())?;
-        critic1_optimizer.backward_step(&critic1_loss)?;
-
-        let mut critic2_optimizer = AdamW::new(self.critic2_var_map.all_vars(), params.clone())?;
-        critic2_optimizer.backward_step(&critic2_loss)?;
+        self.critic1_optimizer.backward_step(&critic1_loss)?;
+        self.critic2_optimizer.backward_step(&critic2_loss)?;
 
         let critic_loss_val =
             (critic1_loss.to_scalar::<f32>()? + critic2_loss.to_scalar::<f32>()?) / 2.0;
@@ -467,8 +477,7 @@ impl<E: Environment + Clone + 'static> TD3Agent<E> {
             )?;
             let actor_loss = actor_q.neg()?.mean_all()?;
 
-            let mut actor_optimizer = AdamW::new(self.actor_var_map.all_vars(), params)?;
-            actor_optimizer.backward_step(&actor_loss)?;
+            self.actor_optimizer.backward_step(&actor_loss)?;
 
             actor_loss_val = actor_loss.to_scalar()?;
 
