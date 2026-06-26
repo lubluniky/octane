@@ -4,8 +4,8 @@
 
 use candle_core::Tensor;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use octane_rs::core::Device;
+use std::hint::black_box;
 
 fn benchmark_ppo_loss_computation(c: &mut Criterion) {
     let device = Device::cpu();
