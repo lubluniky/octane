@@ -96,7 +96,9 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
 
         let obs_dim = obs_space.flat_dim();
         let act_dim = act_space.flat_dim();
-        let is_discrete = act_space.shape() == [1];
+        // A continuous 1-D action space also has shape [1], so detect by the
+        // space's own continuity flag (a `DiscreteSpace` is non-continuous).
+        let is_discrete = !act_space.is_continuous();
 
         let rng = match config.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
@@ -481,8 +483,14 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
 
-        let mut buffer =
-            RolloutBuffer::new(n_steps, num_envs, self.obs_dim, self.act_dim, self.device)?;
+        let mut buffer = RolloutBuffer::new(
+            n_steps,
+            num_envs,
+            self.obs_dim,
+            // Discrete actions are stored as a single index per env.
+            if self.is_discrete { 1 } else { self.act_dim },
+            self.device,
+        )?;
 
         // Reset environments and get initial observations
         let mut obs = self.env.reset(&self.device)?;

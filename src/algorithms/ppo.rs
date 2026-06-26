@@ -584,8 +584,14 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         let num_envs = self.env.num_envs();
         let n_steps = self.config.n_steps;
 
+        // The policy network has `act_dim` outputs (logits for discrete, means
+        // for continuous), but a *discrete* action is stored as a single index
+        // per env, not as `act_dim` values. Sizing the buffer with `act_dim`
+        // here would read `n_steps*num_envs*n` action floats from a buffer that
+        // only ever receives `n_steps*num_envs` of them.
+        let buffer_act_dim = if self.is_discrete { 1 } else { self.act_dim };
         let mut buffer =
-            RolloutBuffer::new(n_steps, num_envs, self.obs_dim, self.act_dim, self.device)?;
+            RolloutBuffer::new(n_steps, num_envs, self.obs_dim, buffer_act_dim, self.device)?;
 
         // Reset environments and get initial observations
         let mut obs = self.env.reset(&self.device)?;
@@ -922,6 +928,32 @@ mod tests {
             .lock()
             .unwrap()
             .contains_key("policy.log_std"));
+    }
+
+    #[test]
+    fn test_discrete_ppo_trains_end_to_end() {
+        // Regression: PPO over a discrete action space must collect a rollout
+        // and run an update without panicking. The rollout buffer used to size
+        // action storage by the number of logits (act_dim = n), but a discrete
+        // action is a single index per env, so `get_all()` over-read the action
+        // slice ("range end index 16384 out of range for slice of length 8192")
+        // the moment a discrete env was trained end-to-end.
+        let device = Device::Cpu;
+        let obs_space = BoxSpace::symmetric(1.0, vec![4]);
+        let act_space = DiscreteSpace::new(3);
+        let config = PPOConfig::default()
+            .hidden_sizes(vec![8])
+            .n_steps(4)
+            .batch_size(4)
+            .n_epochs(2);
+        let mut agent = PPOAgent::new(
+            config,
+            VecEnv::new(vec![TestEnv::new(obs_space, act_space)], 2),
+            device,
+        )
+        .unwrap();
+        // 2 envs * 4 steps = 8 transitions per rollout; run through a few.
+        agent.train(24, |_| {}).unwrap();
     }
 
     #[test]

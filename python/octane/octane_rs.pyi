@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -44,10 +44,53 @@ class TradingEnv:
     @property
     def act_dim(self) -> int: ...
 
+class CartPole:
+    """Native CartPole-v1 (discrete control). Use with PPO."""
+
+    def __init__(self, seed: Optional[int] = ...) -> None: ...
+    @property
+    def obs_dim(self) -> int: ...
+    @property
+    def act_dim(self) -> int: ...
+
+class Pendulum:
+    """Native Pendulum-v1 (continuous control). Use with PPO or SAC."""
+
+    def __init__(self, seed: Optional[int] = ...) -> None: ...
+    @property
+    def obs_dim(self) -> int: ...
+    @property
+    def act_dim(self) -> int: ...
+
+class ArrayEnv:
+    """Generic dataset env over an arbitrary [T, obs_dim] numpy matrix.
+
+    reward_kind='regression' scores -MSE(action, targets_row) and requires
+    `targets`; reward_kind='weighted' scores dot(action, returns_row) and
+    requires `returns`.
+    """
+
+    def __init__(
+        self,
+        data: npt.NDArray[np.float32],
+        reward_kind: str = ...,
+        targets: Optional[npt.NDArray[np.float32]] = ...,
+        returns: Optional[npt.NDArray[np.float32]] = ...,
+        episode_len: Optional[int] = ...,
+        random_start: bool = ...,
+    ) -> None: ...
+    @property
+    def obs_dim(self) -> int: ...
+    @property
+    def act_dim(self) -> int: ...
+
+# Any native environment accepted by the agents.
+Env = Union[TradingEnv, CartPole, Pendulum, ArrayEnv]
+
 class PPO:
     def __init__(
         self,
-        env: TradingEnv,
+        env: Env,
         num_envs: int = ...,
         learning_rate: float = ...,
         n_steps: int = ...,
@@ -69,7 +112,7 @@ class PPO:
 class SAC:
     def __init__(
         self,
-        env: TradingEnv,
+        env: Env,
         num_envs: int = ...,
         learning_rate: float = ...,
         batch_size: int = ...,

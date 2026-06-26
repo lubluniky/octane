@@ -18,9 +18,12 @@ Example
 
 from .octane_rs import (  # type: ignore[attr-defined]
     __version__,
+    ArrayEnv,
+    CartPole,
     Device,
     MarketData,
     PPO,
+    Pendulum,
     SAC,
     TradingEnv,
     TradingMetrics,
@@ -34,6 +37,9 @@ __all__ = [
     "Device",
     "MarketData",
     "TradingEnv",
+    "CartPole",
+    "Pendulum",
+    "ArrayEnv",
     "PPO",
     "SAC",
     "TradingMetrics",

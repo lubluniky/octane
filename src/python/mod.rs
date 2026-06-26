@@ -18,7 +18,10 @@ use pyo3::prelude::*;
 use crate::algorithms::traits::RLAlgorithm;
 use crate::algorithms::{PPOAgent, PPOConfig, SACAgent, SACConfig};
 use crate::core::{Device, OctaneError};
-use crate::envs::{Environment, MarketData, Space, TradingEnv, TradingEnvConfig, VecEnv};
+use crate::envs::{
+    ArrayEnv, ArrayReward, CartPole, Environment, MarketData, Pendulum, Space, TradingEnv,
+    TradingEnvConfig, VecEnv,
+};
 use crate::metrics::{MetricsCalculator, MetricsConfig};
 
 /// Convert the crate error type into the most appropriate Python exception.
@@ -231,10 +234,222 @@ impl PyTradingEnv {
     }
 }
 
-/// Proximal Policy Optimization agent over the native trading environment.
+/// Native `CartPole-v1` — the canonical discrete control benchmark.
+#[pyclass(name = "CartPole")]
+#[derive(Clone)]
+pub struct PyCartPole {
+    inner: CartPole,
+    obs_dim: usize,
+    act_dim: usize,
+}
+
+#[pymethods]
+impl PyCartPole {
+    #[new]
+    #[pyo3(signature = (seed=None))]
+    fn new(seed: Option<u64>) -> Self {
+        let inner = match seed {
+            Some(s) => CartPole::seeded(s),
+            None => CartPole::new(),
+        };
+        let obs_dim = inner.observation_space().flat_dim();
+        let act_dim = inner.action_space().flat_dim();
+        Self {
+            inner,
+            obs_dim,
+            act_dim,
+        }
+    }
+
+    #[getter]
+    fn obs_dim(&self) -> usize {
+        self.obs_dim
+    }
+
+    #[getter]
+    fn act_dim(&self) -> usize {
+        self.act_dim
+    }
+}
+
+/// Native `Pendulum-v1` — the canonical continuous control benchmark.
+#[pyclass(name = "Pendulum")]
+#[derive(Clone)]
+pub struct PyPendulum {
+    inner: Pendulum,
+    obs_dim: usize,
+    act_dim: usize,
+}
+
+#[pymethods]
+impl PyPendulum {
+    #[new]
+    #[pyo3(signature = (seed=None))]
+    fn new(seed: Option<u64>) -> Self {
+        let inner = match seed {
+            Some(s) => Pendulum::seeded(s),
+            None => Pendulum::new(),
+        };
+        let obs_dim = inner.observation_space().flat_dim();
+        let act_dim = inner.action_space().flat_dim();
+        Self {
+            inner,
+            obs_dim,
+            act_dim,
+        }
+    }
+
+    #[getter]
+    fn obs_dim(&self) -> usize {
+        self.obs_dim
+    }
+
+    #[getter]
+    fn act_dim(&self) -> usize {
+        self.act_dim
+    }
+}
+
+/// Generic dataset environment over an arbitrary `[T, obs_dim]` numpy matrix.
+///
+/// `reward_kind="regression"` scores `-MSE(action, targets_row)`;
+/// `reward_kind="weighted"` scores `dot(action, returns_row)`.
+#[pyclass(name = "ArrayEnv")]
+#[derive(Clone)]
+pub struct PyArrayEnv {
+    inner: ArrayEnv,
+    obs_dim: usize,
+    act_dim: usize,
+}
+
+#[pymethods]
+impl PyArrayEnv {
+    #[new]
+    #[pyo3(signature = (
+        data,
+        reward_kind="regression",
+        targets=None,
+        returns=None,
+        episode_len=None,
+        random_start=false,
+    ))]
+    fn new(
+        data: PyReadonlyArray2<'_, f32>,
+        reward_kind: &str,
+        targets: Option<PyReadonlyArray2<'_, f32>>,
+        returns: Option<PyReadonlyArray2<'_, f32>>,
+        episode_len: Option<usize>,
+        random_start: bool,
+    ) -> PyResult<Self> {
+        let obs_dim = data.as_array().shape()[1];
+        let flat: Vec<f32> = data
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("data array must be C-contiguous"))?
+            .to_vec();
+
+        let reward = match reward_kind {
+            "regression" => {
+                let t = targets.ok_or_else(|| {
+                    PyValueError::new_err("reward_kind='regression' requires `targets`")
+                })?;
+                let target_dim = t.as_array().shape()[1];
+                let tflat: Vec<f32> = t
+                    .as_slice()
+                    .map_err(|_| PyValueError::new_err("targets array must be C-contiguous"))?
+                    .to_vec();
+                ArrayReward::Regression {
+                    targets: tflat,
+                    target_dim,
+                }
+            }
+            "weighted" => {
+                let r = returns.ok_or_else(|| {
+                    PyValueError::new_err("reward_kind='weighted' requires `returns`")
+                })?;
+                let n_assets = r.as_array().shape()[1];
+                let rflat: Vec<f32> = r
+                    .as_slice()
+                    .map_err(|_| PyValueError::new_err("returns array must be C-contiguous"))?
+                    .to_vec();
+                ArrayReward::Weighted {
+                    returns: rflat,
+                    n_assets,
+                }
+            }
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown reward_kind '{other}', expected 'regression' or 'weighted'"
+                )))
+            }
+        };
+
+        let mut env = ArrayEnv::new(flat, obs_dim, reward)?;
+        if let Some(l) = episode_len {
+            env = env.with_episode_len(l);
+        }
+        env = env.with_random_start(random_start);
+        let act_dim = env.act_dim();
+        Ok(Self {
+            inner: env,
+            obs_dim,
+            act_dim,
+        })
+    }
+
+    #[getter]
+    fn obs_dim(&self) -> usize {
+        self.obs_dim
+    }
+
+    #[getter]
+    fn act_dim(&self) -> usize {
+        self.act_dim
+    }
+}
+
+/// Monomorphized PPO agents behind one Python `PPO` class. PPO handles both
+/// discrete (CartPole) and continuous (Pendulum/ArrayEnv/Trading) action spaces.
+enum PpoBackend {
+    Trading(PPOAgent<TradingEnv>),
+    CartPole(PPOAgent<CartPole>),
+    Pendulum(PPOAgent<Pendulum>),
+    Array(PPOAgent<ArrayEnv>),
+}
+
+impl PpoBackend {
+    fn train(&mut self, n: usize) -> crate::core::Result<()> {
+        match self {
+            PpoBackend::Trading(a) => a.train(n, |_| {}),
+            PpoBackend::CartPole(a) => a.train(n, |_| {}),
+            PpoBackend::Pendulum(a) => a.train(n, |_| {}),
+            PpoBackend::Array(a) => a.train(n, |_| {}),
+        }
+    }
+
+    fn predict(&mut self, obs: &Tensor, deterministic: bool) -> crate::core::Result<Tensor> {
+        match self {
+            PpoBackend::Trading(a) => a.predict(obs, deterministic),
+            PpoBackend::CartPole(a) => a.predict(obs, deterministic),
+            PpoBackend::Pendulum(a) => a.predict(obs, deterministic),
+            PpoBackend::Array(a) => a.predict(obs, deterministic),
+        }
+    }
+
+    fn save(&self, path: &std::path::Path) -> crate::core::Result<()> {
+        match self {
+            PpoBackend::Trading(a) => a.save(path),
+            PpoBackend::CartPole(a) => a.save(path),
+            PpoBackend::Pendulum(a) => a.save(path),
+            PpoBackend::Array(a) => a.save(path),
+        }
+    }
+}
+
+/// Proximal Policy Optimization. Accepts any native env: `TradingEnv`,
+/// `CartPole`, `Pendulum`, or `ArrayEnv`.
 #[pyclass(name = "PPO")]
 pub struct PyPPO {
-    agent: PPOAgent<TradingEnv>,
+    backend: PpoBackend,
     device: Device,
     obs_dim: usize,
     act_dim: usize,
@@ -257,7 +472,7 @@ impl PyPPO {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        env: &PyTradingEnv,
+        env: &Bound<'_, PyAny>,
         num_envs: usize,
         learning_rate: f32,
         n_steps: usize,
@@ -279,19 +494,55 @@ impl PyPPO {
         if let Some(s) = seed {
             config = config.seed(s);
         }
-        let vec_env = VecEnv::new(vec![env.inner.clone()], num_envs);
-        let agent = PPOAgent::new(config, vec_env, device)?;
-        Ok(Self {
-            agent,
-            device,
-            obs_dim: env.obs_dim,
-            act_dim: env.act_dim,
-        })
+
+        // Dispatch on the concrete env type so one `PPO` class drives every
+        // monomorphization. Each `extract` clones the wrapped native env out.
+        if let Ok(e) = env.extract::<PyTradingEnv>() {
+            let agent =
+                PPOAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: PpoBackend::Trading(agent),
+                device,
+                obs_dim: e.obs_dim,
+                act_dim: e.act_dim,
+            })
+        } else if let Ok(e) = env.extract::<PyCartPole>() {
+            let agent =
+                PPOAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: PpoBackend::CartPole(agent),
+                device,
+                obs_dim: e.obs_dim,
+                act_dim: e.act_dim,
+            })
+        } else if let Ok(e) = env.extract::<PyPendulum>() {
+            let agent =
+                PPOAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: PpoBackend::Pendulum(agent),
+                device,
+                obs_dim: e.obs_dim,
+                act_dim: e.act_dim,
+            })
+        } else if let Ok(e) = env.extract::<PyArrayEnv>() {
+            let agent =
+                PPOAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: PpoBackend::Array(agent),
+                device,
+                obs_dim: e.obs_dim,
+                act_dim: e.act_dim,
+            })
+        } else {
+            Err(PyValueError::new_err(
+                "unsupported env: expected TradingEnv, CartPole, Pendulum, or ArrayEnv",
+            ))
+        }
     }
 
     /// Train for `total_timesteps`. The GIL is released for the whole run.
     fn learn(&mut self, py: Python<'_>, total_timesteps: usize) -> PyResult<()> {
-        py.allow_threads(|| self.agent.train(total_timesteps, |_| {}))?;
+        py.allow_threads(|| self.backend.train(total_timesteps))?;
         Ok(())
     }
 
@@ -311,13 +562,13 @@ impl PyPPO {
             )));
         }
         let obs = tensor_from_numpy(&observations, &self.device)?;
-        let actions = self.agent.predict(&obs, deterministic)?;
+        let actions = self.backend.predict(&obs, deterministic)?;
         numpy_from_tensor(py, &actions)
     }
 
     /// Save the policy to a safetensors file.
     fn save(&self, path: &str) -> PyResult<()> {
-        self.agent.save(std::path::Path::new(path))?;
+        self.backend.save(std::path::Path::new(path))?;
         Ok(())
     }
 
@@ -327,10 +578,37 @@ impl PyPPO {
     }
 }
 
-/// Soft Actor-Critic agent over the native trading environment.
+/// Monomorphized SAC agents behind one Python `SAC` class. SAC is
+/// continuous-only, so a discrete env (CartPole) is rejected at construction.
+enum SacBackend {
+    Trading(SACAgent<TradingEnv>),
+    Pendulum(SACAgent<Pendulum>),
+    Array(SACAgent<ArrayEnv>),
+}
+
+impl SacBackend {
+    fn train(&mut self, n: usize) -> crate::core::Result<()> {
+        match self {
+            SacBackend::Trading(a) => a.train(n, |_| {}),
+            SacBackend::Pendulum(a) => a.train(n, |_| {}),
+            SacBackend::Array(a) => a.train(n, |_| {}),
+        }
+    }
+
+    fn predict(&self, obs: &Tensor, deterministic: bool) -> crate::core::Result<Tensor> {
+        match self {
+            SacBackend::Trading(a) => a.predict(obs, deterministic),
+            SacBackend::Pendulum(a) => a.predict(obs, deterministic),
+            SacBackend::Array(a) => a.predict(obs, deterministic),
+        }
+    }
+}
+
+/// Soft Actor-Critic (continuous control). Accepts `TradingEnv`, `Pendulum`,
+/// or `ArrayEnv`; a discrete env raises an error.
 #[pyclass(name = "SAC")]
 pub struct PySAC {
-    agent: SACAgent<TradingEnv>,
+    backend: SacBackend,
     device: Device,
     obs_dim: usize,
 }
@@ -350,7 +628,7 @@ impl PySAC {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        env: &PyTradingEnv,
+        env: &Bound<'_, PyAny>,
         num_envs: usize,
         learning_rate: f32,
         batch_size: usize,
@@ -368,18 +646,45 @@ impl PySAC {
         if let Some(s) = seed {
             config = config.seed(s);
         }
-        let vec_env = VecEnv::new(vec![env.inner.clone()], num_envs);
-        let agent = SACAgent::new(config, vec_env, device)?;
-        Ok(Self {
-            agent,
-            device,
-            obs_dim: env.obs_dim,
-        })
+
+        if let Ok(e) = env.extract::<PyTradingEnv>() {
+            let agent =
+                SACAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: SacBackend::Trading(agent),
+                device,
+                obs_dim: e.obs_dim,
+            })
+        } else if let Ok(e) = env.extract::<PyPendulum>() {
+            let agent =
+                SACAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: SacBackend::Pendulum(agent),
+                device,
+                obs_dim: e.obs_dim,
+            })
+        } else if let Ok(e) = env.extract::<PyArrayEnv>() {
+            let agent =
+                SACAgent::new(config, VecEnv::new(vec![e.inner.clone()], num_envs), device)?;
+            Ok(Self {
+                backend: SacBackend::Array(agent),
+                device,
+                obs_dim: e.obs_dim,
+            })
+        } else if env.extract::<PyCartPole>().is_ok() {
+            Err(PyValueError::new_err(
+                "SAC is continuous-only; CartPole is discrete. Use PPO for CartPole.",
+            ))
+        } else {
+            Err(PyValueError::new_err(
+                "unsupported env: expected TradingEnv, Pendulum, or ArrayEnv",
+            ))
+        }
     }
 
     /// Train for `total_timesteps`, with the GIL released.
     fn learn(&mut self, py: Python<'_>, total_timesteps: usize) -> PyResult<()> {
-        py.allow_threads(|| self.agent.train(total_timesteps, |_| {}))?;
+        py.allow_threads(|| self.backend.train(total_timesteps))?;
         Ok(())
     }
 
@@ -399,7 +704,7 @@ impl PySAC {
             )));
         }
         let obs = tensor_from_numpy(&observations, &self.device)?;
-        let actions = self.agent.predict(&obs, deterministic)?;
+        let actions = self.backend.predict(&obs, deterministic)?;
         numpy_from_tensor(py, &actions)
     }
 }
@@ -481,6 +786,9 @@ fn octane_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDevice>()?;
     m.add_class::<PyMarketData>()?;
     m.add_class::<PyTradingEnv>()?;
+    m.add_class::<PyCartPole>()?;
+    m.add_class::<PyPendulum>()?;
+    m.add_class::<PyArrayEnv>()?;
     m.add_class::<PyPPO>()?;
     m.add_class::<PySAC>()?;
     m.add_class::<PyTradingMetrics>()?;

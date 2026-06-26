@@ -7,6 +7,8 @@
 //! - Multi-agent environment support (CTDE)
 //! - Python Gym compatibility (requires "gym" feature)
 
+mod array_env;
+mod classic_control;
 mod multiagent;
 mod space;
 mod trading;
@@ -18,6 +20,8 @@ mod wrappers;
 mod gym;
 
 // Core traits and types
+pub use array_env::{ArrayEnv, ArrayReward};
+pub use classic_control::{CartPole, Pendulum};
 pub use space::{BoxSpace, DiscreteSpace, Space};
 pub use trading::{MarketData, TradingEnv, TradingEnvConfig};
 pub use traits::{ActionType, Environment, ObsType, StepInfo, StepResult};
