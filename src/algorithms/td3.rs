@@ -735,10 +735,12 @@ mod tests {
             obs: BoxSpace::symmetric(1.0, vec![3]),
             act: BoxSpace::symmetric(1.0, vec![2]),
         };
-        let mut config = TD3Config::default();
-        config.batch_size = 8;
-        config.buffer_size = 256;
-        config.learning_starts = 8;
+        let config = TD3Config {
+            batch_size: 8,
+            buffer_size: 256,
+            learning_starts: 8,
+            ..Default::default()
+        };
         let mut agent = TD3Agent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
         agent.train(40, |_| {}).unwrap();
     }

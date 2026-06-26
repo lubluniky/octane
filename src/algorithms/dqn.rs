@@ -628,10 +628,12 @@ mod tests {
             obs: BoxSpace::symmetric(1.0, vec![4]),
             act: DiscreteSpace::new(3),
         };
-        let mut config = DQNConfig::default();
-        config.batch_size = 8;
-        config.buffer_size = 256;
-        config.learning_starts = 8;
+        let config = DQNConfig {
+            batch_size: 8,
+            buffer_size: 256,
+            learning_starts: 8,
+            ..Default::default()
+        };
         let mut agent = DQNAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
         agent.train(40, |_| {}).unwrap();
     }

@@ -780,10 +780,14 @@ mod tests {
             obs: BoxSpace::symmetric(1.0, vec![3]),
             act: BoxSpace::symmetric(1.0, vec![2]),
         };
-        let mut config = SACConfig::default().batch_size(8).buffer_size(256);
-        config.learning_starts = 8;
-        config.policy_hidden_sizes = vec![16, 16];
-        config.q_hidden_sizes = vec![16, 16];
+        let config = SACConfig {
+            batch_size: 8,
+            buffer_size: 256,
+            learning_starts: 8,
+            policy_hidden_sizes: vec![16, 16],
+            q_hidden_sizes: vec![16, 16],
+            ..Default::default()
+        };
 
         let mut agent = SACAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
         // Enough timesteps to trigger many gradient updates past learning_starts.

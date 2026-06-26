@@ -1070,13 +1070,15 @@ mod tests {
             obs: BoxSpace::symmetric(1.0, vec![3]),
             act: BoxSpace::symmetric(1.0, vec![2]),
         };
-        let mut config = REDQConfig::default();
-        config.ensemble_size = 2;
-        config.num_q_samples = 2;
-        config.utd_ratio = 1;
-        config.batch_size = 8;
-        config.buffer_size = 256;
-        config.learning_starts = 8;
+        let config = REDQConfig {
+            ensemble_size: 2,
+            num_q_samples: 2,
+            utd_ratio: 1,
+            batch_size: 8,
+            buffer_size: 256,
+            learning_starts: 8,
+            ..Default::default()
+        };
         let mut agent = REDQAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
         agent.train(40, |_| {}).unwrap();
         assert!(
