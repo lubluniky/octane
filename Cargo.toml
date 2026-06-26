@@ -86,7 +86,7 @@ parking_lot = { version = "0.12", optional = true }  # Fast mutex for async env 
 half = { version = "2.4", optional = true, features = ["std", "serde"] }
 
 # TUI
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 
 # System metrics
