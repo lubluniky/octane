@@ -41,6 +41,8 @@ pub mod logging;
 pub mod metrics;
 pub mod networks;
 pub mod profiling;
+#[cfg(feature = "python")]
+pub mod python;
 pub mod risk;
 pub mod simd;
 pub mod strategies;

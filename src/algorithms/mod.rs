@@ -83,7 +83,8 @@ mod redq;
 mod rollout;
 mod sac;
 mod td3;
-mod traits;
+/// Common RL algorithm and policy/value traits.
+pub mod traits;
 
 // Re-exports for public API
 pub use a2c::A2CAgent;

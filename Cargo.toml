@@ -9,6 +9,13 @@ repository = "https://github.com/lubluniky/rocket-rs"
 keywords = ["reinforcement-learning", "machine-learning", "gpu", "trading", "hpc"]
 categories = ["science", "algorithms"]
 
+[lib]
+# `cdylib` is required to build the Python extension module (maturin/uv);
+# `rlib` keeps the crate usable as a normal Rust dependency, by the binary,
+# benches and tests.
+name = "octane_rs"
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = ["cpu"]
 cpu = []
@@ -19,6 +26,7 @@ avx2 = []  # Enable AVX2 SIMD optimizations (x86_64)
 avx512 = ["avx2"]  # Enable AVX-512 SIMD optimizations (x86_64, implies avx2)
 gym = ["dep:pyo3"]  # Python Gym/Gymnasium compatibility
 wandb = ["dep:pyo3"]  # Weights & Biases integration (requires Python wandb)
+python = ["dep:pyo3", "dep:numpy"]  # Build the Python extension module (maturin/uv)
 distributed = ["dep:tokio", "dep:tonic", "dep:prost", "dep:parking_lot"]  # Distributed training support
 grpc = ["distributed"]  # gRPC backend for distributed training
 half = ["dep:half"]  # Half-precision floating point support
@@ -63,8 +71,10 @@ ordered-float = "4.0"
 # Memory-mapped files for large buffers
 memmap2 = "0.9"
 
-# Python interop (optional, for Gym compatibility)
+# Python interop (optional, for Gym compatibility and the python extension)
 pyo3 = { version = "0.24.1", optional = true }
+# Zero-copy numpy <-> Rust marshaling for the python extension (matches pyo3 0.24)
+numpy = { version = "0.24", optional = true }
 
 # Distributed training (optional)
 tonic = { version = "0.12", optional = true }
@@ -117,6 +127,14 @@ opt-level = 3
 [profile.bench]
 lto = true
 opt-level = 3
+
+# Profile used by maturin/uv to build the Python wheel. The default release
+# profile uses panic = "abort", which is unsafe for a Python extension: a Rust
+# panic must unwind so PyO3 can convert it into a Python exception instead of
+# aborting the host interpreter.
+[profile.wheel]
+inherits = "release"
+panic = "unwind"
 
 [[bin]]
 name = "octane-tui"

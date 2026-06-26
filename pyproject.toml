@@ -1,0 +1,47 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "octane-rl"
+version = "0.1.0"
+description = "High-performance reinforcement learning for trading — Rust-powered, with a Python API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-2.0" }
+authors = [{ name = "Octane Team" }]
+keywords = [
+    "reinforcement-learning",
+    "machine-learning",
+    "trading",
+    "quantitative-finance",
+    "rust",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.20"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Repository = "https://github.com/lubluniky/rocket-rs"
+
+[tool.maturin]
+# The compiled cdylib (crate lib name `octane_rs`) is installed inside the
+# `octane` Python package, which re-exports it (see python/octane/__init__.py).
+python-source = "python"
+module-name = "octane.octane_rs"
+# `python` enables the pyo3 + numpy bindings; `extension-module` tells pyo3 not
+# to link libpython (required for a portable wheel).
+features = ["python", "pyo3/extension-module"]
+# Use the dedicated profile so the extension unwinds panics (release uses abort).
+profile = "wheel"
+strip = true
