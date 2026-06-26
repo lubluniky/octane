@@ -470,6 +470,9 @@ pub struct HierarchicalAgent<E: Environment + Clone + 'static> {
 
     /// High-level policy network.
     high_var_map: VarMap,
+    /// Persistent high-level optimizer (recreating it each high-level update
+    /// would discard Adam's accumulated moments).
+    high_optimizer: AdamW,
     /// Low-level policy network.
     low_var_map: VarMap,
     /// Termination network (for option termination).
@@ -527,6 +530,8 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
             env,
             device,
             high_var_map,
+            // Placeholder; rebound to the real high-level vars after init.
+            high_optimizer: AdamW::new(Vec::new(), ParamsAdamW::default())?,
             low_var_map,
             term_var_map,
             obs_dim,
@@ -540,6 +545,13 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         };
 
         agent.init_networks()?;
+        agent.high_optimizer = AdamW::new(
+            agent.high_var_map.all_vars(),
+            ParamsAdamW {
+                lr: agent.config.high_lr as f64,
+                ..Default::default()
+            },
+        )?;
 
         info!(
             "HierarchicalAgent initialized: obs_dim={}, act_dim={}, num_options={}",
@@ -875,12 +887,8 @@ impl<E: Environment + Clone + 'static> HierarchicalAgent<E> {
         let loss_val: f32 = loss.to_scalar()?;
 
         // Update
-        let optimizer_params = ParamsAdamW {
-            lr: self.config.high_lr as f64,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.high_var_map.all_vars(), optimizer_params)?;
-        optimizer.backward_step(&loss)?;
+        // Reuse the persistent optimizer so Adam momentum accumulates.
+        self.high_optimizer.backward_step(&loss)?;
 
         Ok(loss_val)
     }

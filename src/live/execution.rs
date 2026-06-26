@@ -712,6 +712,14 @@ impl ExecutionEngine {
             vec![1.0; 10]
         });
 
+        // An explicitly-supplied empty profile would divide-by-zero below
+        // (Duration / 0 panics); fall back to the uniform default.
+        let profile = if profile.is_empty() {
+            vec![1.0; 10]
+        } else {
+            profile
+        };
+
         let total_weight: f64 = profile.iter().sum();
         let slice_duration = params.duration / profile.len() as u32;
 
@@ -899,11 +907,13 @@ impl ExecutionEngine {
                 self.execute_market_internal(connector, &request).await
             }
             ExecutionAlgorithm::Passive => {
-                // Passive: use limit orders at favorable prices
-                let price = request.limit_price.unwrap_or_else(|| {
-                    // Would need to get mid price
-                    0.0
-                });
+                // Passive: rest a limit order at the current mid price. Falling
+                // back to 0.0 when no limit was supplied either rests unfilled
+                // (paper) or is rejected (Binance/Bybit) — fetch the real mid.
+                let price = match request.limit_price {
+                    Some(p) => p,
+                    None => self.get_mid_price(connector, &request.symbol).await?,
+                };
                 self.execute_limit_internal(connector, &request.limit_price(price))
                     .await
             }

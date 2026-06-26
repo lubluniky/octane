@@ -472,6 +472,12 @@ pub struct AdaptiveAgent<E: Environment + Clone + 'static> {
     /// Regime classifier.
     regime_classifier_var_map: VarMap,
 
+    /// Persistent outer-loop optimizers. Recreating them each meta-update would
+    /// reset Adam's moment estimates. (The inner-loop adaptation deliberately
+    /// uses a fresh optimizer per task — that is correct MAML fast-weights.)
+    policy_optimizer: AdamW,
+    encoder_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -540,6 +546,9 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
             policy_var_map,
             value_var_map,
             regime_classifier_var_map,
+            // Placeholders; rebound to real vars after init_networks().
+            policy_optimizer: AdamW::new(Vec::new(), ParamsAdamW::default())?,
+            encoder_optimizer: AdamW::new(Vec::new(), ParamsAdamW::default())?,
             obs_dim,
             act_dim,
             is_discrete,
@@ -552,6 +561,21 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         };
 
         agent.init_networks()?;
+        let outer_lr = agent.config.outer_lr as f64;
+        agent.policy_optimizer = AdamW::new(
+            agent.policy_var_map.all_vars(),
+            ParamsAdamW {
+                lr: outer_lr,
+                ..Default::default()
+            },
+        )?;
+        agent.encoder_optimizer = AdamW::new(
+            agent.context_encoder_var_map.all_vars(),
+            ParamsAdamW {
+                lr: outer_lr,
+                ..Default::default()
+            },
+        )?;
 
         info!(
             "AdaptiveAgent initialized: strategy={:?}, context_window={}",
@@ -864,23 +888,10 @@ impl<E: Environment + Clone + 'static> AdaptiveAgent<E> {
         let loss = (actions.sqr()?.mean(1)? - returns)?.sqr()?.mean_all()?;
         let loss_val: f32 = loss.to_scalar()?;
 
-        // Outer loop update
-        let params = ParamsAdamW {
-            lr: self.config.outer_lr as f64,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.policy_var_map.all_vars(), params)?;
-        optimizer.backward_step(&loss)?;
-
-        // Also update context encoder
-        let mut enc_optimizer = AdamW::new(
-            self.context_encoder_var_map.all_vars(),
-            ParamsAdamW {
-                lr: self.config.outer_lr as f64,
-                ..Default::default()
-            },
-        )?;
-        enc_optimizer.backward_step(&loss)?;
+        // Outer loop update — reuse the persistent optimizers so Adam momentum
+        // accumulates across meta-updates.
+        self.policy_optimizer.backward_step(&loss)?;
+        self.encoder_optimizer.backward_step(&loss)?;
 
         Ok(loss_val)
     }

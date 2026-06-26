@@ -331,7 +331,7 @@ pub fn squashed_gaussian_log_prob_from_squashed(
         // Jacobian correction: -log(1 - tanh(u)^2 + eps) = -log(1 - a^2 + eps)
         let jacobian = -(1.0 - a_clamped * a_clamped + EPSILON).ln();
 
-        log_probs[i] = gaussian_lp - jacobian;
+        log_probs[i] = gaussian_lp + jacobian;
     }
 
     Ok(log_probs)
@@ -556,7 +556,7 @@ unsafe fn squashed_gaussian_log_prob_avx2(
         let tanh_u = pre_squash[i].tanh();
         let jacobian = -(1.0 - tanh_u * tanh_u + EPSILON).ln();
 
-        log_probs[i] = gaussian_lp - jacobian;
+        log_probs[i] = gaussian_lp + jacobian;
     }
 }
 
@@ -630,7 +630,7 @@ unsafe fn squashed_gaussian_log_prob_from_squashed_avx2(
         let z = (u - means[i]) / std;
         let gaussian_lp = -0.5 * (LOG_2PI + 2.0 * log_stds[i] + z * z);
         let jacobian = -(1.0 - a_clamped * a_clamped + EPSILON).ln();
-        log_probs[i] = gaussian_lp - jacobian;
+        log_probs[i] = gaussian_lp + jacobian;
     }
 }
 
@@ -879,7 +879,7 @@ unsafe fn squashed_gaussian_log_prob_neon(
         let tanh_u = pre_squash[i].tanh();
         let jacobian = -(1.0 - tanh_u * tanh_u + EPSILON).ln();
 
-        log_probs[i] = gaussian_lp - jacobian;
+        log_probs[i] = gaussian_lp + jacobian;
     }
 }
 
@@ -939,7 +939,7 @@ fn squashed_gaussian_log_prob_scalar(
         let tanh_u = pre_squash[i].tanh();
         let jacobian = -(1.0 - tanh_u * tanh_u + EPSILON).ln();
 
-        log_probs[i] = gaussian_lp - jacobian;
+        log_probs[i] = gaussian_lp + jacobian;
     }
 }
 
@@ -1024,11 +1024,14 @@ mod tests {
             gaussian_log_probs[0]
         );
 
-        // At larger |u|, tanh^2 approaches 1, so jacobian becomes large negative
-        // This means squashed log prob should be less (more negative) than gaussian
+        // At larger |u|, tanh^2 -> 1, so 1 - tanh^2 -> 0 and the tanh-Jacobian
+        // correction -log(1 - tanh^2 + eps) grows large and POSITIVE. The
+        // squashed density concentrates near the bound, so its log-prob is
+        // GREATER (less negative) than the underlying Gaussian:
+        //   log p(a) = log p(u) - log(1 - tanh^2(u) + eps),  with log(.) < 0.
         assert!(
-            log_probs[3] < gaussian_log_probs[3],
-            "At u=1, squashed {} should be less than gaussian {}",
+            log_probs[3] > gaussian_log_probs[3],
+            "At u=1, squashed {} should be greater than gaussian {}",
             log_probs[3],
             gaussian_log_probs[3]
         );

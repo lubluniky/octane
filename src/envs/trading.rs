@@ -103,7 +103,6 @@ impl Default for TradingEnvConfig {
 }
 
 /// Trading environment for RL-based algorithmic trading.
-#[derive(Clone)]
 pub struct TradingEnv {
     /// Market data.
     data: MarketData,
@@ -127,6 +126,29 @@ pub struct TradingEnv {
     act_space: BoxSpace,
     /// Random number generator.
     rng: StdRng,
+}
+
+impl Clone for TradingEnv {
+    fn clone(&self) -> Self {
+        // Reseed each replica's RNG from entropy. A derived Clone would copy the
+        // `rng` state verbatim, so every VecEnv replica would draw the same
+        // episode-window start in reset() and traverse identical market windows
+        // — silently collapsing the data diversity vectorization exists to give.
+        // Mirrors ArrayEnv / CartPole / Pendulum.
+        Self {
+            data: self.data.clone(),
+            config: self.config.clone(),
+            current_step: self.current_step,
+            start_idx: self.start_idx,
+            balance: self.balance,
+            position: self.position,
+            entry_price: self.entry_price,
+            initial_portfolio_value: self.initial_portfolio_value,
+            obs_space: self.obs_space.clone(),
+            act_space: self.act_space.clone(),
+            rng: StdRng::from_entropy(),
+        }
+    }
 }
 
 impl TradingEnv {
@@ -311,5 +333,36 @@ impl Environment for TradingEnv {
 
     fn name(&self) -> &str {
         "TradingEnv"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Regression: VecEnv replicates a template env via Clone. A derived Clone
+    // copies the StdRng state, so every replica resets to the SAME market
+    // window. This asserts the manual Clone reseeds each replica independently.
+    #[test]
+    fn clones_reset_to_decorrelated_windows() {
+        let template = TradingEnv::new(MarketData::synthetic(2000, 7)).unwrap();
+        let mut a = template.clone();
+        let mut b = template.clone();
+
+        let dev = Device::Cpu;
+        let mut starts_a = Vec::new();
+        let mut starts_b = Vec::new();
+        for _ in 0..6 {
+            a.reset(&dev).unwrap();
+            b.reset(&dev).unwrap();
+            starts_a.push(a.start_idx);
+            starts_b.push(b.start_idx);
+        }
+        // With decorrelated RNGs these sequences differ with overwhelming
+        // probability; with the old derived Clone they were byte-identical.
+        assert_ne!(
+            starts_a, starts_b,
+            "clones picked identical episode windows: RNG not decorrelated"
+        );
     }
 }

@@ -357,7 +357,12 @@ impl MetricsCalculator {
     /// Calculate downside deviation (for Sortino ratio).
     fn downside_deviation(&self) -> f64 {
         if self.n_returns > 1 {
-            (self.downside_returns_sq_sum / (self.n_returns - 1) as f64).sqrt()
+            // Clamp before sqrt (matches return_std): float cancellation can
+            // push the running sum slightly negative, and a NaN would poison
+            // Sortino downstream.
+            (self.downside_returns_sq_sum / (self.n_returns - 1) as f64)
+                .max(0.0)
+                .sqrt()
         } else {
             0.0
         }

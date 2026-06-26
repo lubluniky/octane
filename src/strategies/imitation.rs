@@ -758,6 +758,10 @@ pub struct ImitationAgent<E: Environment + Clone + 'static> {
     /// Policy network.
     policy_var_map: VarMap,
 
+    /// Persistent optimizer (recreating it each step would reset Adam's
+    /// moment estimates, degrading every supervised update to ~sign-SGD).
+    policy_optimizer: AdamW,
+
     /// Observation dimension.
     obs_dim: usize,
     /// Action dimension.
@@ -822,6 +826,8 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
             env,
             device,
             policy_var_map,
+            // Placeholder; rebound to the real policy vars after init_networks().
+            policy_optimizer: AdamW::new(Vec::new(), ParamsAdamW::default())?,
             obs_dim,
             act_dim,
             is_discrete,
@@ -835,6 +841,13 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
         };
 
         agent.init_networks()?;
+        agent.policy_optimizer = AdamW::new(
+            agent.policy_var_map.all_vars(),
+            ParamsAdamW {
+                lr: agent.config.learning_rate as f64,
+                ..Default::default()
+            },
+        )?;
 
         info!(
             "ImitationAgent initialized: method={:?}, obs_dim={}, act_dim={}",
@@ -988,13 +1001,8 @@ impl<E: Environment + Clone + 'static> ImitationAgent<E> {
         let total_loss = (&loss + &reg_loss)?;
         let loss_val: f32 = total_loss.to_scalar()?;
 
-        // Update
-        let params = ParamsAdamW {
-            lr: self.config.learning_rate as f64,
-            ..Default::default()
-        };
-        let mut optimizer = AdamW::new(self.policy_var_map.all_vars(), params)?;
-        optimizer.backward_step(&total_loss)?;
+        // Reuse the persistent optimizer so Adam momentum accumulates.
+        self.policy_optimizer.backward_step(&total_loss)?;
 
         Ok(loss_val)
     }

@@ -302,10 +302,13 @@ impl<E: Environment + Clone + 'static> A2CAgent<E> {
                 let end = start + num_actions;
                 let action_probs = &probs_vec[start..end];
 
-                // Sample action
+                // Sample action via inverse-CDF. Default to the LAST action:
+                // softmax probabilities sum to slightly less than 1 in f32, so
+                // when r lands in that residual the loop never breaks — pinning
+                // the fallthrough to 0 would silently bias toward action 0.
                 let r: f32 = self.rng.gen();
                 let mut cumsum = 0.0;
-                let mut action = 0usize;
+                let mut action = num_actions - 1;
                 for (i, &p) in action_probs.iter().enumerate() {
                     cumsum += p;
                     if r < cumsum {

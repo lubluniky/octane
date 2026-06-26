@@ -431,6 +431,13 @@ impl DrawdownController {
             return 0.0;
         }
 
+        // A zero (or negative) max_drawdown would divide-by-zero in the Linear,
+        // Exponential and Sigmoid branches; at equity peak (0/0) that yields NaN
+        // that survives clamp() and poisons every downstream risk consumer.
+        if self.config.max_drawdown <= 0.0 {
+            return 1.0;
+        }
+
         match self.config.scaling_method {
             RiskScaling::None => 1.0,
             RiskScaling::Linear => {

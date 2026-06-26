@@ -226,12 +226,10 @@ impl NStepReplayBuffer {
         // Compute n-step return
         let mut n_step_return = 0.0;
         let mut gamma_discount = 1.0;
-        let mut actual_n = 0;
         let mut encountered_done = false;
 
-        for (i, transition) in self.n_step_buffer.iter().enumerate() {
+        for transition in self.n_step_buffer.iter() {
             n_step_return += gamma_discount * transition.reward;
-            actual_n = i + 1;
 
             if transition.done {
                 encountered_done = true;
@@ -240,21 +238,13 @@ impl NStepReplayBuffer {
             gamma_discount *= self.config.gamma;
         }
 
-        // Determine the actual next_obs for the n-step transition
-        let (n_step_next_obs, n_step_done) = if encountered_done {
-            // Episode ended within n-step window, use last valid obs
-            // The done flag should be true
-            (
-                self.n_step_buffer
-                    .get(actual_n.saturating_sub(1))
-                    .map(|t| t.obs.clone())
-                    .unwrap_or_else(|| final_next_obs.to_vec()),
-                true,
-            )
-        } else {
-            // Full n-step return, use the provided next_obs
-            (final_next_obs.to_vec(), final_done)
-        };
+        // Always bootstrap from the provided next_obs (the terminal observation
+        // when the episode ended within the window), matching flush_episode_end.
+        // The previous branch stored a pre-terminal *state* as next_obs; `done`
+        // masks it in the bootstrap target, but the inconsistency was a latent
+        // correctness trap for any consumer that reads next_obs unconditionally.
+        let n_step_next_obs = final_next_obs.to_vec();
+        let n_step_done = encountered_done || final_done;
 
         // Store in the underlying buffer
         self.inner.add(
