@@ -70,3 +70,6 @@ config.local.toml
 
 # Release artifacts (keep in git, but listing for reference)
 # /target/release/
+
+# Claude Code local worktrees / session state
+.claude/worktrees/
