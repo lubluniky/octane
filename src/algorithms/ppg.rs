@@ -529,8 +529,11 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
             let probs = candle_nn::ops::softmax(&logits_or_mean, 1)?;
             let log_probs = candle_nn::ops::log_softmax(&logits_or_mean, 1)?;
 
-            // Sample from categorical distribution
+            // Materialize probs and log_probs to host ONCE (previously the
+            // per-action log-prob was fetched per environment inside the loop,
+            // one GPU->CPU sync per env per step).
             let probs_vec: Vec<f32> = probs.flatten_all()?.to_vec1()?;
+            let log_probs_vec: Vec<f32> = log_probs.flatten_all()?.to_vec1()?;
             let batch_size = obs.dim(0)?;
             let num_actions = self.act_dim;
 
@@ -556,9 +559,8 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
 
                 actions.push(action as f32);
 
-                // Get log probability of selected action
-                let lp_vec: Vec<f32> = log_probs.get(b)?.flatten_all()?.to_vec1()?;
-                action_log_probs.push(lp_vec[action]);
+                // Index the already-materialized log_probs (no per-env sync).
+                action_log_probs.push(log_probs_vec[start + action]);
             }
 
             let candle_device = self.device.to_candle()?;

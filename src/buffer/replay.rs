@@ -3,6 +3,7 @@
 //! This module provides efficient, ring-buffer based storage for experience replay.
 //! Supports uniform random sampling and optional prioritized experience replay (PER).
 
+use crate::buffer::segment_tree::MinTree;
 use crate::core::{Device, OctaneError, Result};
 use candle_core::Tensor;
 use rand::prelude::*;
@@ -144,6 +145,12 @@ pub struct ReplayBuffer {
     priorities: Option<Vec<f32>>,
     /// Sum tree for efficient priority sampling.
     sum_tree: Option<SumTree>,
+    /// Min tree for O(log n) minimum-priority lookup (importance-sampling
+    /// normalization), avoiding an O(n) leaf scan on every sample.
+    min_tree: Option<MinTree>,
+    /// Running maximum (raw) priority assigned to new transitions, so add()
+    /// no longer rescans all priorities (which made filling the buffer O(n^2)).
+    max_priority: f32,
     /// Current beta for importance sampling.
     current_beta: f32,
 
@@ -164,10 +171,14 @@ impl ReplayBuffer {
             ));
         }
 
-        let (priorities, sum_tree) = if config.prioritized {
-            (Some(vec![1.0; capacity]), Some(SumTree::new(capacity)))
+        let (priorities, sum_tree, min_tree) = if config.prioritized {
+            (
+                Some(vec![1.0; capacity]),
+                Some(SumTree::new(capacity)),
+                Some(MinTree::new(capacity)),
+            )
         } else {
-            (None, None)
+            (None, None, None)
         };
 
         Ok(Self {
@@ -180,6 +191,8 @@ impl ReplayBuffer {
             size: 0,
             priorities,
             sum_tree,
+            min_tree,
+            max_priority: 1.0,
             current_beta: config.beta,
             rng: StdRng::from_entropy(),
             config,
@@ -209,16 +222,17 @@ impl ReplayBuffer {
         // Copy next observation
         self.next_observations[obs_start..obs_start + obs_dim].copy_from_slice(next_obs);
 
-        // Set max priority for new transitions (PER)
+        // New transitions get the running max priority (no O(n) rescan).
         if let Some(ref mut priorities) = self.priorities {
-            let max_priority = priorities[..self.size.max(1)]
-                .iter()
-                .cloned()
-                .fold(1.0f32, f32::max);
+            let max_priority = self.max_priority;
             priorities[idx] = max_priority;
 
+            let scaled = max_priority.powf(self.config.alpha);
             if let Some(ref mut tree) = self.sum_tree {
-                tree.update(idx, max_priority.powf(self.config.alpha));
+                tree.update(idx, scaled);
+            }
+            if let Some(ref mut min_tree) = self.min_tree {
+                min_tree.update(idx, scaled);
             }
         }
 
@@ -287,8 +301,14 @@ impl ReplayBuffer {
             priorities.push(priority);
         }
 
-        // Compute importance sampling weights
-        let max_weight = (self.size as f32 * tree.min_priority() / total).powf(-self.current_beta);
+        // Compute importance sampling weights. The minimum priority comes from
+        // the MinTree in O(log n) instead of an O(n) scan over all leaves.
+        let min_priority = self
+            .min_tree
+            .as_ref()
+            .map(|t| t.min().max(1e-6))
+            .unwrap_or(1e-6);
+        let max_weight = (self.size as f32 * min_priority / total).powf(-self.current_beta);
 
         let weights: Vec<f32> = priorities
             .iter()
@@ -354,13 +374,22 @@ impl ReplayBuffer {
 
     /// Update priorities for sampled transitions (PER).
     pub fn update_priorities(&mut self, indices: &[usize], td_errors: &[f32]) {
-        if let (Some(ref mut priorities), Some(ref mut tree)) =
-            (&mut self.priorities, &mut self.sum_tree)
-        {
+        if let (Some(ref mut priorities), Some(ref mut tree), Some(ref mut min_tree)) = (
+            &mut self.priorities,
+            &mut self.sum_tree,
+            &mut self.min_tree,
+        ) {
             for (&idx, &td_error) in indices.iter().zip(td_errors.iter()) {
-                let priority = (td_error.abs() + self.config.min_priority).powf(self.config.alpha);
-                priorities[idx] = td_error.abs() + self.config.min_priority;
-                tree.update(idx, priority);
+                let raw = td_error.abs() + self.config.min_priority;
+                let scaled = raw.powf(self.config.alpha);
+                priorities[idx] = raw;
+                tree.update(idx, scaled);
+                min_tree.update(idx, scaled);
+                // Keep the running max monotonic (standard PER); new transitions
+                // are seeded from it so freshly added samples stay high-priority.
+                if raw > self.max_priority {
+                    self.max_priority = raw;
+                }
             }
         }
     }
@@ -397,9 +426,14 @@ impl ReplayBuffer {
         if let Some(ref mut tree) = self.sum_tree {
             *tree = SumTree::new(self.config.capacity);
         }
+        if let Some(ref mut min_tree) = self.min_tree {
+            min_tree.clear();
+        }
         if let Some(ref mut priorities) = self.priorities {
             priorities.fill(1.0);
         }
+        self.max_priority = 1.0;
+        self.current_beta = self.config.beta;
     }
 
     /// Set random seed for reproducibility.
@@ -482,6 +516,32 @@ impl SumTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Manual perf check (ignored by default): fills a large prioritized buffer.
+    // The previous add() rescanned all priorities (O(n) per add -> O(n^2) fill);
+    // with a running max it is O(1) per add. Run with:
+    //   cargo test --release per_fill_is_not_quadratic -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn per_fill_is_not_quadratic() -> Result<()> {
+        let n = 200_000usize;
+        let config = ReplayBufferConfig::new(8, 2)
+            .capacity(n)
+            .prioritized(true);
+        let mut buffer = ReplayBuffer::new(config, Device::Cpu)?;
+        let obs = vec![0.5f32; 8];
+        let action = vec![0.0f32, 1.0];
+        let next_obs = vec![0.6f32; 8];
+        let start = std::time::Instant::now();
+        for i in 0..n {
+            buffer.add(&obs, &action, i as f32 * 1e-4, &next_obs, false);
+        }
+        let elapsed = start.elapsed();
+        eprintln!("PER fill of {n} transitions took {elapsed:?}");
+        // Sampling exercises the O(log n) MinTree path for IS weights.
+        let _ = buffer.sample(256)?;
+        Ok(())
+    }
 
     #[test]
     fn test_replay_buffer_basic() -> Result<()> {

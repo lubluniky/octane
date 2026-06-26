@@ -407,9 +407,9 @@ impl RolloutBuffer {
 
             // **CRITICAL FIX**: Only mask bootstrap value for TERMINATIONS, not truncations
             // not_terminated = 1 - terminated (NOT 1 - done!)
-            // This ensures we bootstrap value for truncated episodes
-            let ones = Tensor::ones(&[self.num_envs], DType::F32, &candle_device)?;
-            let not_terminated = ones.sub(&term)?;
+            // This ensures we bootstrap value for truncated episodes.
+            // Scalar-minus-tensor avoids allocating a `ones` tensor each step.
+            let not_terminated = (1.0 - &term)?;
 
             // delta = reward + gamma * next_value * (1 - terminated) - value
             // Truncations still bootstrap the value (episode was cut short artificially)
@@ -420,8 +420,7 @@ impl RolloutBuffer {
             // For GAE propagation, we reset at episode boundaries (terminated OR truncated)
             // We use the CURRENT step's done to reset the accumulator for the NEXT iteration
             // (which computes the previous timestep)
-            let ones_again = Tensor::ones(&[self.num_envs], DType::F32, &candle_device)?;
-            let not_done = ones_again.sub(&done)?;
+            let not_done = (1.0 - &done)?;
 
             // A_t = delta_t + gamma * lambda * (1 - done_t) * A_{t+1}
             // The done mask ensures GAE doesn't propagate across episode boundaries
