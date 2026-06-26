@@ -790,9 +790,38 @@ mod tests {
         };
 
         let mut agent = SACAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+
+        // Order-independent L2 fingerprint of the Q1 parameters. If the
+        // persistent optimizer is actually bound to these Vars, fitting the TD
+        // target must shift their mass. (A no-panic / finite-alpha check alone
+        // also passes when the optimizer is wired to zero Vars, because alpha
+        // is updated manually rather than through that optimizer.)
+        let q1_fingerprint = |agent: &SACAgent<ContinuousTestEnv>| -> f64 {
+            let mut acc = 0.0f64;
+            for var in agent.q1_var_map.all_vars() {
+                for x in var
+                    .as_tensor()
+                    .flatten_all()
+                    .unwrap()
+                    .to_vec1::<f32>()
+                    .unwrap()
+                {
+                    acc += (x as f64) * (x as f64);
+                }
+            }
+            acc
+        };
+
+        let q1_before = q1_fingerprint(&agent);
         // Enough timesteps to trigger many gradient updates past learning_starts.
         agent.train(60, |_| {}).unwrap();
+        let q1_after = q1_fingerprint(&agent);
 
+        assert!(
+            (q1_after - q1_before).abs() > 1e-6,
+            "Q1 parameters did not move after training: persistent optimizer not \
+             wired to real parameters (before={q1_before}, after={q1_after})"
+        );
         assert!(
             agent.alpha.is_finite() && agent.alpha > 0.0,
             "alpha diverged or went non-positive: {}",

@@ -635,6 +635,36 @@ mod tests {
             ..Default::default()
         };
         let mut agent = DQNAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+
+        // Order-independent L2 fingerprint of the online Q parameters. With a
+        // persistent optimizer truly bound to these Vars, regressing on the
+        // (non-zero reward) TD target must shift their mass. This guards the
+        // optimizer-lifecycle rewrite: a no-panic check alone would also pass
+        // if the optimizer were accidentally bound to an empty Var set.
+        let q_fingerprint = |agent: &DQNAgent<DiscreteTestEnv>| -> f64 {
+            let mut acc = 0.0f64;
+            for var in agent.q_var_map.all_vars() {
+                for x in var
+                    .as_tensor()
+                    .flatten_all()
+                    .unwrap()
+                    .to_vec1::<f32>()
+                    .unwrap()
+                {
+                    acc += (x as f64) * (x as f64);
+                }
+            }
+            acc
+        };
+
+        let q_before = q_fingerprint(&agent);
         agent.train(40, |_| {}).unwrap();
+        let q_after = q_fingerprint(&agent);
+
+        assert!(
+            (q_after - q_before).abs() > 1e-6,
+            "online Q parameters did not move after training: persistent \
+             optimizer not wired to real parameters (before={q_before}, after={q_after})"
+        );
     }
 }
