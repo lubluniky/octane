@@ -39,12 +39,19 @@ fn run() {
     #[cfg(not(feature = "metal"))]
     let (dev, dev_name) = (candle_core::Device::Cpu, "cpu");
 
-    println!("MLX side-path micro-bench (candle backend: {dev_name}); per-call us, lower is better");
-    println!("{:>9} | {:>16} | {:>18}", "num_envs", "mlx roundtrip", "candle roundtrip");
+    println!(
+        "MLX side-path micro-bench (candle backend: {dev_name}); per-call us, lower is better"
+    );
+    println!(
+        "{:>9} | {:>16} | {:>18}",
+        "num_envs", "mlx roundtrip", "candle roundtrip"
+    );
 
     for &n in &[8usize, 256, 1024, 4096] {
         let input: Vec<f32> = (0..n * cols).map(|i| (i as f32 * 0.001).sin()).collect();
-        let weight: Vec<f32> = (0..cols * out).map(|i| (i as f32 * 0.002).cos() * 0.01).collect();
+        let weight: Vec<f32> = (0..cols * out)
+            .map(|i| (i as f32 * 0.002).cos() * 0.01)
+            .collect();
 
         // Warm up + time the MLX round-trip (host -> MLX -> host).
         let _ = fused_mlp_roundtrip(&input, n as i32, cols as i32, &weight, out as i32);

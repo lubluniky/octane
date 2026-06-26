@@ -48,7 +48,9 @@ fn tensor_from_numpy(arr: &PyReadonlyArray2<'_, f32>, device: &Device) -> PyResu
 
 /// Convert a 2-D candle tensor back into a numpy array.
 fn numpy_from_tensor<'py>(py: Python<'py>, t: &Tensor) -> PyResult<Bound<'py, PyArray2<f32>>> {
-    let t = t.to_dtype(candle_core::DType::F32).map_err(OctaneError::from)?;
+    let t = t
+        .to_dtype(candle_core::DType::F32)
+        .map_err(OctaneError::from)?;
     let data: Vec<Vec<f32>> = t.to_vec2::<f32>().map_err(OctaneError::from)?;
     PyArray2::from_vec2(py, &data).map_err(|e| PyValueError::new_err(e.to_string()))
 }
@@ -134,16 +136,18 @@ impl PyMarketData {
     /// `feature_names` is optional and only used for debugging.
     #[new]
     #[pyo3(signature = (prices, feature_names=None))]
-    fn new(prices: PyReadonlyArray2<'_, f32>, feature_names: Option<Vec<String>>) -> PyResult<Self> {
+    fn new(
+        prices: PyReadonlyArray2<'_, f32>,
+        feature_names: Option<Vec<String>>,
+    ) -> PyResult<Self> {
         let arr = prices.as_array();
         let prices: Vec<Vec<f32>> = arr.outer_iter().map(|row| row.to_vec()).collect();
         if prices.is_empty() {
             return Err(PyValueError::new_err("market data is empty"));
         }
         let n_features = prices[0].len();
-        let feature_names = feature_names.unwrap_or_else(|| {
-            (0..n_features).map(|i| format!("f{i}")).collect::<Vec<_>>()
-        });
+        let feature_names = feature_names
+            .unwrap_or_else(|| (0..n_features).map(|i| format!("f{i}")).collect::<Vec<_>>());
         Ok(Self {
             inner: MarketData {
                 prices,
@@ -422,9 +426,10 @@ impl PyTradingMetrics {
 
     /// Feed all returns from a 1-D numpy array, then read metrics.
     fn add_returns(&mut self, returns: PyReadonlyArray1<'_, f64>) -> PyResult<()> {
-        for &r in returns.as_slice().map_err(|_| {
-            PyValueError::new_err("returns array must be C-contiguous")
-        })? {
+        for &r in returns
+            .as_slice()
+            .map_err(|_| PyValueError::new_err("returns array must be C-contiguous"))?
+        {
             self.inner.add_return(r);
         }
         Ok(())

@@ -374,11 +374,9 @@ impl ReplayBuffer {
 
     /// Update priorities for sampled transitions (PER).
     pub fn update_priorities(&mut self, indices: &[usize], td_errors: &[f32]) {
-        if let (Some(ref mut priorities), Some(ref mut tree), Some(ref mut min_tree)) = (
-            &mut self.priorities,
-            &mut self.sum_tree,
-            &mut self.min_tree,
-        ) {
+        if let (Some(ref mut priorities), Some(ref mut tree), Some(ref mut min_tree)) =
+            (&mut self.priorities, &mut self.sum_tree, &mut self.min_tree)
+        {
             for (&idx, &td_error) in indices.iter().zip(td_errors.iter()) {
                 let raw = td_error.abs() + self.config.min_priority;
                 let scaled = raw.powf(self.config.alpha);
@@ -525,9 +523,7 @@ mod tests {
     #[ignore]
     fn per_fill_is_not_quadratic() -> Result<()> {
         let n = 200_000usize;
-        let config = ReplayBufferConfig::new(8, 2)
-            .capacity(n)
-            .prioritized(true);
+        let config = ReplayBufferConfig::new(8, 2).capacity(n).prioritized(true);
         let mut buffer = ReplayBuffer::new(config, Device::Cpu)?;
         let obs = vec![0.5f32; 8];
         let action = vec![0.0f32, 1.0];

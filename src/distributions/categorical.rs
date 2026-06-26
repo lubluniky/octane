@@ -343,8 +343,11 @@ mod tests {
     fn test_log_prob_preserves_gradient() -> Result<()> {
         use candle_core::Var;
         let device = candle_core::Device::Cpu;
-        let logits_var =
-            Var::from_tensor(&Tensor::from_slice(&[0.5f32, 1.0, -0.3, 2.0], &[2, 2], &device)?)?;
+        let logits_var = Var::from_tensor(&Tensor::from_slice(
+            &[0.5f32, 1.0, -0.3, 2.0],
+            &[2, 2],
+            &device,
+        )?)?;
         let dist = Categorical::new(logits_var.as_tensor().clone())?;
 
         let actions = Tensor::from_slice(&[0u32, 1u32], &[2], &device)?;

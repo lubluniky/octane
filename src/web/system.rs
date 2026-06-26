@@ -359,7 +359,11 @@ fn detect_gpu_total_mb() -> f64 {
         .output();
     if let Ok(output) = output {
         if let Ok(text) = String::from_utf8(output.stdout) {
-            if let Some(v) = text.lines().next().and_then(|l| l.trim().parse::<f64>().ok()) {
+            if let Some(v) = text
+                .lines()
+                .next()
+                .and_then(|l| l.trim().parse::<f64>().ok())
+            {
                 return v;
             }
         }

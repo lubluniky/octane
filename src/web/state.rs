@@ -272,8 +272,13 @@ impl DashboardState {
             } else {
                 0.0
             };
-            g.system_history
-                .push(t, snap.cpu_usage as f64, gpu, snap.mem_used_pct as f64, gpu_mem_pct);
+            g.system_history.push(
+                t,
+                snap.cpu_usage as f64,
+                gpu,
+                snap.mem_used_pct as f64,
+                gpu_mem_pct,
+            );
             g.system = snap;
         }
     }

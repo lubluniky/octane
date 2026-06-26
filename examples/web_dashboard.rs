@@ -97,7 +97,9 @@ fn main() -> octane_rs::Result<()> {
         }
         Err(e) => {
             state.push_log(format!("[WARN] Training stopped: {e}"));
-            eprintln!("\n  ! Training error: {e}\n  Dashboard stays live at {url} (Ctrl-C to exit).\n");
+            eprintln!(
+                "\n  ! Training error: {e}\n  Dashboard stays live at {url} (Ctrl-C to exit).\n"
+            );
         }
     }
 

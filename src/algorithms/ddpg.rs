@@ -683,7 +683,11 @@ mod tests {
             &self.act
         }
         fn reset(&mut self, device: &Device) -> Result<Tensor> {
-            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+            Ok(Tensor::zeros(
+                self.obs.shape(),
+                DType::F32,
+                &device.to_candle()?,
+            )?)
         }
         fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
             let cd = device.to_candle()?;

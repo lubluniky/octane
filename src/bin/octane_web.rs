@@ -134,7 +134,10 @@ fn main() {
     }
 
     if let Err(e) = server.serve() {
-        eprintln!("  ✗ Failed to start server on {}:{} — {e}", args.host, args.port);
+        eprintln!(
+            "  ✗ Failed to start server on {}:{} — {e}",
+            args.host, args.port
+        );
         eprintln!("    (is the port already in use? try --port <N>)");
         std::process::exit(1);
     }
@@ -152,7 +155,10 @@ fn mode_label(mode: DashboardMode) -> &'static str {
 fn is_loopback(host: &str) -> bool {
     host == "localhost"
         || host == "::1"
-        || host.parse::<std::net::IpAddr>().map(|ip| ip.is_loopback()).unwrap_or(false)
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
 }
 
 /// Open `url` in the system browser (best-effort).
@@ -282,7 +288,10 @@ fn start_tailer(state: DashboardState, dir: PathBuf) {
         let mut reader = match TrainingLogReader::new(&run_dir) {
             Ok(r) => r,
             Err(e) => {
-                state.push_log(format!("[WARN] Failed to open run {}: {e}", run_dir.display()));
+                state.push_log(format!(
+                    "[WARN] Failed to open run {}: {e}",
+                    run_dir.display()
+                ));
                 return;
             }
         };
