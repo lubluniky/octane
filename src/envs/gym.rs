@@ -126,7 +126,7 @@ impl GymEnv {
 
     /// Create a Gym environment with custom configuration.
     pub fn make_with_config(env_id: &str, config: GymEnvConfig) -> Result<Self> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Import gymnasium (or gym as fallback)
             let gym = py
                 .import("gymnasium")
@@ -330,7 +330,7 @@ impl Environment for GymEnv {
         self.step_count = 0;
         self.episode_reward = 0.0;
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let env = self.env.bind(py);
 
             // Call reset() - returns (obs, info) in gymnasium, just obs in old gym
@@ -352,7 +352,7 @@ impl Environment for GymEnv {
     }
 
     fn step(&mut self, action: &Tensor, device: &Device) -> Result<StepResult> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let env = self.env.bind(py);
             let py_action = self.tensor_to_action(action, py)?;
 
@@ -468,7 +468,7 @@ impl Environment for GymEnv {
     }
 
     fn render(&self) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let env = self.env.bind(py);
             env.call_method0("render")
                 .map_err(|e| OctaneError::Environment(format!("render() failed: {}", e)))?;
@@ -477,7 +477,7 @@ impl Environment for GymEnv {
     }
 
     fn close(&mut self) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let env = self.env.bind(py);
             env.call_method0("close")
                 .map_err(|e| OctaneError::Environment(format!("close() failed: {}", e)))?;

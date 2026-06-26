@@ -69,3 +69,13 @@ impl From<bincode::error::DecodeError> for OctaneError {
         OctaneError::Serialization(err.to_string())
     }
 }
+
+// Allow `?` on PyResult inside crate functions that return `Result<_,
+// OctaneError>` (the wandb / gym PyO3 integrations). Only compiled when a
+// PyO3-backed feature pulls the dependency in.
+#[cfg(any(feature = "python", feature = "gym", feature = "wandb"))]
+impl From<pyo3::PyErr> for OctaneError {
+    fn from(err: pyo3::PyErr) -> Self {
+        OctaneError::Environment(err.to_string())
+    }
+}

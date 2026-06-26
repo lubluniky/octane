@@ -38,6 +38,10 @@ use std::path::Path;
 use pyo3::prelude::*;
 #[cfg(feature = "wandb")]
 use pyo3::types::{PyDict, PyList};
+// pyo3 0.23+ removed ToPyObject::to_object; into_py_any() is the replacement
+// that yields an owned Py<PyAny> directly.
+#[cfg(feature = "wandb")]
+use pyo3::IntoPyObjectExt;
 
 /// Configuration for Weights & Biases runs.
 #[derive(Debug, Clone)]
@@ -277,7 +281,7 @@ impl WandbConfig {
 #[cfg(feature = "wandb")]
 pub struct WandbLogger {
     /// Run object from wandb.init().
-    run: PyObject,
+    run: Py<PyAny>,
     /// Configuration.
     config: WandbConfig,
     /// Whether the run is active.
@@ -288,7 +292,7 @@ pub struct WandbLogger {
 impl WandbLogger {
     /// Initialize a new W&B run.
     pub fn init(config: WandbConfig) -> Result<Self> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb").map_err(|e| {
                 OctaneError::Environment(format!(
                     "Failed to import wandb. Install with `pip install wandb`: {}",
@@ -344,7 +348,7 @@ impl WandbLogger {
 
     /// Get the run URL.
     pub fn url(&self) -> Result<String> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let url = run.getattr("url")?.extract::<String>()?;
             Ok(url)
@@ -353,7 +357,7 @@ impl WandbLogger {
 
     /// Get the run ID.
     pub fn run_id(&self) -> Result<String> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let id = run.getattr("id")?.extract::<String>()?;
             Ok(id)
@@ -362,7 +366,7 @@ impl WandbLogger {
 
     /// Get the run name.
     pub fn name(&self) -> Result<String> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let name = run.getattr("name")?.extract::<String>()?;
             Ok(name)
@@ -371,7 +375,7 @@ impl WandbLogger {
 
     /// Update the run configuration.
     pub fn update_config(&mut self, updates: HashMap<String, ConfigValue>) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let config = run.getattr("config")?;
             let update_dict = config_to_pydict(py, &updates)?;
@@ -382,7 +386,7 @@ impl WandbLogger {
 
     /// Log a summary value (final metrics).
     pub fn log_summary(&mut self, key: &str, value: impl Into<ConfigValue>) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let summary = run.getattr("summary")?;
             let val = config_value_to_py(py, &value.into())?;
@@ -393,7 +397,7 @@ impl WandbLogger {
 
     /// Save a model artifact.
     pub fn save_model(&mut self, path: impl AsRef<Path>, name: &str) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let artifact = wandb.call_method("Artifact", (name, "model"), None)?;
             artifact.call_method(
@@ -414,7 +418,10 @@ impl WandbLogger {
             return Ok(());
         }
 
-        Python::with_gil(|py| {
+        // Annotate the closure's error type: now that both PyErr and
+        // OctaneError implement `From<PyErr>`, the `?`-then-`?` chain is
+        // otherwise ambiguous.
+        Python::attach(|py| -> Result<()> {
             let run = self.run.bind(py);
             run.call_method("finish", (), None)?;
             Ok(())
@@ -426,7 +433,7 @@ impl WandbLogger {
 
     /// Define custom metrics with specific step keys.
     pub fn define_metric(&mut self, name: &str, step_metric: Option<&str>) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let kwargs = PyDict::new(py);
             if let Some(step) = step_metric {
@@ -441,7 +448,7 @@ impl WandbLogger {
 #[cfg(feature = "wandb")]
 impl MetricLogger for WandbLogger {
     fn log_scalar(&mut self, tag: &str, value: f64, step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let log_dict = PyDict::new(py);
             log_dict.set_item(tag, value)?;
@@ -455,7 +462,7 @@ impl MetricLogger for WandbLogger {
     }
 
     fn log_scalars(&mut self, scalars: &[(&str, f64)], step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let run = self.run.bind(py);
             let log_dict = PyDict::new(py);
             for (tag, value) in scalars {
@@ -471,7 +478,7 @@ impl MetricLogger for WandbLogger {
     }
 
     fn log_histogram(&mut self, tag: &str, data: &HistogramData, step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let run = self.run.bind(py);
 
@@ -490,7 +497,7 @@ impl MetricLogger for WandbLogger {
     }
 
     fn log_video(&mut self, tag: &str, video: &VideoData, step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let numpy = py.import("numpy")?;
             let run = self.run.bind(py);
@@ -529,7 +536,7 @@ impl MetricLogger for WandbLogger {
     }
 
     fn log_image(&mut self, tag: &str, image: &ImageData, step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let numpy = py.import("numpy")?;
             let run = self.run.bind(py);
@@ -557,7 +564,7 @@ impl MetricLogger for WandbLogger {
     }
 
     fn log_text(&mut self, tag: &str, text: &str, step: u64) -> Result<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let wandb = py.import("wandb")?;
             let run = self.run.bind(py);
 
@@ -596,10 +603,10 @@ impl Drop for WandbLogger {
 }
 
 #[cfg(feature = "wandb")]
-fn config_to_pydict(
-    py: Python<'_>,
+fn config_to_pydict<'py>(
+    py: Python<'py>,
     config: &HashMap<String, ConfigValue>,
-) -> PyResult<Bound<'_, PyDict>> {
+) -> PyResult<Bound<'py, PyDict>> {
     let dict = PyDict::new(py);
     for (key, value) in config {
         let py_value = config_value_to_py(py, value)?;
@@ -609,23 +616,23 @@ fn config_to_pydict(
 }
 
 #[cfg(feature = "wandb")]
-fn config_value_to_py(py: Python<'_>, value: &ConfigValue) -> PyResult<PyObject> {
+fn config_value_to_py(py: Python<'_>, value: &ConfigValue) -> PyResult<Py<PyAny>> {
     match value {
-        ConfigValue::String(s) => Ok(s.to_object(py)),
-        ConfigValue::Int(i) => Ok(i.to_object(py)),
-        ConfigValue::Float(f) => Ok(f.to_object(py)),
-        ConfigValue::Bool(b) => Ok(b.to_object(py)),
+        ConfigValue::String(s) => s.into_py_any(py),
+        ConfigValue::Int(i) => i.into_py_any(py),
+        ConfigValue::Float(f) => f.into_py_any(py),
+        ConfigValue::Bool(b) => b.into_py_any(py),
         ConfigValue::List(items) => {
             let list = PyList::empty(py);
             for item in items {
                 let py_item = config_value_to_py(py, item)?;
                 list.append(py_item)?;
             }
-            Ok(list.into())
+            list.into_py_any(py)
         }
         ConfigValue::Dict(d) => {
             let dict = config_to_pydict(py, d)?;
-            Ok(dict.into())
+            dict.into_py_any(py)
         }
     }
 }

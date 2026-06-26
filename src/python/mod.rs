@@ -59,7 +59,7 @@ fn numpy_from_tensor<'py>(py: Python<'py>, t: &Tensor) -> PyResult<Bound<'py, Py
 }
 
 /// Compute device for tensor operations.
-#[pyclass(name = "Device")]
+#[pyclass(name = "Device", from_py_object)]
 #[derive(Clone)]
 pub struct PyDevice {
     inner: Device,
@@ -126,7 +126,7 @@ impl Default for PyDevice {
 }
 
 /// OHLCV(+features) market data, constructed once from a numpy array.
-#[pyclass(name = "MarketData")]
+#[pyclass(name = "MarketData", from_py_object)]
 #[derive(Clone)]
 pub struct PyMarketData {
     inner: MarketData,
@@ -177,7 +177,7 @@ impl PyMarketData {
 }
 
 /// Native trading environment over a fixed market-data series.
-#[pyclass(name = "TradingEnv")]
+#[pyclass(name = "TradingEnv", from_py_object)]
 #[derive(Clone)]
 pub struct PyTradingEnv {
     inner: TradingEnv,
@@ -235,7 +235,7 @@ impl PyTradingEnv {
 }
 
 /// Native `CartPole-v1` — the canonical discrete control benchmark.
-#[pyclass(name = "CartPole")]
+#[pyclass(name = "CartPole", from_py_object)]
 #[derive(Clone)]
 pub struct PyCartPole {
     inner: CartPole,
@@ -273,7 +273,7 @@ impl PyCartPole {
 }
 
 /// Native `Pendulum-v1` — the canonical continuous control benchmark.
-#[pyclass(name = "Pendulum")]
+#[pyclass(name = "Pendulum", from_py_object)]
 #[derive(Clone)]
 pub struct PyPendulum {
     inner: Pendulum,
@@ -314,7 +314,7 @@ impl PyPendulum {
 ///
 /// `reward_kind="regression"` scores `-MSE(action, targets_row)`;
 /// `reward_kind="weighted"` scores `dot(action, returns_row)`.
-#[pyclass(name = "ArrayEnv")]
+#[pyclass(name = "ArrayEnv", from_py_object)]
 #[derive(Clone)]
 pub struct PyArrayEnv {
     inner: ArrayEnv,
@@ -542,7 +542,7 @@ impl PyPPO {
 
     /// Train for `total_timesteps`. The GIL is released for the whole run.
     fn learn(&mut self, py: Python<'_>, total_timesteps: usize) -> PyResult<()> {
-        py.allow_threads(|| self.backend.train(total_timesteps))?;
+        py.detach(|| self.backend.train(total_timesteps))?;
         Ok(())
     }
 
@@ -684,7 +684,7 @@ impl PySAC {
 
     /// Train for `total_timesteps`, with the GIL released.
     fn learn(&mut self, py: Python<'_>, total_timesteps: usize) -> PyResult<()> {
-        py.allow_threads(|| self.backend.train(total_timesteps))?;
+        py.detach(|| self.backend.train(total_timesteps))?;
         Ok(())
     }
 

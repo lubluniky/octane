@@ -75,9 +75,9 @@ ordered-float = "4.0"
 memmap2 = "0.9"
 
 # Python interop (optional, for Gym compatibility and the python extension)
-pyo3 = { version = "0.24.1", optional = true }
-# Zero-copy numpy <-> Rust marshaling for the python extension (matches pyo3 0.24)
-numpy = { version = "0.24", optional = true }
+pyo3 = { version = "0.29", optional = true }
+# Zero-copy numpy <-> Rust marshaling for the python extension (matches pyo3 0.29)
+numpy = { version = "0.29", optional = true }
 
 # Distributed training (optional)
 tonic = { version = "0.14", optional = true }
