@@ -131,3 +131,22 @@ Ordered by training impact. Items grouped by shared root cause.
 - **Misleading docs:** `rollout.rs@24-32` claims SIMD GAE needs the `simd` cargo feature, but it's gated on `target_feature=neon` (always-on for aarch64). *(11)*
 - **Numerical edge cases (mostly latent/defaults-safe):** `RunningMeanStd` Welford combine in f32 freezes variance after ~16M samples (`wrappers.rs@303-318` → accumulate in f64); RNN `init_state` hardcodes `DType::F32`, breaks `half` (`rnn.rs@191-199,413-421`); HMM forward can underflow to all-zero and freeze (`regime.rs@200-207,453-484` → log-space); `GarchParams::unconditional_variance` no stationarity guard (`regime.rs@243-245`); `profit_factor` returns `Infinity` → serde_json serializes `null`, breaking round-trip (`trading.rs@459-467`); categorical inverse-CDF biases toward action 0 on underflow (`a2c.rs@248-257` → default to last index); `ReplayBuffer::clear` doesn't reset `current_beta` (`replay.rs@393`); SquashedGaussian inconsistent atanh/Jacobian clamps (`gaussian.rs@291-327`); BoxSpace unbounded sample is uniform-not-normal and ignores one-sided finite bounds (`space.rs@90-110`); trading `build_observation` uses `insert(0,..)` padding, multi_timeframe pad guard can't pad per-timeframe (`multi_timeframe.rs@616-621`). *(69, 57, 95, 96, 106, 40, 53, 43, 74, 97)*
 - **SIMD AVX2/Metal accuracy & robustness (latent — public, not in active path):** AVX2 log-prob mixes approximate `fast_exp/log/tanh` body with exact libm tail (disagrees with NEON/scalar) (`log_prob.rs@447-635`); `fast_sincos` Taylor over full `[-π,π]` distorts Box-Muller near ±π (`x86.rs@362-407`); `+avx2` build with failed runtime detection silently leaves zeros (`gae.rs@440-524`); naive f32 reductions in `normalize_advantages_simd` (`gae.rs@628-646`); Metal `create_buffer` never checks nil (dead `BufferCreationFailed`) (`metal.rs@425-441`); serial `softmax_row` with no-op barriers (`metal.rs@212-256`); per-call Metal buffer alloc + blocking sync + triple host round-trip (`metal.rs@425-441,494-495,…`); whole `MetalContext` is dead-but-public — mark experimental/`doc(hidden)` until the OOB/`obs_dim` bugs (P0 #21) are fixed. *(76, 77, 78, 79, 89, 88, 82, 83, 90)*
+---
+
+## Implementation status (this branch)
+
+### ✅ Fixed & tested (committed)
+- **Optimizer persistence (P0 #1)** — all 9 agents (SAC/TD3/DDPG/REDQ/DQN/IQN/CQL/A2C/PPG): AdamW now built once and stored, Adam state survives updates.
+- **Entropy-temperature sign (P0 #2)** — SAC/REDQ/CQL alpha auto-tune un-inverted + log_alpha clamp.
+- **IQN quantile TD-error sign (P0 #6)**, **REDQ mean-vs-min actor (P0 #8)**, **DQN Huber NaN-grad (P0 #20)**.
+- **PPO/PPG KL early-stop double-break (P0 #9)**, **A2C gradient clipping (P0 #10)**.
+- **A2C & PPG trainable continuous log_std (P0 #5)**.
+- **Categorical::log_prob autograd (P0 #12)**, **metrics sqrt(neg variance) clamp (P0 #19)**.
+- **Latent runtime bugs found by new smoke tests:** SAC/REDQ/CQL `log_alpha.to_scalar()` on `[1]` tensor; IQN `gather` on non-contiguous tensors. Both broke default training paths at runtime.
+- Tests: 7 end-to-end training smoke tests + 2 targeted regression tests added (359 total, green).
+
+### ⏳ Deferred (documented roadmap — higher blast radius / needs data-flow reconciliation)
+- **Truncation/terminal-obs in VecEnv (P0 #3)** — requires changing `VecStepResult` (+7 consumers); the `rollout.rs` GAE already handles truncation correctly, the claim is that VecEnv discards terminal obs upstream. Needs data-flow trace before touching.
+- **On-policy hard-reset every rollout (P0 #4)** — persist `last_obs` across rollouts (PPO/A2C/PPG).
+- **Network build-once (P1 #2)** — another all-9-agent invasive refactor; gate behind the new smoke tests.
+- Orthogonal init wiring (#13), FrameStack multi-dim shape (#14), BatchNorm running stats (#15), epsilon-greedy per-row (#16), DQN/IQN soft-update cadence (#29), CQL conservative logsumexp/Q-mixing (#7), PPG grad-clip (#34), and the remaining P2/P3 items.
