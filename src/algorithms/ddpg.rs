@@ -657,6 +657,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for DDPGAgent<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envs::{BoxSpace, StepResult};
 
     #[test]
     fn test_ddpg_config_defaults() {
@@ -664,5 +665,52 @@ mod tests {
         assert!((config.gamma - 0.99).abs() < 1e-6);
         assert!((config.tau - 0.005).abs() < 1e-6);
         assert_eq!(config.noise_type, NoiseType::Gaussian);
+    }
+
+    #[derive(Clone)]
+    struct ContinuousTestEnv {
+        obs: BoxSpace,
+        act: BoxSpace,
+    }
+
+    impl Environment for ContinuousTestEnv {
+        type ObsSpace = BoxSpace;
+        type ActSpace = BoxSpace;
+        fn observation_space(&self) -> &BoxSpace {
+            &self.obs
+        }
+        fn action_space(&self) -> &BoxSpace {
+            &self.act
+        }
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+        }
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let cd = device.to_candle()?;
+            Ok(StepResult {
+                observation: Tensor::zeros(self.obs.shape(), DType::F32, &cd)?,
+                reward: 1.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
+
+    // Smoke test: DDPG actor/critic update path must run end-to-end with the
+    // persistent optimizers introduced for Adam state.
+    #[test]
+    fn test_ddpg_training_runs_with_persistent_optimizers() {
+        let device = Device::Cpu;
+        let env = ContinuousTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![3]),
+            act: BoxSpace::symmetric(1.0, vec![2]),
+        };
+        let mut config = DDPGConfig::default();
+        config.batch_size = 8;
+        config.buffer_size = 256;
+        config.learning_starts = 8;
+        let mut agent = DDPGAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+        agent.train(40, |_| {}).unwrap();
     }
 }

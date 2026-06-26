@@ -575,6 +575,7 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for DQNAgent<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::envs::{BoxSpace, DiscreteSpace, StepResult};
 
     #[test]
     fn test_dqn_config_defaults() {
@@ -582,5 +583,52 @@ mod tests {
         assert!(config.double_dqn);
         assert!((config.gamma - 0.99).abs() < 1e-6);
         assert!(config.buffer_size > 0);
+    }
+
+    #[derive(Clone)]
+    struct DiscreteTestEnv {
+        obs: BoxSpace,
+        act: DiscreteSpace,
+    }
+
+    impl Environment for DiscreteTestEnv {
+        type ObsSpace = BoxSpace;
+        type ActSpace = DiscreteSpace;
+        fn observation_space(&self) -> &BoxSpace {
+            &self.obs
+        }
+        fn action_space(&self) -> &DiscreteSpace {
+            &self.act
+        }
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+        }
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let cd = device.to_candle()?;
+            Ok(StepResult {
+                observation: Tensor::zeros(self.obs.shape(), DType::F32, &cd)?,
+                reward: 1.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
+
+    // Smoke test: DQN update path (Double-DQN target + Huber) must run
+    // end-to-end with the persistent optimizer introduced for Adam state.
+    #[test]
+    fn test_dqn_training_runs_with_persistent_optimizer() {
+        let device = Device::Cpu;
+        let env = DiscreteTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![4]),
+            act: DiscreteSpace::new(3),
+        };
+        let mut config = DQNConfig::default();
+        config.batch_size = 8;
+        config.buffer_size = 256;
+        config.learning_starts = 8;
+        let mut agent = DQNAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+        agent.train(40, |_| {}).unwrap();
     }
 }

@@ -586,9 +586,13 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
             .unsqueeze(1)?
             .unsqueeze(2)?
             .broadcast_as((batch_size, num_quantiles_target, 1))?
-            .to_dtype(DType::I64)?;
+            .to_dtype(DType::I64)?
+            .contiguous()?;
 
+        // candle's gather requires contiguous source and index tensors; the
+        // broadcast_as above produces a strided (non-contiguous) view.
         let target_values_selected = target_quantile_values
+            .contiguous()?
             .gather(&best_actions_expanded, 2)?
             .squeeze(2)?;
 
@@ -617,13 +621,14 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
 
         // Gather values for taken actions: [batch, num_quantiles]
         let actions_i64 = batch.actions.squeeze(1)?.to_dtype(DType::I64)?;
-        let actions_expanded =
-            actions_i64
-                .unsqueeze(1)?
-                .unsqueeze(2)?
-                .broadcast_as((batch_size, num_quantiles, 1))?;
+        let actions_expanded = actions_i64
+            .unsqueeze(1)?
+            .unsqueeze(2)?
+            .broadcast_as((batch_size, num_quantiles, 1))?
+            .contiguous()?;
 
         let current_values_selected = current_quantile_values
+            .contiguous()?
             .gather(&actions_expanded, 2)?
             .squeeze(2)?;
 
@@ -919,6 +924,54 @@ impl<E: Environment + Clone + 'static> RLAlgorithm for IQNAgent<E> {
 mod tests {
     use super::*;
     use crate::algorithms::config::IQNConfig;
+    use crate::envs::{BoxSpace, DiscreteSpace, StepResult};
+
+    #[derive(Clone)]
+    struct DiscreteTestEnv {
+        obs: BoxSpace,
+        act: DiscreteSpace,
+    }
+
+    impl Environment for DiscreteTestEnv {
+        type ObsSpace = BoxSpace;
+        type ActSpace = DiscreteSpace;
+        fn observation_space(&self) -> &BoxSpace {
+            &self.obs
+        }
+        fn action_space(&self) -> &DiscreteSpace {
+            &self.act
+        }
+        fn reset(&mut self, device: &Device) -> Result<Tensor> {
+            Ok(Tensor::zeros(self.obs.shape(), DType::F32, &device.to_candle()?)?)
+        }
+        fn step(&mut self, _action: &Tensor, device: &Device) -> Result<StepResult> {
+            let cd = device.to_candle()?;
+            Ok(StepResult {
+                observation: Tensor::zeros(self.obs.shape(), DType::F32, &cd)?,
+                reward: 1.0,
+                terminated: false,
+                truncated: false,
+                info: None,
+            })
+        }
+    }
+
+    // Smoke test: IQN update path (quantile-Huber loss) must run end-to-end
+    // with the persistent optimizer introduced for Adam state.
+    #[test]
+    fn test_iqn_training_runs_with_persistent_optimizer() {
+        let device = Device::Cpu;
+        let env = DiscreteTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![4]),
+            act: DiscreteSpace::new(3),
+        };
+        let mut config = IQNConfig::default();
+        config.batch_size = 8;
+        config.buffer_size = 256;
+        config.learning_starts = 8;
+        let mut agent = IQNAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+        agent.train(40, |_| {}).unwrap();
+    }
 
     #[test]
     fn test_iqn_config_defaults() {

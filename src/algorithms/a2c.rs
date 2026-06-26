@@ -762,4 +762,18 @@ mod tests {
             "continuous A2C must register a trainable policy.log_std variable"
         );
     }
+
+    // Smoke test: A2C update path must run end-to-end with the persistent
+    // optimizer, gradient clipping, and trainable log_std now in place.
+    #[test]
+    fn test_a2c_continuous_training_runs() {
+        let device = Device::Cpu;
+        let env = ContinuousTestEnv {
+            obs: BoxSpace::symmetric(1.0, vec![4]),
+            act: BoxSpace::symmetric(1.0, vec![2]),
+        };
+        let config = A2CConfig::default(); // n_steps = 5
+        let mut agent = A2CAgent::new(config, VecEnv::new(vec![env], 1), device).unwrap();
+        agent.train(40, |_| {}).unwrap();
+    }
 }
