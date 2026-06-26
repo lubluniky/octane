@@ -3,7 +3,8 @@
 //! Run with: cargo bench --bench env_benchmark
 
 use candle_core::Tensor;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 use octane_rs::core::Device;
 use octane_rs::envs::{Environment, MarketData, TradingEnv};
 

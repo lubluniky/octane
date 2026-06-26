@@ -3,7 +3,8 @@
 //! Run with: cargo bench --bench gpu_benchmark --features metal
 
 use candle_core::{DType, Tensor};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::hint::black_box;
 
 fn get_devices() -> Vec<(&'static str, candle_core::Device)> {
     let devices = vec![("CPU", candle_core::Device::Cpu)];
