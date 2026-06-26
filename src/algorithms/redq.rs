@@ -712,16 +712,19 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
         // ========== Update Policy ==========
         let (new_actions, new_log_probs) = self.sample_action(&batch.observations, false)?;
 
-        // Use all Q-networks for policy update, take mean
+        // Use all Q-networks for the policy update, taking the MEAN across the
+        // ensemble (REDQ uses the in-target min only for the critic target; the
+        // actor is trained against the ensemble mean to avoid over-pessimism).
         let q_values = self.ensemble_q_values(&batch.observations, &new_actions)?;
-        let mut min_q = q_values[0].clone();
+        let mut mean_q = q_values[0].clone();
         for q in &q_values[1..] {
-            min_q = min_q.minimum(q)?;
+            mean_q = (mean_q + q)?;
         }
+        let mean_q = (mean_q / q_values.len() as f64)?;
 
         // Policy loss: maximize Q - alpha * log_pi
         let entropy_term = (&new_log_probs * self.alpha as f64)?;
-        let policy_loss = (&entropy_term - &min_q)?.mean_all()?;
+        let policy_loss = (&entropy_term - &mean_q)?.mean_all()?;
 
         let mut policy_optimizer = AdamW::new(self.policy_var_map.all_vars(), params.clone())?;
         policy_optimizer.backward_step(&policy_loss)?;
@@ -731,14 +734,16 @@ impl<E: Environment + Clone + 'static> REDQAgent<E> {
             let candle_device = self.device.to_candle()?;
             let log_pi_detached = new_log_probs.detach();
 
-            // Alpha loss: alpha * (-log_pi - target_entropy)
+            // Alpha loss gradient: log_alpha -= lr * (mean(-log_pi) - target_entropy) * alpha.
+            // When entropy is below target (diff < 0), alpha increases.
             let neg_log_pi = log_pi_detached.neg()?;
             let diff = neg_log_pi.mean_all()?.to_scalar::<f32>()? - self.target_entropy;
 
-            // Manual gradient step for alpha
-            let alpha_grad = -diff * self.alpha;
+            // Manual gradient step for alpha.
+            let alpha_grad = diff * self.alpha;
             let new_log_alpha =
-                self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad;
+                (self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad)
+                    .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
 

@@ -348,7 +348,10 @@ impl MetricsCalculator {
 
     /// Calculate return standard deviation.
     fn return_std(&self) -> f64 {
-        self.return_variance().sqrt()
+        // One-pass variance (E[x^2] - E[x]^2) can dip slightly below zero from
+        // float cancellation; clamp before sqrt so a single NaN cannot poison
+        // Sharpe / Sortino / volatility / VaR downstream.
+        self.return_variance().max(0.0).sqrt()
     }
 
     /// Calculate downside deviation (for Sortino ratio).

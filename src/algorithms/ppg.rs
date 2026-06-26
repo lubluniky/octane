@@ -735,7 +735,11 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
         let n_batches = n_samples.div_ceil(self.config.batch_size);
 
         // Policy phase: train policy for policy_epochs
+        let mut continue_training = true;
         for _epoch in 0..self.config.policy_epochs {
+            if !continue_training {
+                break;
+            }
             let mut indices: Vec<usize> = (0..n_samples).collect();
             indices.shuffle(&mut self.rng);
 
@@ -804,13 +808,16 @@ impl<E: Environment + Clone + 'static> PPGAgent<E> {
 
                 n_updates += 1;
 
-                // Early stopping based on KL divergence
+                // Early stopping based on KL divergence. Flag the outer epoch
+                // loop to stop as well; a bare `break` only ends the current
+                // epoch's minibatches and lets later epochs resume updating.
                 if let Some(target_kl) = self.config.target_kl {
                     if approx_kl > target_kl {
                         debug!(
                             "Early stopping policy phase at epoch {} due to KL={}",
                             _epoch, approx_kl
                         );
+                        continue_training = false;
                         break;
                     }
                 }

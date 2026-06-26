@@ -452,7 +452,11 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
         // Generate batch indices
         let n_batches = n_samples.div_ceil(self.config.batch_size);
 
+        let mut continue_training = true;
         for _epoch in 0..self.config.n_epochs {
+            if !continue_training {
+                break;
+            }
             // Shuffle indices
             let mut indices: Vec<usize> = (0..n_samples).collect();
             indices.shuffle(&mut self.rng);
@@ -533,10 +537,14 @@ impl<E: Environment + Clone + 'static> PPOAgent<E> {
 
                 n_updates += 1;
 
-                // Early stopping based on KL divergence
+                // Early stopping based on KL divergence. Set a flag so the
+                // OUTER epoch loop also halts: a bare `break` here would only
+                // abort the current epoch's minibatches and then resume full
+                // updates on the next epoch, making target_kl ineffective.
                 if let Some(target_kl) = self.config.target_kl {
                     if approx_kl > target_kl {
                         debug!("Early stopping at epoch {} due to KL={}", _epoch, approx_kl);
+                        continue_training = false;
                         break;
                     }
                 }

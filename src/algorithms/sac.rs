@@ -457,14 +457,20 @@ impl<E: Environment + Clone + 'static> SACAgent<E> {
             let candle_device = self.device.to_candle()?;
             let log_pi_detached = new_log_probs.detach();
 
-            // Compute alpha loss: alpha * (-log_pi - target_entropy)
+            // Compute alpha loss gradient. The temperature objective is
+            //   J(alpha) = alpha * (-log_pi - target_entropy)
+            // and gradient descent on log_alpha gives
+            //   log_alpha -= lr * (mean(-log_pi) - target_entropy) * alpha
+            // so that when policy entropy (mean(-log_pi)) is BELOW target
+            // (diff < 0) alpha INCREASES to encourage exploration.
             let neg_log_pi = log_pi_detached.neg()?;
             let diff = neg_log_pi.mean_all()?.to_scalar::<f32>()? - self.target_entropy;
 
-            // Simple gradient step for alpha (manual update since log_alpha is not in VarMap)
-            let alpha_grad = -diff * self.alpha;
+            // Manual gradient step for alpha (log_alpha is not in a VarMap).
+            let alpha_grad = diff * self.alpha;
             let new_log_alpha =
-                self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad;
+                (self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad)
+                    .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
 

@@ -197,23 +197,14 @@ impl Distribution for Categorical {
             });
         }
 
-        // Gather log_probs at action indices
-        // log_probs shape: [batch_size, num_actions]
-        // actions shape: [batch_size]
-        // We need to extract log_probs[b, actions[b]] for each b
-
-        // Convert actions to indices for gathering
-        let actions_u32: Vec<u32> = actions.to_vec1()?;
-        let log_probs_flat: Vec<f32> = self.log_probs.flatten_all()?.to_vec1()?;
-        let num_actions = self.num_actions();
-
-        let mut selected_log_probs = Vec::with_capacity(batch_size);
-        for (b, &action) in actions_u32.iter().enumerate() {
-            let idx = b * num_actions + (action as usize);
-            selected_log_probs.push(log_probs_flat[idx]);
-        }
-
-        let result = Tensor::from_slice(&selected_log_probs, &[batch_size], device)?;
+        // Gather log_probs at action indices on-device so autograd is
+        // preserved. The previous implementation round-tripped through the
+        // host (to_vec1 + Tensor::from_slice), detaching the graph and
+        // zeroing the gradient for any caller that backprops through log_prob.
+        // log_probs: [batch_size, num_actions], actions: [batch_size]
+        let _ = device;
+        let idx = actions.to_dtype(candle_core::DType::U32)?.unsqueeze(1)?;
+        let result = self.log_probs.gather(&idx, 1)?.squeeze(1)?;
         Ok(result)
     }
 
@@ -341,6 +332,36 @@ mod tests {
 
         assert!(gumbel_val < 3);
         assert!(cdf_val < 3);
+
+        Ok(())
+    }
+
+    // Regression: log_prob must preserve the autograd graph back to the logits.
+    // The previous host round-trip (to_vec1 + from_slice) detached the graph,
+    // so any policy gradient through Categorical::log_prob silently vanished.
+    #[test]
+    fn test_log_prob_preserves_gradient() -> Result<()> {
+        use candle_core::Var;
+        let device = candle_core::Device::Cpu;
+        let logits_var =
+            Var::from_tensor(&Tensor::from_slice(&[0.5f32, 1.0, -0.3, 2.0], &[2, 2], &device)?)?;
+        let dist = Categorical::new(logits_var.as_tensor().clone())?;
+
+        let actions = Tensor::from_slice(&[0u32, 1u32], &[2], &device)?;
+        let log_probs = dist.log_prob(&actions)?;
+        assert_eq!(log_probs.dims(), &[2]);
+
+        // Backprop a simple objective and require a non-zero gradient w.r.t logits.
+        let loss = log_probs.sum_all()?;
+        let grads = loss.backward()?;
+        let grad = grads
+            .get(&logits_var)
+            .expect("logits must receive a gradient through log_prob");
+        let grad_abs_sum: f32 = grad.abs()?.sum_all()?.to_scalar()?;
+        assert!(
+            grad_abs_sum > 1e-6,
+            "gradient through Categorical::log_prob vanished: {grad_abs_sum}"
+        );
 
         Ok(())
     }

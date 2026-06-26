@@ -659,9 +659,12 @@ impl CQLAgent {
             let log_pi_detached = new_log_probs.detach();
             let neg_log_pi = log_pi_detached.neg()?;
             let diff = neg_log_pi.mean_all()?.to_scalar::<f32>()? - self.target_entropy;
-            let alpha_grad = -diff * self.alpha;
-            let new_log_alpha =
-                self.log_alpha.to_scalar::<f32>()? - self.config.learning_rate * alpha_grad;
+            // log_alpha -= lr * (mean(-log_pi) - target_entropy) * alpha, so that
+            // alpha rises when entropy is below target (diff < 0).
+            let alpha_grad = diff * self.alpha;
+            let new_log_alpha = (self.log_alpha.to_scalar::<f32>()?
+                - self.config.learning_rate * alpha_grad)
+                .clamp(-10.0, 10.0);
             self.log_alpha = Tensor::new(&[new_log_alpha], &candle_device)?;
             self.alpha = new_log_alpha.exp();
         }

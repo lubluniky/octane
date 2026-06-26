@@ -308,10 +308,13 @@ impl<E: Environment + Clone + 'static> DQNAgent<E> {
         // Compute loss (Huber loss for stability)
         let td_error = (&current_q - &td_target)?;
         let loss = if self.config.use_huber_loss {
-            // Huber loss: smooth L1
+            // Huber loss (smooth L1, delta = 1). The linear branch is built as
+            // max(|u| - 1, 0) directly; the previous `|u| - sqrt(quadratic)`
+            // form routed the gradient through sqrt(u^2), which is NaN/inf at
+            // u = 0 and poisons the backward pass.
             let abs_error = td_error.abs()?;
             let quadratic = abs_error.clamp(0.0, 1.0)?.sqr()?;
-            let linear = (abs_error - &quadratic.sqrt()?)?;
+            let linear = (&abs_error - 1.0)?.clamp(0.0, f64::MAX)?;
             ((quadratic * 0.5)? + &linear)?.mean_all()?
         } else {
             // MSE loss

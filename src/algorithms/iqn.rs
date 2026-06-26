@@ -617,9 +617,14 @@ impl<E: Environment + Clone + 'static> IQNAgent<E> {
         // ========== Compute Quantile Huber Loss ==========
         // TD errors: [batch, num_quantiles, num_quantiles_target]
         // Each online quantile compared against each target quantile
+        // TD error must be (target - current) so that the pinball weight
+        // |tau - I(delta < 0)| pushes high-tau quantiles UP and low-tau
+        // quantiles DOWN. Using (current - target) mirrors the learned
+        // quantiles (tau <-> 1 - tau), turning risk-averse selection into
+        // risk-seeking. Priorities use |td_errors| so they are unaffected.
         let current_expanded = current_values_selected.unsqueeze(2)?;
         let target_expanded = td_targets.unsqueeze(1)?;
-        let td_errors = current_expanded.broadcast_sub(&target_expanded)?;
+        let td_errors = target_expanded.broadcast_sub(&current_expanded)?;
 
         // Expand taus for loss computation: [batch, num_quantiles, 1]
         let taus_expanded = current_taus.unsqueeze(2)?;
