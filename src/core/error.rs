@@ -56,8 +56,16 @@ impl From<serde_json::Error> for OctaneError {
     }
 }
 
-impl From<bincode::Error> for OctaneError {
-    fn from(err: bincode::Error) -> Self {
+// bincode 2/3 split the single `bincode::Error` into separate encode/decode
+// error types, so convert each into our serialization variant.
+impl From<bincode::error::EncodeError> for OctaneError {
+    fn from(err: bincode::error::EncodeError) -> Self {
+        OctaneError::Serialization(err.to_string())
+    }
+}
+
+impl From<bincode::error::DecodeError> for OctaneError {
+    fn from(err: bincode::error::DecodeError) -> Self {
         OctaneError::Serialization(err.to_string())
     }
 }
